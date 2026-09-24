@@ -21,7 +21,7 @@ export function useGameSearch() {
 			setIsSearching(true);
 			setError(null);
 			//
-			const url = `/api/games-api/igdb?title=${title}&limit=${limit}`;
+			const url = `/api/games-api/igdb?title=${encodeURIComponent(title)}&limit=${limit}`;
 			const response = await authFetch(url);
 			// if duplicate
 			if (response.status === 409) {

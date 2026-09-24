@@ -61,7 +61,7 @@ export function useBookSearch() {
 			setIsSearching(true);
 			setError(null);
 			//
-			const url = `/api/books-api/hardcover-multi?title=${title}`;
+			const url = `/api/books-api/hardcover-multi?title=${encodeURIComponent(title)}`;
 			const response = await authFetch(url);
 			if (!response.ok) {
 				throw new Error(`HTTP error--status: ${response.status}`);

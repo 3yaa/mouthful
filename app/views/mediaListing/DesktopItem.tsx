@@ -14,7 +14,10 @@ import {
 import { BackdropDesktop } from "../../components/ui/BackdropDesktop";
 import { BookBackdropDesktop } from "../../components/ui/BookBackdrop";
 import { ScoreMark } from "../../components/ui/ScoreMark";
-import { ShowProgressBarDesktop } from "@/app/shows/components/showProgressListing";
+import {
+	ShowProgressBarDesktop,
+	ShowProgressCount,
+} from "@/app/shows/components/showProgressListing";
 import { slotPoster } from "@/app/shows/utils/slotRef";
 import { ShowProps } from "@/types/show";
 import { BookProps } from "@/types/book";
@@ -206,6 +209,12 @@ export const DesktopItem = React.memo(function DesktopItem<
 									{formatDateShort(item.dateCompleted)}
 								</span>
 							</span>
+						)}
+						{/* WHERE YOU ARE */}
+						{mediaType === "show" && (
+							<ShowProgressCount
+								show={item as unknown as ShowProps}
+							/>
 						)}
 						{/* RATING */}
 						{((mediaType === "movie" &&
