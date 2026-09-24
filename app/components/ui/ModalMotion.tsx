@@ -2,41 +2,38 @@
 
 import { motion, HTMLMotionProps, Variants } from "framer-motion";
 
+// how long backdrop takes to leave
+export const MODAL_EXIT_MS = 180;
+
 const backdropVariants: Variants = {
 	hidden: { opacity: 0 },
-	// slightly ahead of the panel so the dim lands first and the panel glides
-	// in against an already-settled background
+	// slightly ahead of the panel
 	visible: { opacity: 1, transition: { duration: 0.32, ease: "easeOut" } },
-	exit: { opacity: 0, transition: { duration: 0.18, ease: "easeIn" } },
+	exit: {
+		opacity: 0,
+		transition: { duration: MODAL_EXIT_MS / 1000, ease: "easeIn" },
+	},
 };
 
-// no scale, and a tween rather than a spring -- scaling a panel re-rasterises
-// all its text and borders, so the whole thing visibly resettles when the
-// transform lands on 1, and a spring's long tail delays that snap
+// no scale, and a tween rather than a spring
 const panelVariants: Variants = {
 	hidden: { opacity: 0, y: 20 },
 	visible: {
 		opacity: 1,
 		y: 0,
 		transition: {
-			// expo-out glides in and settles flat, so there is no long tail
-			// creeping toward the target the way a spring has
 			y: { duration: 0.52, ease: [0.16, 1, 0.3, 1] },
-			// fades well ahead of the movement -- the panel is solid while it
-			// is still easing the last few pixels, which reads as float
 			opacity: { duration: 0.28, ease: "easeOut" },
 		},
 	},
-	// nothing of its own on exit. the backdrop fades its whole subtree, so a
-	// panel opacity here compounded with it -- the panel left on backdrop x
-	// panel while siblings anchored beside it (the portrait island) left on
-	// backdrop alone. same duration, different curve, permanently out of step
+	// nothing of its own on exit
 	exit: {},
 };
 
 export function ModalBackdrop(props: HTMLMotionProps<"div">) {
 	return (
 		<motion.div
+			data-modal
 			variants={backdropVariants}
 			initial="hidden"
 			animate="visible"

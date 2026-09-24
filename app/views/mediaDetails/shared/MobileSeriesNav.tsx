@@ -1,13 +1,18 @@
 // FOR GAME/MOVIE/BOOK
-import { BaseMediaProps, SeriesMediaProps } from "@/types/media";
+import {
+	BaseMediaProps,
+	SeriesMediaProps,
+	SeriesTargetProps,
+} from "@/types/media";
 import { GameProps } from "@/types/game";
+import { seriesNeighbours, seriesPlace } from "@/utils/seriesRead";
 import { NotInListBadge } from "./SeriesNav";
 
 interface MobileSeriesNavProps {
 	item: BaseMediaProps;
 	mediaType: string;
 	onAction: (action: { type: string; payload?: unknown }) => void;
-	isInList?: (title: string) => boolean;
+	isInList?: (target: SeriesTargetProps) => boolean;
 }
 
 export function MobileSeriesNav({
@@ -45,21 +50,24 @@ export function MobileSeriesNav({
 					};
 				})()
 			: (() => {
-					const s = item as unknown as SeriesMediaProps;
+					const row = item as unknown as SeriesMediaProps;
+					const { prev, next } = seriesNeighbours(row);
 					return {
-						prev: s.prequel
+						prev: prev
 							? {
-									name: s.prequel,
+									name: prev.title,
+									target: prev,
 									action: {
 										type: "seriesNav",
 										payload: "prequel",
 									},
 								}
 							: null,
-						center: s.placeInSeries ?? null,
-						next: s.sequel
+						center: seriesPlace(row),
+						next: next
 							? {
-									name: s.sequel,
+									name: next.title,
+									target: next,
 									action: {
 										type: "seriesNav",
 										payload: "sequel",
@@ -70,12 +78,8 @@ export function MobileSeriesNav({
 				})();
 
 	const isMissing = (
-		entry: { name?: string | null; action: { type: string } } | null,
-	) =>
-		!!entry?.name &&
-		!!isInList &&
-		entry.action.type === "seriesNav" &&
-		!isInList(entry.name);
+		entry: { name?: string | null; target?: SeriesTargetProps } | null,
+	) => !!entry?.target && !!isInList && !isInList(entry.target);
 	const prevMissing = isMissing(nav.prev);
 	const nextMissing = isMissing(nav.next);
 

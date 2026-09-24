@@ -1,3 +1,40 @@
+"use client";
+import Link from "next/link";
+import { motion } from "framer-motion";
+
+export function BadgeLink({
+	href,
+	title,
+	className,
+	onClick,
+}: {
+	href: string;
+	title: string;
+	className: string;
+	onClick?: () => void;
+}) {
+	return (
+		<Link
+			href={href}
+			title={title}
+			className={`origin-top ${className}`}
+			onClick={(e) => {
+				e.stopPropagation();
+				onClick?.();
+			}}
+		>
+			<motion.span
+				className="block opacity-60 hover:opacity-90 transition-opacity duration-300 origin-top will-change-transform"
+				whileHover={{ y: -2, scale: 1.04 }}
+				whileTap={{ y: 2, scale: 0.96 }}
+				transition={{ type: "spring", stiffness: 520, damping: 30 }}
+			>
+				<ShowsBadge />
+			</motion.span>
+		</Link>
+	);
+}
+
 export function ShowsBadge() {
 	return (
 		<svg

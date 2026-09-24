@@ -10,6 +10,7 @@ import { GameDetails } from "./GameDetailsHub";
 import { DesktopListing } from "@/app/views/mediaListing/DesktopListing";
 import { MobileListing } from "@/app/views/mediaListing/MobileListing";
 import { AddButton } from "../components/ui/AddButton";
+import { isSameName } from "@/utils/mediaMatch";
 import { AnimatePresence } from "framer-motion";
 import dynamic from "next/dynamic";
 // load score dynamically
@@ -35,6 +36,7 @@ export default function GameList() {
 		statusFilter,
 		searchQuery,
 		selectedItem,
+		openItemId,
 		activeModal,
 		setActiveModal,
 		isMenuButtonsVisible,
@@ -146,6 +148,7 @@ export default function GameList() {
 					differentColumns={DIFF_COLUMNS_GAME}
 					searchQuery={searchQuery}
 					emptyListText="No games yet — add one!"
+					openItemId={openItemId}
 					onItemClicked={handleItemClicked}
 					onSortConfig={handleSortConfig}
 					onSearchChange={handleSearchQueryChange}
@@ -187,6 +190,17 @@ export default function GameList() {
 						onAddGame={handleItemAdd}
 						titleFromAbove={titleToAdd}
 						onDlcNav={showDlc}
+						onDuplicate={(dup) => {
+							const owned =
+								(dup.igdbId
+									? items.find((g) => g.igdbId === dup.igdbId)
+									: undefined) ??
+								items.find((g) => isSameName(g, dup.title));
+							if (!owned) return false;
+							setTitleToAdd(null);
+							handleItemClicked(owned);
+							return true;
+						}}
 					/>
 				)}
 			</AnimatePresence>

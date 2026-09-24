@@ -16,20 +16,22 @@ export interface ColumnConfig<T> {
 	getValue: (item: T) => string | number | null | undefined;
 }
 
-export interface SeriesMediaProps {
-	seriesTitle: string | null;
-	placeInSeries: string | null;
-	prequel: string | null;
-	sequel: string | null;
-	total?: number | null;
+export interface SeriesProps {
+	title: string | null;
+	// the source's own label for the place - not an index
+	position: string | null;
+	total: number | null;
+	prequel: SeriesTargetProps | null;
+	sequel: SeriesTargetProps | null;
 }
 
-export interface SeriesAPIProps {
-	series_title: string | null;
-	position: string | null;
-	prequel: string | null;
-	sequel: string | null;
-	total?: number | null;
+export interface SeriesMediaProps {
+	series?: SeriesProps | null;
+}
+
+export interface SeriesTargetProps {
+	id?: string | null;
+	title: string;
 }
 
 // jsonb { url, color } -- books, movies and games

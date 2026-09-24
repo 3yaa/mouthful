@@ -1,21 +1,18 @@
 "use client";
-import {
-	BookProps,
-	BookSearchResult,
-	DIFF_COLUMNS_BOOK,
-} from "@/types/book";
-import { MediaCoverProps, SeriesAPIProps } from "@/types/media";
-import { useCallback, useEffect, useState } from "react";
+import { BookProps, BookSearchResult, DIFF_COLUMNS_BOOK } from "@/types/book";
+import { MediaCoverProps, SeriesProps, SeriesTargetProps } from "@/types/media";
+import { seriesNeighbours } from "@/utils/seriesRead";
+import { useEffect, useState } from "react";
 import { DesktopDetails } from "@/app/views/mediaDetails/DesktopDetails";
 import { bookStatusOptions } from "@/utils/dropDownDetails";
 import { MobileDetails } from "@/app/views/mediaDetails/MobileDetails";
 import { TIER_PHI_THRESHOLD, getSeedMu, Tier } from "@/lib/tierConfig";
 import { useScoreNudge } from "@/hooks/useScoreNudge";
+import { useAddWait } from "@/hooks/useAddWait";
+import { useEscapeClose } from "@/hooks/useEscapeClose";
+import { PickList, useReloadPreview } from "@/hooks/useReloadPreview";
 import { useBookSearch } from "@/hooks/external/useBookSearch";
-import {
-	mapBookAPIDatatoBook,
-	mapBookAPISeriesData,
-} from "./utils/bookMapping";
+import { mapBookAPIDatatoBook, pickBookSeries } from "./utils/bookMapping";
 import { ShowMultBooks } from "./components/ShowMultBooks";
 import { AnimatePresence } from "framer-motion";
 
@@ -49,9 +46,9 @@ interface BookDetailsProps {
 		updates?: Partial<BookProps>,
 		takeAction?: boolean,
 	) => void;
-	addBook?: () => void;
-	showSequelPrequel?: (sequelTitle: string) => void;
-	isInList?: (title: string) => boolean;
+	addBook?: () => void | Promise<unknown>;
+	showSequelPrequel?: (target: SeriesTargetProps) => void;
+	isInList?: (target: SeriesTargetProps) => boolean;
 	showBookInSeries?: (seriesDir: "left" | "right") => void;
 	onShowMore?: () => void;
 	onRefresh?: (metadata: Partial<BookProps>) => Promise<void>;
@@ -61,6 +58,15 @@ interface BookDetailsProps {
 	updateCoverIndex?: (newIndex: number) => void;
 	updateCoverColor?: (color: string) => void;
 }
+
+// choices a book reload offers
+type BookPicks = {
+	covers: PickList<MediaCoverProps>;
+	series: PickList<SeriesProps>;
+};
+
+// identity for the render path to read while nothing is staged
+const NO_RESULTS: BookSearchResult[] = [];
 
 export function BookDetails({
 	onClose,
@@ -79,25 +85,54 @@ export function BookDetails({
 	updateCoverColor,
 }: BookDetailsProps) {
 	const [localNote, setLocalNote] = useState(book.note || "");
-	const [isRefreshing, setIsRefreshing] = useState(false);
-	const { searchForBooksMulti, searchForBookByKey, isBookSearching } =
+	const { searchForBooksMulti, loadBookByKey, isBookSearching } =
 		useBookSearch();
-	// refresh preview state -- picks a cover before saving
-	const [isSelecting, setIsSelecting] = useState(false);
-	const [refreshCovers, setRefreshCovers] = useState<MediaCoverProps[]>([]);
-	const [refreshCoverIndex, setRefreshCoverIndex] = useState(0);
-	const [refreshMeta, setRefreshMeta] = useState<Partial<BookProps>>({});
-	//
 	const [multResultsOpen, setMultResultsOpen] = useState(false);
-	const [refreshResults, setRefreshResults] = useState<BookSearchResult[]>(
-		[],
-	);
-	// cycle between the series a refreshed book belongs to
-	const [refreshSeries, setRefreshSeries] = useState<SeriesAPIProps[]>(
-		[],
-	);
-	const [refreshSeriesIndex, setRefreshSeriesIndex] = useState(0);
-
+	const reload = useReloadPreview<BookProps, BookPicks, BookSearchResult[]>({
+		onRefresh,
+		canLoad: !!book.key,
+		// reload via key
+		load: async () => {
+			if (!book.key) return null;
+			const response = await loadBookByKey(book.key);
+			if (!response) return null;
+			const mapped = mapBookAPIDatatoBook(response);
+			const meta: Partial<BookProps> = {
+				numPages: mapped.numPages,
+				rating: mapped.rating,
+				series: pickBookSeries(response.series),
+			};
+			const covers = response.covers ?? [];
+			// start on the cover closest to the one already saved
+			const startIdx = covers.findIndex((c) => c.url === book.cover?.url);
+			return {
+				meta,
+				lists: {
+					covers: {
+						items: covers,
+						index: startIdx >= 0 ? startIdx : 0,
+					},
+					series: { items: response.series ?? [], index: 0 },
+				},
+				extra: [],
+			};
+		},
+		// apply the previewed cover + metadata
+		toMeta: ({ meta, lists }) => {
+			const next: Partial<BookProps> = { ...meta };
+			if (lists.covers.items.length)
+				next.cover = lists.covers.items[lists.covers.index];
+			return next;
+		},
+		// the results panel belongs to the flow, so it closes with it
+		onExit: () => setMultResultsOpen(false),
+	});
+	const { isRefreshing, isSelecting } = reload;
+	const art = isSelecting
+		? { covers: reload.list("covers") }
+		: { covers: { items: coverUrls, index: coverIndex } };
+	const stagedSeries = reload.list("series");
+	const refreshResults = reload.preview?.extra ?? NO_RESULTS;
 	// manual +/- 0.1 score tweaks -- phi tightens once, on close
 	const { nudge: nudgeScore, commit: commitScoreNudge } = useScoreNudge(
 		book,
@@ -142,27 +177,20 @@ export function BookDetails({
 				else handleCoverChange(action.payload);
 				break;
 			case "clearSeriesMeta":
-				if (book.seriesTitle) {
-					onUpdate(book.id, {
-						seriesTitle: null,
-						placeInSeries: null,
-						prequel: null,
-						sequel: null,
-					});
-				}
+				if (book.series) onUpdate(book.id, { series: null });
 				break;
 			// =========other actions=============
 			case "seriesNav":
 				handleSeriesOpen(action.payload);
 				break;
 			case "refresh":
-				handleRefresh();
+				reload.refresh();
 				break;
 			case "confirmRefresh":
-				handleConfirmRefresh();
+				reload.confirm();
 				break;
 			case "cancelRefresh":
-				handleCancelRefresh();
+				reload.cancel();
 				break;
 			case "pickCoverColor":
 				handlePickCoverColor(action.payload);
@@ -178,136 +206,83 @@ export function BookDetails({
 		setMultResultsOpen(true);
 		const q = [book.title, book.author].filter(Boolean).join(" ");
 		const results = await searchForBooksMulti(q);
-		setRefreshResults(results || []);
+		reload.patch((p) => ({ ...p, extra: results || [] }));
 	};
 
 	const handlePickAnotherResult = async (candidate: BookSearchResult) => {
 		setMultResultsOpen(false);
-		setIsRefreshing(true);
-		try {
-			const full = await searchForBookByKey(candidate.key);
+		await reload.runBusy(async () => {
+			const full = await loadBookByKey(candidate.key);
 			if (!full) return;
 			const mapped = mapBookAPIDatatoBook(full);
-			const seriesData = mapBookAPISeriesData(full.series);
-			setRefreshMeta({
-				key: full.key,
-				title: mapped.title,
-				author: mapped.author,
-				datePublished: mapped.datePublished,
-				numPages: mapped.numPages,
-				rating: mapped.rating,
-				seriesTitle: seriesData.seriesTitle,
-				placeInSeries: seriesData.placeInSeries,
-				prequel: seriesData.prequel,
-				sequel: seriesData.sequel,
-			});
-			setRefreshCovers(full.covers ?? []);
-			setRefreshCoverIndex(0);
-			setRefreshSeries(full.series ?? []);
-			setRefreshSeriesIndex(0);
-		} finally {
-			setIsRefreshing(false);
-		}
+			reload.patch((p) => ({
+				...p,
+				meta: {
+					key: full.key,
+					title: mapped.title,
+					author: mapped.author,
+					datePublished: mapped.datePublished,
+					numPages: mapped.numPages,
+					rating: mapped.rating,
+					series: pickBookSeries(full.series),
+				},
+				lists: {
+					covers: { items: full.covers ?? [], index: 0 },
+					series: { items: full.series ?? [], index: 0 },
+				},
+			}));
+		});
 	};
 
 	const handlePickCoverColor = (color: string) => {
 		if (isSelecting) {
-			setRefreshCovers((prev) =>
-				prev.map((c, i) =>
-					i === refreshCoverIndex ? { ...c, color } : c,
-				),
-			);
+			reload.patch((p) => ({
+				...p,
+				lists: {
+					...p.lists,
+					covers: {
+						...p.lists.covers,
+						items: p.lists.covers.items.map((c, i) =>
+							i === p.lists.covers.index ? { ...c, color } : c,
+						),
+					},
+				},
+			}));
 		} else {
 			updateCoverColor?.(color);
 		}
 	};
 
 	const handleRefreshSeriesChange = (dir: "left" | "right") => {
-		if (refreshSeries.length < 2) return;
+		const { items, index } = stagedSeries;
+		if (items.length < 2) return;
 		const newIndex =
 			dir === "left"
-				? refreshSeriesIndex === 0
-					? refreshSeries.length - 1
-					: refreshSeriesIndex - 1
-				: refreshSeriesIndex === refreshSeries.length - 1
+				? index === 0
+					? items.length - 1
+					: index - 1
+				: index === items.length - 1
 					? 0
-					: refreshSeriesIndex + 1;
-		setRefreshSeriesIndex(newIndex);
-		const sd = mapBookAPISeriesData(refreshSeries, newIndex);
-		setRefreshMeta((prev) => ({
-			...prev,
-			seriesTitle: sd.seriesTitle,
-			placeInSeries: sd.placeInSeries,
-			prequel: sd.prequel,
-			sequel: sd.sequel,
+					: index + 1;
+		reload.patch((p) => ({
+			...p,
+			lists: {
+				...p.lists,
+				series: { ...p.lists.series, index: newIndex },
+			},
+			meta: {
+				...p.meta,
+				series: pickBookSeries(stagedSeries.items, newIndex),
+			},
 		}));
 	};
 
 	const handleSelectCoverChange = (dir: "next" | "prev") => {
-		if (!refreshCovers.length) return;
-		setRefreshCoverIndex((i) =>
-			dir === "next"
-				? (i + 1) % refreshCovers.length
-				: i === 0
-					? refreshCovers.length - 1
-					: i - 1,
+		const total = art.covers.items?.length ?? 0;
+		if (!total) return;
+		reload.setListIndex("covers", (i) =>
+			dir === "next" ? (i + 1) % total : i === 0 ? total - 1 : i - 1,
 		);
-	};
-
-	// reload via key
-	const handleRefresh = async () => {
-		if (!onRefresh || !book.key || isRefreshing || isSelecting) return;
-		setIsRefreshing(true);
-		try {
-			const response = await searchForBookByKey(book.key);
-			if (!response) return;
-			const mapped = mapBookAPIDatatoBook(response);
-			const seriesData = mapBookAPISeriesData(response.series);
-			// `total` from seriesData is omitted -- not stored
-			const meta: Partial<BookProps> = {
-				numPages: mapped.numPages,
-				rating: mapped.rating,
-				seriesTitle: seriesData.seriesTitle,
-				placeInSeries: seriesData.placeInSeries,
-				prequel: seriesData.prequel,
-				sequel: seriesData.sequel,
-			};
-			const covers = response.covers ?? [];
-			// start on the cover closest to the one already saved
-			const startIdx = covers.findIndex((c) => c.url === book.cover?.url);
-			setRefreshMeta(meta);
-			setRefreshCovers(covers);
-			setRefreshCoverIndex(startIdx >= 0 ? startIdx : 0);
-			setRefreshSeries(response.series ?? []);
-			setRefreshSeriesIndex(0);
-			setIsSelecting(true);
-		} finally {
-			setIsRefreshing(false);
-		}
-	};
-
-	// apply the previewed cover + metadata
-	const handleConfirmRefresh = async () => {
-		if (!onRefresh) return;
-		const meta: Partial<BookProps> = { ...refreshMeta };
-		if (refreshCovers.length) meta.cover = refreshCovers[refreshCoverIndex];
-		exitSelecting();
-		await onRefresh(meta);
-	};
-
-	const handleCancelRefresh = () => {
-		exitSelecting();
-	};
-
-	const exitSelecting = () => {
-		setIsSelecting(false);
-		setRefreshCovers([]);
-		setRefreshCoverIndex(0);
-		setRefreshMeta({});
-		setMultResultsOpen(false);
-		setRefreshResults([]);
-		setRefreshSeries([]);
-		setRefreshSeriesIndex(0);
 	};
 
 	const handleStatusChange = (value: string) => {
@@ -340,10 +315,9 @@ export function BookDetails({
 
 	const handleSeriesOpen = (seriesDir: string) => {
 		if (!showSequelPrequel) return;
-		const targetTitle = seriesDir === "sequel" ? book.sequel : book.prequel;
-		if (targetTitle) {
-			showSequelPrequel(targetTitle);
-		}
+		const { prev, next } = seriesNeighbours(book);
+		const target = seriesDir === "sequel" ? next : prev;
+		if (target) showSequelPrequel(target);
 	};
 
 	const handleSaveNote = () => {
@@ -361,19 +335,16 @@ export function BookDetails({
 	const handleModalClose = () => {
 		// fold the deferred phi drop into the update this close flushes
 		commitScoreNudge();
-		// if (addBook) return;
 		onClose();
 	};
+	useEscapeClose(handleModalClose);
 
-	const handleAddBook = useCallback(() => {
-		if (!addBook) return;
-		addBook();
-	}, [addBook]);
+	const { isSubmitting, submit: handleAddBook } = useAddWait(addBook);
 
 	// need to reset local note
 	useEffect(() => {
 		setLocalNote(book.note || "");
-		exitSelecting();
+		reload.cancel();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [book.id]);
 
@@ -407,8 +378,8 @@ export function BookDetails({
 	const previewBook = isSelecting
 		? {
 				...book,
-				...refreshMeta,
-				cover: refreshCovers[refreshCoverIndex] ?? book.cover,
+				...reload.meta,
+				cover: art.covers.items?.[art.covers.index ?? 0] ?? book.cover,
 			}
 		: book;
 
@@ -423,10 +394,11 @@ export function BookDetails({
 					isLoading={displayLoading}
 					isAdding={!!addBook}
 					onAdd={handleAddBook}
+					isSubmitting={isSubmitting}
 					onClose={handleModalClose}
 					onSeriesNav={
 						isSelecting
-							? refreshSeries.length > 1
+							? stagedSeries.items.length > 1
 								? handleRefreshSeriesChange
 								: undefined
 							: showBookInSeries
@@ -441,8 +413,8 @@ export function BookDetails({
 						}) => void
 					}
 					differentColumns={DIFF_COLUMNS_BOOK}
-					coverUrls={isSelecting ? refreshCovers : coverUrls}
-					coverIndex={isSelecting ? refreshCoverIndex : coverIndex}
+					coverUrls={art.covers.items}
+					coverIndex={art.covers.index}
 				/>
 			</div>
 			<div className="block lg:hidden">
@@ -454,10 +426,11 @@ export function BookDetails({
 					isLoading={displayLoading}
 					isAdding={!!addBook}
 					onAdd={handleAddBook}
+					isSubmitting={isSubmitting}
 					onClose={handleModalClose}
 					onSeriesNav={
 						isSelecting
-							? refreshSeries.length > 1
+							? stagedSeries.items.length > 1
 								? handleRefreshSeriesChange
 								: undefined
 							: showBookInSeries
@@ -472,8 +445,8 @@ export function BookDetails({
 						}) => void
 					}
 					differentColumns={DIFF_COLUMNS_BOOK}
-					coverUrls={isSelecting ? refreshCovers : coverUrls}
-					coverIndex={isSelecting ? refreshCoverIndex : coverIndex}
+					coverUrls={art.covers.items}
+					coverIndex={art.covers.index}
 				/>
 			</div>
 			{/* PICK A DIFFERENT RESULT (refresh) */}

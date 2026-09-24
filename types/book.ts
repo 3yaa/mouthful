@@ -2,14 +2,9 @@ import {
 	BaseMediaProps,
 	ColumnConfig,
 	MediaCoverProps,
-	SeriesAPIProps,
 	SeriesMediaProps,
-	SortState,
+	SeriesProps,
 } from "./media";
-
-export type BookSortConfig = SortState<
-	"title" | "score" | "dateCompleted" | "author" | "datePublished"
->;
 
 export const DIFF_COLUMNS_BOOK: [
 	ColumnConfig<BookProps>,
@@ -42,7 +37,7 @@ export interface BookAPIProps {
 	num_pages: number | null;
 	rating: number | null;
 	covers: MediaCoverProps[];
-	series: SeriesAPIProps[];
+	series: SeriesProps[];
 }
 
 // lightweight candidate shape for the multi-result picker

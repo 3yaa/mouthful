@@ -2,163 +2,317 @@
 
 /* media title display face -- see app/layout.tsx for the loader */
 @theme {
-  --font-display: var(--font-cinzel), "Times New Roman", serif;
+	--font-display: var(--font-cinzel), "Times New Roman", serif;
+	/* watching status */
+	--color-rose-dusk: #c76f95;
+	--color-rose-dusk-lit: #dda0bd;
+	--color-rose-dusk-vivid: #d1668f;
+	--ease-arrive: cubic-bezier(0.16, 1, 0.3, 1);
+	--ease-leave: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@custom-variant live {
+	&:is([data-hover] :where(.group):hover *) {
+		@slot;
+	}
+	&:is(:where(.group)[data-open] *) {
+		@slot;
+	}
 }
 
 /* scale with window size */
 html {
-  font-size: clamp(16px, min(0.833vw, 1.48vh), 32px);
+	font-size: clamp(16px, min(0.833vw, 1.48vh), 32px);
 }
 
 /* Hide scrollbars on common scroll containers */
-html, body, 
-.overflow-auto, .overflow-x-auto, .overflow-y-auto,
-.overflow-scroll, .overflow-x-scroll, .overflow-y-scroll {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+html,
+body,
+.overflow-auto,
+.overflow-x-auto,
+.overflow-y-auto,
+.overflow-scroll,
+.overflow-x-scroll,
+.overflow-y-scroll {
+	-ms-overflow-style: none;
+	scrollbar-width: none;
 }
 
-html::-webkit-scrollbar, 
+html::-webkit-scrollbar,
 body::-webkit-scrollbar,
-.overflow-auto::-webkit-scrollbar, 
-.overflow-x-auto::-webkit-scrollbar, 
+.overflow-auto::-webkit-scrollbar,
+.overflow-x-auto::-webkit-scrollbar,
 .overflow-y-auto::-webkit-scrollbar,
-.overflow-scroll::-webkit-scrollbar, 
-.overflow-x-scroll::-webkit-scrollbar, 
+.overflow-scroll::-webkit-scrollbar,
+.overflow-x-scroll::-webkit-scrollbar,
 .overflow-y-scroll::-webkit-scrollbar {
-  display: none;
+	display: none;
 }
 
 /* input spinner */
 input[type="number"]::-webkit-outer-spin-button,
 input[type="number"]::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  appearance: none; 
-  margin: 0;
+	-webkit-appearance: none;
+	appearance: none;
+	margin: 0;
 }
 
 input[type="number"] {
-  -moz-appearance: textfield;
-  appearance: textfield; 
+	-moz-appearance: textfield;
+	appearance: textfield;
 }
 
 @keyframes wave {
-  0%, 100% {
-    transform: translateX(-50%);
-  }
-  50% {
-    transform: translateX(0%);
-  }
+	0%,
+	100% {
+		transform: translateX(-50%);
+	}
+	50% {
+		transform: translateX(0%);
+	}
 }
 
 @utility shadow-island {
-  box-shadow:
-    0 2px 6px rgba(0, 0, 0, 0.4),
-    0 8px 20px rgba(0, 0, 0, 0.35),
-    0 16px 40px rgba(0, 0, 0, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+	box-shadow:
+		0 2px 6px rgba(0, 0, 0, 0.4),
+		0 8px 20px rgba(0, 0, 0, 0.35),
+		0 16px 40px rgba(0, 0, 0, 0.2),
+		inset 0 1px 0 rgba(255, 255, 255, 0.07);
 }
 
 /* ─── neumorphic surfaces (details card, right column) ───────────── */
 
 /* fields at rest -- top opens up so the backdrop reads through */
 @utility neu-raised {
-  background: linear-gradient(
-    to bottom,
-    rgba(20, 20, 20, 0.38) 0%,
-    rgba(20, 20, 20, 0.72) 42%,
-    rgba(20, 20, 20, 0.82) 100%
-  );
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.5);
+	background: linear-gradient(
+		to bottom,
+		rgba(20, 20, 20, 0.38) 0%,
+		rgba(20, 20, 20, 0.72) 42%,
+		rgba(20, 20, 20, 0.82) 100%
+	);
+	box-shadow: 0 3px 10px rgba(0, 0, 0, 0.5);
 }
 
 /* same, shallower -- progress sits where the backdrop is near black */
 @utility neu-raised-firm {
-  background: linear-gradient(
-    to bottom,
-    rgba(20, 20, 20, 0.62) 0%,
-    rgba(20, 20, 20, 0.78) 42%,
-    rgba(20, 20, 20, 0.82) 100%
-  );
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.5);
+	background: linear-gradient(
+		to bottom,
+		rgba(20, 20, 20, 0.62) 0%,
+		rgba(20, 20, 20, 0.78) 42%,
+		rgba(20, 20, 20, 0.82) 100%
+	);
+	box-shadow: 0 3px 10px rgba(0, 0, 0, 0.5);
 }
 
 /* hover -- lifts, bottom lip catches light */
 @utility neu-raised-hi {
-  background: linear-gradient(
-    to bottom,
-    rgba(30, 30, 30, 0.45) 0%,
-    rgba(30, 30, 30, 0.8) 42%,
-    rgba(30, 30, 30, 0.88) 100%
-  );
-  box-shadow:
-    inset 0 -1px 0 rgba(255, 255, 255, 0.03),
-    0 5px 15px rgba(0, 0, 0, 0.58);
+	background: linear-gradient(
+		to bottom,
+		rgba(30, 30, 30, 0.45) 0%,
+		rgba(30, 30, 30, 0.8) 42%,
+		rgba(30, 30, 30, 0.88) 100%
+	);
+	box-shadow:
+		inset 0 -1px 0 rgba(255, 255, 255, 0.03),
+		0 5px 15px rgba(0, 0, 0, 0.58);
 }
 
 /* open menu -- solid, so the page doesn't read through the options */
 @utility neu-menu {
-  background: #1a1a1a;
-  box-shadow:
-    0 2px 6px rgba(0, 0, 0, 0.45),
-    0 10px 28px rgba(0, 0, 0, 0.6),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+	background: #1a1a1a;
+	box-shadow:
+		0 2px 6px rgba(0, 0, 0, 0.45),
+		0 10px 28px rgba(0, 0, 0, 0.6),
+		inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+@utility neu-pressed {
+	background: #1a1a1a;
+	box-shadow:
+		inset 0 1px 0 rgba(0, 0, 0, 0.45),
+		inset 0 2px 5px rgba(0, 0, 0, 0.45),
+		inset 0 -1px 0 rgba(255, 255, 255, 0.05);
 }
 
 /* small controls inside the fields -- carved by hairlines, not modelled */
 @utility neu-carved {
-  background: rgba(0, 0, 0, 0.16);
-  box-shadow:
-    inset 0 1px 0 rgba(0, 0, 0, 0.45),
-    inset 0 2px 4px rgba(0, 0, 0, 0.22),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.055),
-    0 1px 0 rgba(255, 255, 255, 0.035);
+	background: rgba(0, 0, 0, 0.16);
+	box-shadow:
+		inset 0 1px 0 rgba(0, 0, 0, 0.45),
+		inset 0 2px 4px rgba(0, 0, 0, 0.22),
+		inset 0 -1px 0 rgba(255, 255, 255, 0.055),
+		0 1px 0 rgba(255, 255, 255, 0.035);
+	transition: box-shadow 280ms ease-out;
+}
+
+[data-hover] .group:hover .score-well,
+.group[data-open] .score-well {
+	box-shadow:
+		inset 0 1px 0 rgba(0, 0, 0, 0.45),
+		inset 0 2px 4px rgba(0, 0, 0, 0.22),
+		inset 0 -1px 0 rgba(255, 255, 255, 0.055),
+		0 1px 0 rgba(255, 255, 255, 0.035),
+		0 0 0.35rem color-mix(in srgb, var(--tier-lit) 16%, transparent),
+		0 0 0.85rem color-mix(in srgb, var(--tier-lit) 7%, transparent);
 }
 
 /* hover */
 @utility neu-carved-hi {
-  background: rgba(255, 255, 255, 0.06);
-  box-shadow:
-    inset 0 1px 0 rgba(0, 0, 0, 0.35),
-    inset 0 2px 4px rgba(0, 0, 0, 0.16),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.075),
-    0 1px 0 rgba(255, 255, 255, 0.045);
+	background: rgba(255, 255, 255, 0.06);
+	box-shadow:
+		inset 0 1px 0 rgba(0, 0, 0, 0.35),
+		inset 0 2px 4px rgba(0, 0, 0, 0.16),
+		inset 0 -1px 0 rgba(255, 255, 255, 0.075),
+		0 1px 0 rgba(255, 255, 255, 0.045);
+}
+
+/* being typed into */
+@utility neu-carved-in {
+	background: rgba(0, 0, 0, 0.34);
+	box-shadow:
+		inset 0 2px 0 rgba(0, 0, 0, 0.6),
+		inset 0 4px 9px rgba(0, 0, 0, 0.42),
+		inset 0 -1px 0 rgba(255, 255, 255, 0.07),
+		0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 /* disabled -- flat and unlit, reads as switched off rather than dimmed */
 @utility neu-carved-off {
-  background: rgba(0, 0, 0, 0.07);
-  box-shadow: none;
+	background: rgba(0, 0, 0, 0.07);
+	box-shadow: none;
 }
 
-/* ─── handwritten title underline (drawn on hover) ───────────────── */
+.listing-art-window {
+	position: relative;
+	overflow: hidden;
+	mask-image: linear-gradient(
+		to right,
+		black 0%,
+		black 80%,
+		rgba(0, 0, 0, 0.42) 90%,
+		rgba(0, 0, 0, 0.1) 96%,
+		transparent 100%
+	);
+	-webkit-mask-image: linear-gradient(
+		to right,
+		black 0%,
+		black 80%,
+		rgba(0, 0, 0, 0.42) 90%,
+		rgba(0, 0, 0, 0.1) 96%,
+		transparent 100%
+	);
+}
+
+.score-mark {
+	container-type: inline-size;
+}
+
+.score-well {
+	position: absolute;
+	left: 9%;
+	right: 9%;
+	top: 50%;
+	height: 1.375rem;
+	transform: translateY(-50%);
+	pointer-events: none;
+	border-radius: 0.6875rem;
+	background: #101014;
+	box-shadow:
+		inset 0 1px 0 rgba(0, 0, 0, 0.45),
+		inset 0 2px 4px rgba(0, 0, 0, 0.22),
+		inset 0 -1px 0 rgba(255, 255, 255, 0.055),
+		0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+
+.score-label {
+	color: var(--tier-ink);
+	letter-spacing: 0.12em;
+	transition:
+		opacity 200ms ease-out 125ms,
+		transform 320ms cubic-bezier(0.22, 1, 0.36, 1) 110ms;
+}
+
+[data-hover] .group:hover .score-label,
+.group[data-open] .score-label {
+	opacity: 0;
+	transform: translateY(-0.3rem);
+	transition:
+		opacity 120ms ease-out,
+		transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.score-verdict {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	opacity: 0;
+	transform: translateY(0.4rem);
+	transition:
+		opacity 120ms ease-out,
+		transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+
+	color: var(--tier-lit);
+	font-size: clamp(0.7rem, calc(var(--verdict-cqw, 8) * 1cqw), 0.9375rem);
+	line-height: 1;
+	letter-spacing: 0.045em;
+	white-space: nowrap;
+}
+
+[data-hover] .group:hover .score-verdict,
+.group[data-open] .score-verdict {
+	opacity: 1;
+	transform: translateY(0);
+	transition:
+		opacity 210ms ease-out 125ms,
+		transform 340ms cubic-bezier(0.22, 1, 0.36, 1) 110ms;
+}
+
+.score-figure {
+	background-image: linear-gradient(
+		180deg,
+		#f2f2f4 0%,
+		#d2d2d8 48%,
+		var(--tier-ink) 108%
+	);
+	background-size: 100% 190%;
+	background-position: 50% 0%;
+	background-clip: text;
+	-webkit-background-clip: text;
+	color: transparent;
+}
+
 .title-line {
-  position: relative;
-  display: inline-block;
-  width: fit-content;
-  max-width: 100%;
+	position: relative;
+	display: inline-block;
+	width: fit-content;
+	max-width: 100%;
 }
 
 .title-line svg {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -0.375rem;
-  width: 100%;
-  height: 0.5rem;
-  overflow: visible;
-  pointer-events: none;
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: -0.375rem;
+	width: 100%;
+	height: 0.5rem;
+	overflow: visible;
+	pointer-events: none;
 }
 
 .title-line svg path {
-  stroke-width: 2.5;
-  stroke-linecap: round;
-  fill: none;
-  stroke-dasharray: 200;
-  stroke-dashoffset: 200;
-  transition: stroke-dashoffset 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+	stroke-width: 2.5;
+	stroke-linecap: round;
+	fill: none;
+	stroke-dasharray: 200;
+	stroke-dashoffset: 200;
+	transition: stroke-dashoffset 320ms var(--ease-leave);
 }
 
-.group:hover .title-line svg path {
-  stroke-dashoffset: 0;
+[data-hover] .group:hover .title-line svg path,
+.group[data-open] .title-line svg path {
+	stroke-dashoffset: 0;
+	transition: stroke-dashoffset 620ms var(--ease-arrive);
 }

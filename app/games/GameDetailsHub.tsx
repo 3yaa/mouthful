@@ -1,6 +1,6 @@
 "use client";
 import { DIFF_COLUMNS_GAME, GameProps } from "@/types/game";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { gameStatusOptions } from "@/utils/dropDownDetails";
 import { DesktopDetails } from "@/app/views/mediaDetails/DesktopDetails";
 import { MobileDetails } from "@/app/views/mediaDetails/MobileDetails";
@@ -11,7 +11,10 @@ import {
 	stepLogoIndex,
 } from "@/utils/artworkIndex";
 import { useScoreNudge } from "@/hooks/useScoreNudge";
+import { useAddWait } from "@/hooks/useAddWait";
+import { useEscapeClose } from "@/hooks/useEscapeClose";
 import { useGameSearch } from "@/hooks/external/useGameSearch";
+import { PickList, useReloadPreview } from "@/hooks/useReloadPreview";
 import { mapIGDBDataToGame, mapIGDBDlcsDataToGame } from "./utils/gameMapping";
 import { buildCover } from "@/utils/coverColor";
 
@@ -43,7 +46,7 @@ interface GameDetailsProps {
 		updates?: Partial<GameProps>,
 		takeAction?: boolean,
 	) => void;
-	addGame?: () => void;
+	addGame?: () => void | Promise<unknown>;
 	showDlc?: (igdbId: number, dlcIndex: number, source: GameProps) => void;
 	// reload metadata from source (poster/backdrop, studio, dlcs)
 	onRefresh?: (metadata: Partial<GameProps>) => Promise<void>;
@@ -55,6 +58,12 @@ interface GameDetailsProps {
 	logoIndex?: number;
 	updateLogoIndex?: (newIndex: number) => void;
 }
+
+// choices a game reload offers
+type GameArt = {
+	logos: PickList<string>;
+	backdrops: PickList<string>;
+};
 
 export function GameDetails({
 	onClose,
@@ -72,15 +81,75 @@ export function GameDetails({
 	updateLogoIndex,
 }: GameDetailsProps) {
 	const [localNote, setLocalNote] = useState(game.note || "");
-	const [isRefreshing, setIsRefreshing] = useState(false);
-	const { searchForGameById } = useGameSearch();
-	// refresh preview state -- user picks a backdrop before saving
-	const [isSelecting, setIsSelecting] = useState(false);
-	const [refreshBackdrops, setRefreshBackdrops] = useState<string[]>([]);
-	const [refreshLogos, setRefreshLogos] = useState<string[]>([]);
-	const [refreshLogoIndex, setRefreshLogoIndex] = useState(0);
-	const [refreshBackdropIndex, setRefreshBackdropIndex] = useState(0);
-	const [refreshMeta, setRefreshMeta] = useState<Partial<GameProps>>({});
+	const { reloadGame } = useGameSearch();
+	const reload = useReloadPreview<GameProps, GameArt>({
+		onRefresh,
+		canLoad: !!game.igdbId,
+		// reloaded by igdbId -- reloads dlcs and all dlc in list
+		load: async () => {
+			if (!game.igdbId) return null;
+			const data = await reloadGame(game.igdbId, game.title);
+			if (!data) return null;
+			const meta: Partial<GameProps> = {};
+			if (game.dlcIndex === 0) {
+				const mapped = mapIGDBDataToGame(data);
+				meta.cover = await buildCover(mapped.cover?.url);
+				meta.dlcs = mapped.dlcs;
+			} else {
+				const mapped = mapIGDBDlcsDataToGame(
+					data,
+					game.mainTitle || "",
+				);
+				meta.cover = await buildCover(mapped.cover?.url);
+				// reorder dlc based on reload
+				const mainIgdbId = game.dlcs?.[0]?.id;
+				if (mainIgdbId) {
+					const mainData = await reloadGame(mainIgdbId);
+					if (mainData) {
+						const newDlcs = mapIGDBDataToGame(mainData).dlcs;
+						meta.dlcs = newDlcs;
+						const idx =
+							newDlcs?.findIndex((d) => d.id === game.igdbId) ??
+							-1;
+						if (idx >= 0) meta.dlcIndex = idx;
+					}
+				}
+			}
+			const backdrops =
+				data.screenshot_urls?.map((ss) => ss.ss_url).filter(Boolean) ??
+				[];
+			return {
+				meta,
+				lists: {
+					logos: { items: data.logos ?? [], index: 0 },
+					backdrops: { items: backdrops, index: 0 },
+				},
+			};
+		},
+		// apply the previewed backdrop + metadata
+		toMeta: ({ meta, lists }) => {
+			const next: Partial<GameProps> = { ...meta };
+			if (lists.backdrops.items.length) {
+				next.backdropUrl = lists.backdrops.items[lists.backdrops.index];
+			}
+			// null when want text title
+			if (lists.logos.items.length) {
+				next.logoUrl = lists.logos.items[lists.logos.index] ?? null;
+			}
+			return next;
+		},
+	});
+	const { isRefreshing, isSelecting, patchMeta } = reload;
+	const setArtIndex = reload.setListIndex;
+	const art = isSelecting
+		? {
+				logos: reload.list("logos"),
+				backdrops: reload.list("backdrops"),
+			}
+		: {
+				logos: { items: logoUrls, index: logoIndex },
+				backdrops: { items: backdropUrls, index: backdropIndex },
+			};
 
 	// manual +/- 0.1 score tweaks -- phi tightens once, on close
 	const { nudge: nudgeScore, commit: commitScoreNudge } = useScoreNudge(
@@ -133,10 +202,10 @@ export function GameDetails({
 				hanldeDlcOpen(action.payload);
 				break;
 			case "refresh":
-				handleRefresh();
+				reload.refresh();
 				break;
 			case "confirmRefresh":
-				handleConfirmRefresh();
+				reload.confirm();
 				break;
 			case "changeLogo":
 				handleLogoChange(action.payload);
@@ -148,112 +217,42 @@ export function GameDetails({
 				handlePickCoverColor(action.payload);
 				break;
 			case "cancelRefresh":
-				handleCancelRefresh();
+				reload.cancel();
 				break;
 		}
 	};
 
 	// cycle the previewed backdrop while in refresh selection mode
 	const handleSelectBackdropChange = (dir: "next" | "prev") => {
-		if (!refreshBackdrops.length) return;
-		setRefreshBackdropIndex((i) =>
-			dir === "next"
-				? (i + 1) % refreshBackdrops.length
-				: i === 0
-					? refreshBackdrops.length - 1
-					: i - 1,
+		const total = art.backdrops.items?.length ?? 0;
+		if (!total) return;
+		setArtIndex("backdrops", (i) =>
+			dir === "next" ? (i + 1) % total : i === 0 ? total - 1 : i - 1,
 		);
-	};
-
-	// reloaded by igdbId -- reloads dlcs and all dlc in list
-	const handleRefresh = async () => {
-		if (!onRefresh || !game.igdbId || isRefreshing || isSelecting) return;
-		setIsRefreshing(true);
-		try {
-			const data = await searchForGameById(game.igdbId, game.title);
-			if (!data) return;
-			const meta: Partial<GameProps> = {};
-			if (game.dlcIndex === 0) {
-				const mapped = mapIGDBDataToGame(data);
-				meta.cover = await buildCover(mapped.cover?.url);
-				meta.dlcs = mapped.dlcs;
-			} else {
-				const mapped = mapIGDBDlcsDataToGame(
-					data,
-					game.mainTitle || "",
-				);
-				meta.cover = await buildCover(mapped.cover?.url);
-				// reorder dlc based on reload
-				const mainIgdbId = game.dlcs?.[0]?.id;
-				if (mainIgdbId) {
-					const mainData = await searchForGameById(mainIgdbId);
-					if (mainData) {
-						const newDlcs = mapIGDBDataToGame(mainData).dlcs;
-						meta.dlcs = newDlcs;
-						const idx =
-							newDlcs?.findIndex((d) => d.id === game.igdbId) ??
-							-1;
-						if (idx >= 0) meta.dlcIndex = idx;
-					}
-				}
-			}
-			const backdrops =
-				data.screenshot_urls?.map((ss) => ss.ss_url).filter(Boolean) ??
-				[];
-			setRefreshMeta(meta);
-			setRefreshBackdrops(backdrops);
-			setRefreshLogos(data.logos ?? []);
-			setRefreshLogoIndex(0);
-			setRefreshBackdropIndex(0);
-			setIsSelecting(true);
-		} finally {
-			setIsRefreshing(false);
-		}
 	};
 
 	//
 	const handleLogoChange = (dir: "next" | "prev") => {
-		const total = isSelecting
-			? refreshLogos.length
-			: (logoUrls?.length ?? 0);
+		const total = art.logos.items?.length ?? 0;
 		if (total < 2) return;
 		if (isSelecting)
-			setRefreshLogoIndex((i) => stepLogoIndex(i, dir, total));
+			setArtIndex("logos", (i) => stepLogoIndex(i, dir, total));
 		else updateLogoIndex?.(stepLogoIndex(logoIndex ?? 0, dir, total));
 	};
 
 	//
 	const handleClearLogo = () => {
-		const current = isSelecting ? refreshLogoIndex : (logoIndex ?? 0);
+		const current = art.logos.index ?? 0;
 		const next =
 			current < 0 ? activeLogoIndex(current) : clearedFrom(current);
-		if (isSelecting) setRefreshLogoIndex(next);
+		if (isSelecting) setArtIndex("logos", () => next);
 		else updateLogoIndex?.(next);
-	};
-
-	// apply the previewed backdrop + metadata
-	const handleConfirmRefresh = async () => {
-		if (!onRefresh) return;
-		const meta: Partial<GameProps> = { ...refreshMeta };
-		if (refreshBackdrops.length) {
-			meta.backdropUrl = refreshBackdrops[refreshBackdropIndex];
-		}
-		// null when want text title
-		if (refreshLogos.length) {
-			meta.logoUrl = refreshLogos[refreshLogoIndex] ?? null;
-		}
-		exitSelecting();
-		await onRefresh(meta);
-	};
-
-	const handleCancelRefresh = () => {
-		exitSelecting();
 	};
 
 	// the picker only shows while adding or previewing a reload
 	const handlePickCoverColor = (color: string) => {
 		if (isSelecting) {
-			setRefreshMeta((prev) =>
+			patchMeta((prev) =>
 				prev.cover
 					? { ...prev, cover: { ...prev.cover, color } }
 					: prev,
@@ -261,15 +260,6 @@ export function GameDetails({
 			return;
 		}
 		if (game.cover) onUpdate(game.id, { cover: { ...game.cover, color } });
-	};
-
-	const exitSelecting = () => {
-		setIsSelecting(false);
-		setRefreshBackdrops([]);
-		setRefreshBackdropIndex(0);
-		setRefreshLogos([]);
-		setRefreshLogoIndex(0);
-		setRefreshMeta({});
 	};
 
 	const handleStatusChange = (value: string) => {
@@ -308,19 +298,16 @@ export function GameDetails({
 	const handleModalClose = () => {
 		// fold the deferred phi drop into the update this close flushes
 		commitScoreNudge();
-		// if (addGame) return;
 		onClose();
 	};
+	useEscapeClose(handleModalClose);
 
 	const handleNeedYear = () => {
 		const needYear = true;
 		onUpdate(game.id, undefined, needYear);
 	};
 
-	const handleAddGame = useCallback(() => {
-		if (!addGame) return;
-		addGame();
-	}, [addGame]);
+	const { isSubmitting, submit: handleAddGame } = useAddWait(addGame);
 
 	const handleCoverChange = (dir: string) => {
 		if (
@@ -346,7 +333,7 @@ export function GameDetails({
 	// need to reset local note
 	useEffect(() => {
 		setLocalNote(game.note || "");
-		exitSelecting();
+		reload.cancel();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [game.id]);
 
@@ -380,8 +367,8 @@ export function GameDetails({
 	const previewGame = isSelecting
 		? {
 				...game,
-				...refreshMeta,
-				cover: refreshMeta.cover ?? game.cover,
+				...reload.meta,
+				cover: reload.meta.cover ?? game.cover,
 			}
 		: game;
 
@@ -396,6 +383,7 @@ export function GameDetails({
 					isLoading={displayLoading}
 					isAdding={!!addGame}
 					onAdd={handleAddGame}
+					isSubmitting={isSubmitting}
 					onClose={handleModalClose}
 					canRefresh={!!onRefresh}
 					isSelecting={isSelecting}
@@ -406,12 +394,10 @@ export function GameDetails({
 						}) => void
 					}
 					differentColumns={DIFF_COLUMNS_GAME}
-					backdropUrls={isSelecting ? refreshBackdrops : backdropUrls}
-					backdropIndex={
-						isSelecting ? refreshBackdropIndex : backdropIndex
-					}
-					logoUrls={isSelecting ? refreshLogos : logoUrls}
-					logoIndex={isSelecting ? refreshLogoIndex : logoIndex}
+					backdropUrls={art.backdrops.items}
+					backdropIndex={art.backdrops.index}
+					logoUrls={art.logos.items}
+					logoIndex={art.logos.index}
 				/>
 			</div>
 			<div className="block lg:hidden">
@@ -423,14 +409,13 @@ export function GameDetails({
 					isLoading={displayLoading}
 					isAdding={!!addGame}
 					onAdd={handleAddGame}
+					isSubmitting={isSubmitting}
 					onClose={handleModalClose}
 					isSelecting={isSelecting}
-					logoUrls={isSelecting ? refreshLogos : logoUrls}
-					logoIndex={isSelecting ? refreshLogoIndex : logoIndex}
-					backdropUrls={isSelecting ? refreshBackdrops : backdropUrls}
-					backdropIndex={
-						isSelecting ? refreshBackdropIndex : backdropIndex
-					}
+					logoUrls={art.logos.items}
+					logoIndex={art.logos.index}
+					backdropUrls={art.backdrops.items}
+					backdropIndex={art.backdrops.index}
 					canRefresh={!!onRefresh}
 					onAction={
 						handleAction as (action: {

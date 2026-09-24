@@ -1,74 +1,66 @@
 "use client";
-import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import React, {
+	memo,
+	useEffect,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
 import { motion } from "framer-motion";
-import Image from "next/image";
 import { ArrowLeft, Loader2, Tv, X } from "lucide-react";
 import type { CastMember, ActorWork } from "../../utils/getActorInfo";
 import { Loading } from "@/app/components/ui/Loading";
 import { ModalBackdrop, ModalPanel } from "@/app/components/ui/ModalMotion";
+import { PosterCard } from "@/app/components/ui/PosterCard";
 import { MediaStatus } from "@/types/media";
-import type { ReactNode } from "react";
-import { getStatusBorderColor } from "@/utils/formattingUtils";
+import { getStatusBorderColor } from "@/utils/styleUtils";
 import { useScrollLock } from "@/hooks/useScrollLock";
 
-interface PosterCardProps {
-	src: string | null;
-	alt: string;
-	// stands in when there is no image -- an initial, an icon, anything
-	fallback: ReactNode;
-	footer: ReactNode;
-	badge?: ReactNode;
-	onClick?: () => void;
-	sizes?: string;
-	// border and shadow are per-usage
-	className?: string;
-	zoomOnHover?: boolean;
-}
-
-function PosterCard({
-	src,
-	alt,
-	fallback,
-	footer,
-	badge,
-	onClick,
-	sizes = "(max-width: 1024px) 20vw, 12vw",
-	className = "",
-	zoomOnHover = false,
-}: PosterCardProps) {
+const WorkCard = memo(function WorkCard({
+	work,
+	status,
+	onOpen,
+}: {
+	work: ActorWork;
+	status?: MediaStatus;
+	onOpen?: (work: ActorWork) => void;
+}) {
 	return (
-		<div
-			onClick={onClick}
-			className={`group/card bg-linear-to-b from-zinc-900 to-zinc-950 rounded-lg border overflow-hidden ${
-				onClick ? "cursor-pointer" : ""
-			} ${className}`}
-		>
-			<div className="relative aspect-2/3 bg-zinc-900 overflow-hidden">
-				{badge}
-				{src ? (
-					<Image
-						src={src}
-						alt={alt}
-						fill
-						draggable={false}
-						sizes={sizes}
-						className={`object-cover select-none ${
-							zoomOnHover
-								? "group-hover/card:scale-[1.04] transition-transform duration-500 ease-out"
-								: ""
-						}`}
-					/>
-				) : (
-					<div className="w-full h-full flex items-center justify-center bg-linear-to-br from-zinc-800 to-zinc-900 text-zinc-600 text-xl font-light select-none">
-						{fallback}
+		<PosterCard
+			src={work.poster_path}
+			alt={work.title}
+			fallback={
+				<Tv className="w-5 h-5 text-zinc-700" strokeWidth={1.5} />
+			}
+			onClick={onOpen ? () => onOpen(work) : undefined}
+			className={`shadow-md shadow-black/50 ${onOpen ? "hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/60 transition-all duration-300 ease-out" : ""} ${status ? `${getStatusBorderColor(status)} border-2` : "border-zinc-800/50 hover:border-zinc-700/60"}`}
+			badge={
+				status ? (
+					<div className="absolute top-2 right-2 z-10 px-1.5 py-0.5 rounded-md bg-zinc-900/80 backdrop-blur-sm border border-zinc-700/60 text-[0.625rem] font-semibold uppercase tracking-[0.12em] text-zinc-300 select-none">
+						In List
 					</div>
-				)}
-			</div>
-			<div className="h-px bg-linear-to-r from-transparent via-zinc-700/40 to-transparent" />
-			{footer}
-		</div>
+				) : undefined
+			}
+			footer={
+				<div className="px-2.5 pt-2 pb-0.5">
+					<p className="font-semibold text-zinc-200 text-[0.75rem] leading-snug line-clamp-1">
+						{work.title}
+					</p>
+					<div className="flex items-center justify-between">
+						<span className="text-zinc-500 text-[0.6875rem] font-medium">
+							{work.media_type === "tv" ? "Series" : "Movie"}
+						</span>
+						{work.date && (
+							<span className="text-zinc-400 text-[0.6875rem] font-semibold tabular-nums">
+								{work.date.slice(0, 4)}
+							</span>
+						)}
+					</div>
+				</div>
+			}
+		/>
 	);
-}
+});
 
 type Props = {
 	mediaTitle: string;
@@ -77,15 +69,15 @@ type Props = {
 	selectedActor: CastMember | null;
 	sortedWorks: ActorWork[];
 	actorLoading: boolean;
-	filmSort: "popularity" | "recent";
+	movieSort: "popularity" | "recent";
 	onClose: () => void;
 	onActorClick: (member: CastMember) => void;
 	onActorBack: () => void;
-	onFilmSortChange: (sort: "popularity" | "recent") => void;
+	onMovieSortChange: (sort: "popularity" | "recent") => void;
 	onWorkClick?: (work: ActorWork) => void;
 	addedStatusById?: Map<string, MediaStatus>;
-	isDirectorView?: boolean;
-	directorName?: string;
+	isPersonView?: boolean;
+	personName?: string;
 };
 
 export function ActorItemsModal({
@@ -95,15 +87,15 @@ export function ActorItemsModal({
 	selectedActor,
 	sortedWorks,
 	actorLoading,
-	filmSort,
+	movieSort,
 	onClose,
 	onActorClick,
 	onActorBack,
-	onFilmSortChange,
+	onMovieSortChange,
 	onWorkClick,
 	addedStatusById,
-	isDirectorView = false,
-	directorName,
+	isPersonView = false,
+	personName,
 }: Props) {
 	const [mediaFilter, setMediaFilter] = useState<"all" | "tv" | "movie">(
 		"all",
@@ -123,7 +115,7 @@ export function ActorItemsModal({
 	useScrollLock();
 
 	const cols =
-		selectedActor || castLoading || isDirectorView
+		selectedActor || castLoading || isPersonView
 			? 6
 			: Math.min(Math.max(cast.length, 1), 6);
 
@@ -150,10 +142,10 @@ export function ActorItemsModal({
 	return (
 		<ModalBackdrop
 			className="fixed inset-0 bg-black/80 backdrop-blur-lg flex items-center justify-center z-20 p-2 sm:p-4"
-			onClick={selectedActor && !isDirectorView ? onActorBack : onClose}
+			onClick={selectedActor && !isPersonView ? onActorBack : onClose}
 		>
 			<div className={`relative w-full ${colMaxWidth[cols]}`}>
-				{selectedActor && !actorLoading && (
+				{!!selectedActor?.profile_path && !actorLoading && (
 					<motion.div
 						key="portrait-island"
 						initial={{ opacity: 0, x: 10 }}
@@ -185,7 +177,7 @@ export function ActorItemsModal({
 										className="flex items-center justify-between"
 									>
 										<span className="text-zinc-500 text-[0.6875rem] font-medium invisible">
-											Film
+											Movie
 										</span>
 									</div>
 									<div className="absolute inset-0 flex items-center justify-center px-2.5">
@@ -208,22 +200,20 @@ export function ActorItemsModal({
 						className="shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-4 py-3 sm:px-6 sm:py-4 border-b border-zinc-800/50 bg-linear-to-b from-zinc-900/50 to-transparent"
 					>
 						<div className="flex items-center gap-3 min-w-0">
-							{/* the backdrop closes this, but on a phone the panel
-							    leaves barely any of it to tap */}
 							<button
 								onClick={
-									selectedActor && !isDirectorView
+									selectedActor && !isPersonView
 										? onActorBack
 										: onClose
 								}
 								title={
-									selectedActor && !isDirectorView
+									selectedActor && !isPersonView
 										? "Back to cast"
 										: "Close"
 								}
 								className="sm:hidden shrink-0 p-1.5 -ml-1.5 rounded-lg text-zinc-400 active:text-zinc-100 active:scale-95 transition-all"
 							>
-								{selectedActor && !isDirectorView ? (
+								{selectedActor && !isPersonView ? (
 									<ArrowLeft className="w-5 h-5" />
 								) : (
 									<X className="w-5 h-5" />
@@ -231,21 +221,21 @@ export function ActorItemsModal({
 							</button>
 							<div className="min-w-0">
 								<p className="text-[0.625rem] text-zinc-400/60 font-semibold uppercase tracking-[0.18em] mb-0.5">
-									{selectedActor || isDirectorView
+									{selectedActor || isPersonView
 										? "Discover"
 										: "Featured Cast"}
 								</p>
 								<h2 className="text-zinc-200/90 text-lg font-semibold leading-tight truncate tracking-tight">
 									{selectedActor
 										? selectedActor.name
-										: isDirectorView && directorName
-											? directorName
+										: isPersonView && personName
+											? personName
 											: mediaTitle}
 								</h2>
 							</div>
 						</div>
 						<div className="flex items-center flex-wrap gap-2 shrink-0">
-							{(selectedActor || isDirectorView) && (
+							{(selectedActor || isPersonView) && (
 								<div
 									className={`flex items-center gap-2 transition-opacity duration-200 ${
 										selectedActor
@@ -271,7 +261,7 @@ export function ActorItemsModal({
 														? "All"
 														: f === "tv"
 															? "Series"
-															: "Film"}
+															: "Movie"}
 												</button>
 											),
 										)}
@@ -283,10 +273,10 @@ export function ActorItemsModal({
 											<button
 												key={s}
 												onClick={() =>
-													onFilmSortChange(s)
+													onMovieSortChange(s)
 												}
 												className={`cursor-pointer px-3 py-1 rounded-md text-[0.6875rem] uppercase tracking-[0.12em] font-semibold transition-all duration-200 ${
-													filmSort === s
+													movieSort === s
 														? "bg-zinc-700/70 text-zinc-100 shadow-sm"
 														: "text-zinc-500 hover:text-zinc-300"
 												}`}
@@ -313,11 +303,14 @@ export function ActorItemsModal({
 							initial={selectedActor ? { opacity: 0 } : false}
 							animate={{
 								opacity: 1,
-								transition: { duration: 0.4, ease: "easeInOut" },
+								transition: {
+									duration: 0.4,
+									ease: "easeInOut",
+								},
 							}}
 						>
 							{actorLoading &&
-								(selectedActor || isDirectorView) && (
+								(selectedActor || isPersonView) && (
 									<>
 										<div className="min-h-48" aria-hidden />
 										<Loading
@@ -326,7 +319,7 @@ export function ActorItemsModal({
 										/>
 									</>
 								)}
-							{!selectedActor && !isDirectorView && (
+							{!selectedActor && !isPersonView && (
 								<>
 									{castLoading && (
 										<div className="flex justify-center py-20">
@@ -374,8 +367,8 @@ export function ActorItemsModal({
 								</>
 							)}
 
-							{/* Filmography view */}
-							{(selectedActor || isDirectorView) && (
+							{/* Movie credits view */}
+							{(selectedActor || isPersonView) && (
 								<div className="relative min-h-48">
 									{!actorLoading &&
 										sortedWorks.length === 0 && (
@@ -395,74 +388,18 @@ export function ActorItemsModal({
 																w.media_type ===
 																	mediaFilter,
 														)
-														.map((work) => {
-															const matchedStatus =
-																addedStatusById?.get(
+														.map((work) => (
+															<WorkCard
+																key={`${work.media_type}-${work.id}`}
+																work={work}
+																status={addedStatusById?.get(
 																	`${work.media_type}:${work.id}`,
-																);
-															return (
-																<PosterCard
-																	key={`${work.media_type}-${work.id}`}
-																	src={
-																		work.poster_path
-																	}
-																	alt={
-																		work.title
-																	}
-																	fallback={
-																		<Tv
-																			className="w-5 h-5 text-zinc-700"
-																			strokeWidth={
-																				1.5
-																			}
-																		/>
-																	}
-																	onClick={
-																		onWorkClick
-																			? () =>
-																					onWorkClick(
-																						work,
-																					)
-																			: undefined
-																	}
-																	className={`shadow-md shadow-black/50 ${onWorkClick ? "hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/60 transition-all duration-300 ease-out" : ""} ${matchedStatus ? `${getStatusBorderColor(matchedStatus!)} border-2` : "border-zinc-800/50 hover:border-zinc-700/60"}`}
-																	badge={
-																		matchedStatus ? (
-																			<div className="absolute top-2 right-2 z-10 px-1.5 py-0.5 rounded-md bg-zinc-900/80 backdrop-blur-sm border border-zinc-700/60 text-[0.625rem] font-semibold uppercase tracking-[0.12em] text-zinc-300 select-none">
-																				In
-																				List
-																			</div>
-																		) : undefined
-																	}
-																	footer={
-																		<div className="px-2.5 pt-2 pb-0.5">
-																			<p className="font-semibold text-zinc-200 text-[0.75rem] leading-snug line-clamp-1">
-																				{
-																					work.title
-																				}
-																			</p>
-																			<div className="flex items-center justify-between">
-																				<span className="text-zinc-500 text-[0.6875rem] font-medium">
-																					{work.media_type ===
-																					"tv"
-																						? "Series"
-																						: "Film"}
-																				</span>
-																				{work.date && (
-																					<span className="text-zinc-400 text-[0.6875rem] font-semibold tabular-nums">
-																						{work.date.slice(
-																							0,
-																							4,
-																						)}
-																					</span>
-																				)}
-																			</div>
-																			<div></div>
-																		</div>
-																	}
-																/>
-															);
-														})}
+																)}
+																onOpen={
+																	onWorkClick
+																}
+															/>
+														))}
 												</div>
 											</>
 										)}

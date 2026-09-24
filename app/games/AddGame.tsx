@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { ModalBackdrop } from "@/app/components/ui/ModalMotion";
 import { AnimatePresence } from "framer-motion";
-import { Gamepad2 } from "lucide-react";
+import { Gamepad2, Loader2 } from "lucide-react";
 //
 import { GameProps, IGDBInitProps, IGDBProps } from "@/types/game";
 //
@@ -16,6 +16,7 @@ import { ShowMultGames } from "./components/ShowMultGames";
 //
 import { useGameSearch } from "@/hooks/external/useGameSearch";
 import { buildCover } from "@/utils/coverColor";
+import { findOnlyNamed } from "@/utils/mediaMatch";
 
 interface AddGameProps {
 	isOpen: boolean;
@@ -30,6 +31,7 @@ interface AddGameProps {
 	} | null;
 	// keeps dlc jumps alive while previewing an unadded game
 	onDlcNav?: (igdbId: number, dlcIndex: number, source: GameProps) => void;
+	onDuplicate?: (dup: { title: string; igdbId?: number }) => boolean;
 }
 
 const GAMELIMIT = 10;
@@ -38,8 +40,10 @@ export function AddGame({
 	isOpen,
 	onClose,
 	onAddGame,
+	existingGames,
 	titleFromAbove,
 	onDlcNav,
+	onDuplicate,
 }: AddGameProps) {
 	//failure reasons && their fixes -- for user
 	const [failedReason, setFailedReason] = useState("");
@@ -95,11 +99,23 @@ export function AddGame({
 		const titleSearching = titleToSearch.current?.value.trim();
 		if (!titleSearching) return null;
 		//
+		if (!titleFromAbove) {
+			const owned = findOnlyNamed(existingGames, titleSearching);
+			if (owned) {
+				return {
+					isDuplicate: true,
+					title: owned.title,
+					igdbId: owned.igdbId,
+				};
+			}
+		}
+		//
 		const response = await searchForGame(titleSearching, GAMELIMIT);
 		if (response && "isDuplicate" in response) {
 			return {
 				isDuplicate: true,
 				title: response.title,
+				igdbId: response.igdbId,
 			};
 		}
 		const mainGame = response?.[0];
@@ -116,17 +132,19 @@ export function AddGame({
 			title: mainGame.title,
 			igdbId: mainGame.igdbId,
 		};
-	}, [searchForGame, applyCoverColor]);
+	}, [searchForGame, applyCoverColor, existingGames, titleFromAbove]);
 
 	const handleGameSearch = useCallback(async () => {
-		setActiveModal("gameDetails");
+		if (titleFromAbove) setActiveModal("gameDetails");
 		//
 		const response = await handleTitleSearch();
 		// dup logic --- NEEDS TO BE ABOVE EMPTY LOGIC CAUSE REPSONSE IS EMPTY
 		if (response && "isDuplicate" in response) {
+			setActiveModal(null);
+			// go to it
+			if (onDuplicate?.(response)) return;
 			setFailedReason(`Already Have Game: ${response.title}`);
 			setIsDupTitle(true);
-			setActiveModal(null);
 			return;
 		}
 		// empty logic
@@ -135,7 +153,8 @@ export function AddGame({
 			setActiveModal(null);
 			return;
 		}
-	}, [handleTitleSearch]);
+		setActiveModal("gameDetails");
+	}, [handleTitleSearch, onDuplicate, titleFromAbove]);
 
 	const handleDlcTitleSearch = useCallback(
 		async (igdbId: number) => {
@@ -145,6 +164,7 @@ export function AddGame({
 				return {
 					isDuplicate: true,
 					title: response.title,
+					igdbId: response.igdbId,
 				};
 			}
 			const mainDlc = response?.[0];
@@ -189,9 +209,11 @@ export function AddGame({
 		const response = await handleDlcTitleSearch(igdbId);
 		//check for duplicate
 		if (response && "isDuplicate" in response) {
+			setActiveModal(null);
+			// go to it
+			if (onDuplicate?.(response)) return;
 			setFailedReason(`Already Have Game: ${response.title}`);
 			setIsDupTitle(true);
-			setActiveModal(null);
 			return;
 		}
 		setNewGame((prev) => ({
@@ -202,7 +224,7 @@ export function AddGame({
 				dlcs: titleFromAbove?.dlcs,
 			},
 		}));
-	}, [titleFromAbove, handleDlcTitleSearch]);
+	}, [titleFromAbove, handleDlcTitleSearch, onDuplicate]);
 
 	const handlePickFromMultGames = useCallback(
 		(game: IGDBProps) => {
@@ -323,21 +345,26 @@ export function AddGame({
 			{/* maybe not allow user to close modal as new game coming? */}
 			<div className="fixed inset-0" onClick={onClose} />
 			{!titleFromAbove ? (
-				<div className="bg-linear-to-b from-zinc-950/80 to-zinc-900/50 backdrop-blur-xl border border-zinc-800/50 rounded-2xl p-6 w-full max-w-xl mx-4 animate-in zoom-in-95 duration-200 relative">
+				<div className="bg-linear-to-b from-zinc-950/80 to-zinc-900/50 backdrop-blur-xl border border-zinc-800/50 rounded-2xl p-6 w-full max-w-xl mx-4 relative">
 					<h2 className="text-xl font-semibold mb-4 text-zinc-300/90 flex justify-center items-center gap-2">
 						<Gamepad2 className="w-5 h-5 text-zinc-300/90" />
 						Search for New Game
 					</h2>
 					<div className="flex gap-3">
-						<input
-							type="text"
-							ref={titleToSearch}
-							placeholder="Search for game..."
-							onKeyDown={handleKeyPress}
-							onInput={eraseErrMsg}
-							disabled={isGameSearching}
-							className="w-full bg-zinc-800/50 border border-zinc-800/50 rounded-xl px-4 py-3 text-zinc-300 font-medium placeholder-zinc-400 focus:border-zinc-800 focus:ring-1 focus:ring-zinc-900/50 outline-none transition-all duration-200 shadow-lg shadow-black/20"
-						/>
+						<div className="relative w-full">
+							<input
+								type="text"
+								ref={titleToSearch}
+								placeholder="Search for game..."
+								onKeyDown={handleKeyPress}
+								onInput={eraseErrMsg}
+								disabled={isGameSearching}
+								className="w-full bg-zinc-800/50 border border-zinc-800/50 rounded-xl px-4 py-3 pr-11 text-zinc-300 font-medium placeholder-zinc-400 focus:border-zinc-800 focus:ring-1 focus:ring-zinc-900/50 outline-none transition-all duration-200 shadow-lg shadow-black/20"
+							/>
+							{isGameSearching && (
+								<Loader2 className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-zinc-500" />
+							)}
+						</div>
 					</div>
 					<div className="flex justify-between mx-2">
 						{failedReason && !isGameSearching && (

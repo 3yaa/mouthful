@@ -59,7 +59,7 @@ export function cleanName(
     // Remove common separators at start
     .replace(/^[\s\-\–\—:;,\.\|#]*/, "")
     // Remove movie-specific indicators
-    .replace(/^(Movie|Film|Episode|Chapter|Part)[\s\d\.\-:#]*/i, "")
+    .replace(/^(Movie|Movie|Episode|Chapter|Part)[\s\d\.\-:#]*/i, "")
     // Remove leading numbers with separators (but be careful with roman numerals)
     .replace(/^\d+[\s\-\.\):]*/, "")
     // Remove connecting words

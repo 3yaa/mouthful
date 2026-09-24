@@ -1,21 +1,32 @@
 "use client";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { ModalBackdrop } from "@/app/components/ui/ModalMotion";
-import { Tv } from "lucide-react";
-//
+import { Tv, Brush, Loader2 } from "lucide-react";
 import { ShowProps } from "@/types/show";
-//
-import { mapTMDBToShow, mapTMDBTVToShow } from "@/app/shows/utils/showMapping";
-//
-import { ShowDetails } from "./ShowDetailsHub";
-//
+import { FIRST_SLOT, slotRefFor } from "./utils/slotRef";
+import { mapNewShow, mapShowMeta } from "@/app/shows/utils/showMapping";
+import { ShowDetails, type ShowDetailsProps } from "./ShowDetailsHub";
 import { useShowSearch } from "@/hooks/external/useShowSearch";
-interface AddShowProps {
+import { findOnlyNamed, isRealTmdbId } from "@/utils/mediaMatch";
+
+const DETECT_MODES = [
+	{ key: "anime", label: "Anime", Icon: Brush },
+	{ key: "show", label: "Show", Icon: Tv },
+] as const;
+type DetectMode = (typeof DETECT_MODES)[number]["key"];
+
+// used in AddShow -- for movie items
+type CrossMedia = Pick<
+	ShowDetailsProps,
+	"existingMovies" | "onMovieUpdate" | "onAddMovie"
+>;
+
+interface AddShowProps extends CrossMedia {
 	isOpen: boolean;
 	onClose: () => void;
 	existingShows: ShowProps[];
-	// resolves true when the score battler took over the flow
 	onAddShow: (item: ShowProps) => void | Promise<boolean | void>;
+	onDuplicate?: (dup: { title: string; tmdbId?: string }) => boolean;
 	titleFromAbove?: string;
 }
 
@@ -23,18 +34,17 @@ export function AddShow({
 	isOpen,
 	onClose,
 	onAddShow,
+	onDuplicate,
 	existingShows,
 	titleFromAbove,
+	...crossMedia
 }: AddShowProps) {
-	//failure reasons && their fixes -- for user
-	const [failedReason, setFailedReason] = useState("");
-	//
 	const [needYear, setNeedYear] = useState(false);
+	const [detectMode, setDetectMode] = useState<DetectMode | null>(null);
 	const [activeModal, setActiveModal] = useState<"showDetails" | null>(null);
 	//
 	const titleToSearch = useRef<HTMLInputElement>(null);
 	const yearToSearch = useRef<HTMLInputElement>(null);
-	const [isDupTitle, setIsDupTitle] = useState(false);
 	//
 	const [newShow, setNewShow] = useState<Partial<ShowProps>>({});
 	//
@@ -46,13 +56,11 @@ export function AddShow({
 	const [backdropUrls, setBackdropUrls] = useState<string[]>([]);
 	const [backdropIndex, setBackdropIndex] = useState(0);
 	//
-	const { searchForShow, searchForShowSeasonInfo, isShowSearching } =
-		useShowSearch();
+	const { searchForShow, isShowSearching } = useShowSearch();
 
 	const reset = useCallback(() => {
-		setFailedReason("");
-		setIsDupTitle(false);
 		setNeedYear(false);
+		setDetectMode(null);
 		//
 		setActiveModal(null);
 		setNewShow({});
@@ -71,7 +79,11 @@ export function AddShow({
 		}
 	}, []);
 
-	const handleTitleSearch = useCallback(async () => {
+	const handleTitleSearch = useCallback(async (): Promise<
+		| { isDuplicate: true; title: string; tmdbId?: string }
+		| { tmdbId: string }
+		| null
+	> => {
 		const titleSearching = titleToSearch.current?.value.trim();
 		if (!titleSearching) return null;
 		const yearSearchingStr = yearToSearch.current?.value.trim();
@@ -79,40 +91,50 @@ export function AddShow({
 			? parseInt(yearSearchingStr, 10)
 			: undefined;
 		//
-		const showData = await searchForShow(titleSearching, yearSearching);
-		if (showData && "isDuplicate" in showData) {
+		if (!titleFromAbove && !yearSearching) {
+			const owned = findOnlyNamed(existingShows, titleSearching);
+			if (owned) {
+				return {
+					isDuplicate: true,
+					title: owned.title,
+					tmdbId: isRealTmdbId(owned.tmdbId)
+						? owned.tmdbId
+						: undefined,
+				};
+			}
+		}
+		//
+		const showBare = await searchForShow(
+			titleSearching,
+			yearSearching,
+			detectMode ?? undefined,
+		);
+		if (showBare && "isDuplicate" in showBare) {
 			return {
 				isDuplicate: true,
-				title: showData.title,
+				title: showBare.title,
+				tmdbId: showBare.tmdbId,
 			};
 		}
-		if (!showData) return null;
-		//format show
-		setNewShow(mapTMDBToShow(showData));
-		return {
-			title: showData.title,
-			tmdbId: showData.tmdbId,
+		if (!showBare) return null;
+		//
+		const mapped = {
+			...mapNewShow(showBare),
+			...mapShowMeta(showBare),
 		};
-	}, [searchForShow]);
-
-	const handleSeasonInfoSearch = useCallback(
-		async (tmdbId: string) => {
-			const seasonInfo = await searchForShowSeasonInfo(tmdbId);
-			if (!seasonInfo) return null;
-			setNewShow((prev) => ({
-				...prev,
-				...mapTMDBTVToShow(seasonInfo),
-				status: "Want to Watch",
-			}));
-			setLogoUrls(seasonInfo.logos ?? []);
-			setLogoIndex(0);
-			setPosterUrls(seasonInfo.posters ?? []);
-			setPosterIndex(0);
-			setBackdropUrls(seasonInfo.backdrops ?? []);
-			setBackdropIndex(0);
-		},
-		[searchForShowSeasonInfo],
-	);
+		setNewShow({
+			...mapped,
+			...slotRefFor(mapped, FIRST_SLOT),
+			status: "Want to Watch",
+		});
+		setLogoUrls(showBare.logos ?? []);
+		setLogoIndex(0);
+		setPosterUrls(showBare.posters ?? []);
+		setPosterIndex(0);
+		setBackdropUrls(showBare.backdrops ?? []);
+		setBackdropIndex(0);
+		return { tmdbId: showBare.tmdbId };
+	}, [searchForShow, detectMode, existingShows, titleFromAbove]);
 
 	// read poster color
 	useEffect(() => {
@@ -122,25 +144,23 @@ export function AddShow({
 	}, [posterUrls, posterIndex]);
 
 	const handleShowSearch = useCallback(async () => {
-		setActiveModal("showDetails");
-		// make call to open lib
-		const response = await handleTitleSearch();
-		// dup logic --- NEEDS TO BE ABOVE EMPTY LOGIC CAUSE REPSONSE IS EMPTY
-		if (response && "isDuplicate" in response) {
-			setFailedReason(`Already Have Show: ${response.title}`);
-			setIsDupTitle(true);
+		if (titleFromAbove) setActiveModal("showDetails");
+		const bareShow = await handleTitleSearch();
+		//
+		if (bareShow && "isDuplicate" in bareShow) {
 			setActiveModal(null);
+			if (onDuplicate?.(bareShow)) return;
+			onClose();
 			return;
 		}
-		if (!response?.tmdbId || !response.title) {
-			setFailedReason("Could Not Find Show.");
+		// nothing found
+		if (!bareShow?.tmdbId) {
 			setNeedYear(true);
 			setActiveModal(null);
 			return;
 		}
-		// search for season info
-		if (response.tmdbId) await handleSeasonInfoSearch(response.tmdbId);
-	}, [handleTitleSearch, handleSeasonInfoSearch]);
+		setActiveModal("showDetails");
+	}, [handleTitleSearch, onDuplicate, onClose, titleFromAbove]);
 
 	const handleShowDetailsUpdates = useCallback(
 		async (
@@ -162,11 +182,6 @@ export function AddShow({
 	);
 
 	const handleShowAdd = async () => {
-		// double check not adding duplicate
-		if (newShow.tmdbId && isDupTitle) {
-			return;
-		}
-		//
 		let isStatus = newShow.status;
 		if (!isStatus) {
 			isStatus = "Want to Watch";
@@ -202,14 +217,7 @@ export function AddShow({
 		}
 	};
 
-	const eraseErrMsg = () => {
-		if (failedReason) {
-			setFailedReason("");
-			setIsDupTitle(false);
-		}
-	};
-
-	//reset on both because sometimes when opening some ui artificate
+	// reset on both because sometimes when opening some ui artificate
 	useEffect(() => {
 		reset();
 	}, [isOpen, reset]);
@@ -242,21 +250,25 @@ export function AddShow({
 		<ModalBackdrop className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-30">
 			<div className="fixed inset-0" onClick={onClose} />
 			{!titleFromAbove || needYear ? (
-				<div className="bg-linear-to-b from-zinc-950/80 to-zinc-900/50 backdrop-blur-xl border border-zinc-800/50 rounded-2xl p-6 w-full max-w-xl mx-4 animate-in zoom-in-95 duration-200 relative">
+				<div className="bg-linear-to-b from-zinc-950/80 to-zinc-900/50 backdrop-blur-xl border border-zinc-800/50 rounded-2xl p-6 w-full max-w-xl mx-4 relative">
 					<h2 className="text-xl font-semibold mb-4 text-zinc-300/90 flex justify-center items-center gap-2">
 						<Tv className="w-5 h-5 text-zinc-300/90" />
 						Search for New Show
 					</h2>
 					<div className="flex gap-3">
-						<input
-							type="text"
-							ref={titleToSearch}
-							placeholder="Search for show..."
-							onKeyDown={handleKeyPress}
-							onInput={eraseErrMsg}
-							disabled={isShowSearching}
-							className="w-full bg-zinc-800/50 border border-zinc-800/50 rounded-xl px-4 py-3 text-zinc-300 font-medium placeholder-zinc-400 focus:border-zinc-800 focus:ring-1 focus:ring-zinc-900/50 outline-none transition-all duration-200 shadow-lg shadow-black/20"
-						/>
+						<div className="relative w-full">
+							<input
+								type="text"
+								ref={titleToSearch}
+								placeholder="Search for show..."
+								onKeyDown={handleKeyPress}
+								disabled={isShowSearching}
+								className="w-full rounded-lg px-4 py-3 pr-11 neu-raised focus:neu-pressed text-zinc-300/85 font-medium placeholder-zinc-500 outline-none transition-all duration-300 ease-out"
+							/>
+							{isShowSearching && (
+								<Loader2 className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-zinc-500" />
+							)}
+						</div>
 						{needYear && (
 							<div className="">
 								<input
@@ -264,20 +276,36 @@ export function AddShow({
 									ref={yearToSearch}
 									placeholder="Release Year"
 									onKeyDown={handleKeyPress}
-									onInput={eraseErrMsg}
 									disabled={isShowSearching}
-									className="w-full bg-zinc-800/50 border border-zinc-800/50 rounded-xl px-4 py-3 text-zinc-300 font-medium placeholder-zinc-400 focus:border-zinc-800 focus:ring-1 focus:ring-zinc-900/50 outline-none transition-all duration-200"
+									className="w-full rounded-lg px-4 py-3 neu-raised focus:neu-pressed text-zinc-300/85 font-medium placeholder-zinc-500 outline-none transition-all duration-300 ease-out"
 								/>
 							</div>
 						)}
 					</div>
-					<div className="flex justify-between mx-2">
-						{failedReason && !isShowSearching && (
-							<div className="mt-3 text-zinc-400 text-sm font-medium">
-								{failedReason}
-							</div>
-						)}
-					</div>
+					{needYear && (
+						<div className="mt-3 flex gap-3">
+							{DETECT_MODES.map(({ key, label, Icon }) => {
+								const picked = (detectMode ?? "show") === key;
+								return (
+									<button
+										key={key}
+										type="button"
+										onClick={() => setDetectMode(key)}
+										disabled={isShowSearching}
+										aria-pressed={picked}
+										className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-bold tracking-wide transition-all duration-300 ease-out hover:cursor-pointer disabled:cursor-default disabled:opacity-45 ${
+											picked
+												? "neu-pressed text-zinc-200"
+												: "neu-raised hover:neu-raised-hi active:scale-[0.99] text-zinc-400 hover:text-zinc-300"
+										}`}
+									>
+										<Icon className="h-4 w-4" />
+										{label}
+									</button>
+								);
+							})}
+						</div>
+					)}
 				</div>
 			) : (
 				<input
@@ -294,6 +322,7 @@ export function AddShow({
 					onUpdate={handleShowDetailsUpdates}
 					addShow={handleShowAdd}
 					existingShows={existingShows}
+					{...crossMedia}
 					isLoading={{
 						isTrue: isShowSearching,
 						style: "h-8 w-8 border-emerald-400",

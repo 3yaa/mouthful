@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { BattlerCover } from "./BattlerCover";
 import { BaseMediaProps } from "@/types/media";
-import { getStatusBorderGradient } from "@/utils/formattingUtils";
+import { accentBezel, statusBezel } from "@/utils/styleUtils";
 import { ModalBackdrop, ModalPanel } from "@/app/components/ui/ModalMotion";
 import { actions, coverFor, ScoreBattlerUIProps } from "./shared";
 
@@ -13,6 +13,7 @@ export function ScoreBattlerDesktop<T extends BaseMediaProps>({
 }: ScoreBattlerUIProps<T>) {
 	const coverSelectedItem = coverFor(selectedItem);
 	const coverItemFacing = coverFor(itemFacing);
+	const coverSwatch = selectedItem.cover?.color?.trim();
 
 	const imgFit =
 		mediaType === "game" || mediaType === "book"
@@ -24,7 +25,14 @@ export function ScoreBattlerDesktop<T extends BaseMediaProps>({
 			<div className="fixed inset-0" />
 			{/* BACKGROUND BORDER GRADIENT */}
 			<ModalPanel
-				className={`rounded-2xl bg-linear-to-b ${getStatusBorderGradient(selectedItem.status)} p-1.5 py-2 lg:min-w-215 lg:max-w-215`}
+				className="rounded-[1.375rem] p-1.5 py-2 lg:min-w-215 lg:max-w-215"
+				style={{
+					background: coverSwatch
+						? accentBezel(
+								`color-mix(in srgb, white 22%, ${coverSwatch})`,
+							)
+						: statusBezel(selectedItem.status),
+				}}
 			>
 				{/* ACTUAL DETAIL CARD */}
 				<div className="bg-linear-to-br bg-[#121212] backdrop-blur-xl border border-zinc-800/50 rounded-2xl shadow-2xl w-full max-h-[calc(100vh-3rem)]">

@@ -1,23 +1,6 @@
 import { GameProps, IGDBProps, IGDBDlcProps } from "@/types/game";
 import { cleanName } from "@/utils/cleanName";
 
-export function resetGameValues(book: Partial<GameProps>): Partial<GameProps> {
-  return {
-    id: book.id,
-    igdbId: book.igdbId,
-    title: "",
-    score: undefined,
-    dateCompleted: undefined,
-    note: undefined,
-    studio: undefined,
-    dateReleased: undefined,
-    dlcIndex: undefined,
-    dlcs: undefined,
-    status: "Playing",
-    lastUpdated: undefined,
-  };
-}
-
 export function mapIGDBDataToGame(dataGame: IGDBProps): Partial<GameProps> {
   return {
     igdbId: dataGame.igdbId,

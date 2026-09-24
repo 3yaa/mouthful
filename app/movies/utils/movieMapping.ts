@@ -1,29 +1,4 @@
 import { MovieProps, MovieAPIProps } from "@/types/movie";
-import { SeriesAPIProps } from "@/types/media";
-
-export function resetMovieValues(
-	movie: Partial<MovieProps>,
-): Partial<MovieProps> {
-	return {
-		id: movie.id,
-		imdbId: movie.imdbId,
-		title: "",
-		score: undefined,
-		dateCompleted: undefined,
-		note: undefined,
-		director: undefined,
-		cover: undefined,
-		logoUrl: undefined,
-		dateReleased: undefined,
-		seriesTitle: undefined,
-		placeInSeries: undefined,
-		prequel: undefined,
-		sequel: undefined,
-		status: "Want to Watch",
-		lastUpdated: undefined,
-		imdbRating: undefined,
-	};
-}
 
 export function mapMetaToMovie(dataMeta: MovieAPIProps): Partial<MovieProps> {
 	return {
@@ -39,16 +14,5 @@ export function mapMetaToMovie(dataMeta: MovieAPIProps): Partial<MovieProps> {
 			: undefined,
 		backdropUrl: dataMeta.backdrop_url,
 		logoUrl: dataMeta.logo_url,
-	};
-}
-
-export function mapSeriesToMovie(
-	dataSeries?: SeriesAPIProps | null,
-): Partial<MovieProps> {
-	return {
-		seriesTitle: dataSeries?.series_title ?? null,
-		placeInSeries: dataSeries?.position ?? null,
-		prequel: dataSeries?.prequel ?? null,
-		sequel: dataSeries?.sequel ?? null,
 	};
 }

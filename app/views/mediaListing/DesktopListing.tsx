@@ -1,17 +1,16 @@
-import {
-	Settings2,
-	ChevronDown,
-	ChevronUp,
-	Circle,
-	Search,
-} from "lucide-react";
-import Link from "next/link";
+import { Settings2, Circle, Search } from "lucide-react";
 import { BaseMediaProps, MediaStatus, ColumnConfig } from "@/types/media";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Loading } from "../../components/ui/Loading";
 import { DesktopItem } from "./DesktopItem";
-import { ShowsBadge } from "./ShowsBadge";
+import { BadgeLink } from "./ShowsBadge";
+import { ListingHeader } from "./ListingHeader";
+import { useFlash } from "@/app/components/RouteFlash";
+import { LISTING_COLUMN, ListingLoader } from "./ListingSkeleton";
+import { statusLabel } from "@/utils/formattingUtils";
+
+// default row size before measurement
+const ROW_FALLBACK = 127;
 
 interface DesktopListingProps<T extends BaseMediaProps> {
 	mediaItems: T[];
@@ -27,6 +26,7 @@ interface DesktopListingProps<T extends BaseMediaProps> {
 	//
 	mediaType: string;
 	emptyListText: string;
+	openItemId?: number | null;
 	// callbacks
 	onItemClicked: (item: T) => void;
 	onSortConfig: (sortKey: string) => void;
@@ -44,6 +44,7 @@ export function DesktopListing<T extends BaseMediaProps>({
 	searchQuery,
 	mediaType,
 	emptyListText,
+	openItemId,
 	onItemClicked,
 	onSortConfig,
 	onSearchChange,
@@ -51,24 +52,11 @@ export function DesktopListing<T extends BaseMediaProps>({
 }: DesktopListingProps<T>) {
 	const parentRef = useRef<HTMLDivElement>(null);
 	const [searchOpen, setSearchOpen] = useState(false);
+	const flash = useFlash();
 	const searchBarRef = useRef<HTMLInputElement>(null);
 	const statusFilterRef = useRef<HTMLDivElement>(null);
 	const [openStatusOption, setOpenStatusOption] = useState(false);
-	// row-height estimate scales with the fluid root font-size so the
-	// scrollbar thumb doesn't visibly resize as rows are measured on 4K.
-	const [rowEstimate, setRowEstimate] = useState(101);
-	useEffect(() => {
-		const update = () => {
-			const root =
-				parseFloat(
-					getComputedStyle(document.documentElement).fontSize,
-				) || 16;
-			setRowEstimate((101 / 16) * root);
-		};
-		update();
-		window.addEventListener("resize", update);
-		return () => window.removeEventListener("resize", update);
-	}, []);
+	const [rowEstimate, setRowEstimate] = useState(ROW_FALLBACK);
 	//
 	const virtualizer = useVirtualizer({
 		count: mediaItems.length,
@@ -112,6 +100,91 @@ export function DesktopListing<T extends BaseMediaProps>({
 
 		return result;
 	}, [mediaItems, sortConfig]);
+
+	// whats on screen now
+	const onScreen = useRef<{ index: number; start: number; size: number }[]>(
+		[],
+	);
+	onScreen.current = virtualizer.getVirtualItems();
+
+	//
+	const [hoverOn, setHoverOn] = useState(true);
+	useEffect(() => {
+		const scroller = parentRef.current;
+		if (!scroller) return;
+
+		// the cursor's offset from the top of the scroller
+		let from = -1;
+		let over: number | null = null;
+		let settle: ReturnType<typeof setTimeout> | null = null;
+
+		const rowAt = (offset: number) => {
+			const hit = onScreen.current.find(
+				(v) => offset >= v.start && offset < v.start + v.size,
+			);
+			return hit ? hit.index : null;
+		};
+
+		const open = () => {
+			if (settle) clearTimeout(settle);
+			settle = null;
+			setHoverOn((on) => on || true);
+		};
+
+		const onScroll = () => {
+			// once the list stops, hover is the cursor's again
+			if (settle) clearTimeout(settle);
+			settle = setTimeout(open, 110);
+			if (from < 0) return;
+			const now = rowAt(from + scroller.scrollTop);
+			if (now !== null && now === over) return;
+			over = now;
+			setHoverOn((on) => (on ? false : on));
+		};
+
+		const onMove = (e: MouseEvent) => {
+			from = e.clientY - scroller.getBoundingClientRect().top;
+			over = rowAt(from + scroller.scrollTop);
+			open();
+		};
+
+		scroller.addEventListener("scroll", onScroll, { passive: true });
+		window.addEventListener("mousemove", onMove, { passive: true });
+		return () => {
+			scroller.removeEventListener("scroll", onScroll);
+			window.removeEventListener("mousemove", onMove);
+			if (settle) clearTimeout(settle);
+		};
+	}, [isProcessing, mediaItems.length]);
+
+	//
+	useEffect(() => {
+		const update = () => {
+			const row = parentRef.current?.querySelector("[data-index]");
+			const measured = row?.getBoundingClientRect().height;
+			if (measured) {
+				// a hair of slack, or a sub-pixel difference re-renders forever
+				setRowEstimate((held) =>
+					Math.abs(held - measured) > 1 ? measured : held,
+				);
+				return;
+			}
+			const root =
+				parseFloat(
+					getComputedStyle(document.documentElement).fontSize,
+				) || 16;
+			setRowEstimate((ROW_FALLBACK / 16) * root);
+		};
+		// once now, for the fallback, and once after the first paint, when there is a row to read
+		update();
+		const frame = requestAnimationFrame(update);
+		window.addEventListener("resize", update);
+		return () => {
+			cancelAnimationFrame(frame);
+			window.removeEventListener("resize", update);
+		};
+	}, [mediaItems.length]);
+
 	// use / to open search
 	useEffect(() => {
 		const handleKeyPress = (e: KeyboardEvent) => {
@@ -125,7 +198,6 @@ export function DesktopListing<T extends BaseMediaProps>({
 			if (e.key === "/") {
 				if (!searchOpen) {
 					setSearchOpen(true);
-					searchBarRef.current?.focus();
 					e.preventDefault();
 				}
 			}
@@ -134,6 +206,12 @@ export function DesktopListing<T extends BaseMediaProps>({
 		window.addEventListener("keydown", handleKeyPress);
 		return () => window.removeEventListener("keydown", handleKeyPress);
 	}, [searchOpen]);
+
+	// focused once the bar is open
+	useEffect(() => {
+		if (searchOpen) searchBarRef.current?.focus();
+	}, [searchOpen]);
+
 	// if click outside
 	useEffect(() => {
 		const handleClickOutside = (e: MouseEvent) => {
@@ -152,7 +230,7 @@ export function DesktopListing<T extends BaseMediaProps>({
 	}, [openStatusOption]);
 
 	return (
-		<div className="w-full md:w-[70%] lg:w-[65%] mx-auto flex flex-col h-screen">
+		<div className={`${LISTING_COLUMN} mx-auto flex flex-col h-screen`}>
 			{/* STATUS FILTER */}
 			<div
 				className="fixed left-1 p-2 px-2.5 bg-linear-to-br from-zinc-900/80 to-zinc-950 border-zinc-700/50 shadow-lg shadow-black rounded-lg"
@@ -212,7 +290,9 @@ export function DesktopListing<T extends BaseMediaProps>({
 								setOpenStatusOption(false);
 							}}
 						>
-							<span className="font-medium">{status}</span>
+							<span className="font-medium">
+								{statusLabel(status)}
+							</span>
 							<div
 								className={`
                         transition-all duration-200 ease-out
@@ -247,10 +327,7 @@ export function DesktopListing<T extends BaseMediaProps>({
 								: "w-9 h-9 px-0 py-0 cursor-pointer hover:bg-zinc-800/70"
 						}`}
 						onClick={() => {
-							if (!searchOpen) {
-								setSearchOpen(true);
-								searchBarRef.current?.focus();
-							}
+							if (!searchOpen) setSearchOpen(true);
 						}}
 					>
 						<Search
@@ -266,6 +343,13 @@ export function DesktopListing<T extends BaseMediaProps>({
 							onFocus={() => setSearchOpen(true)}
 							onChange={(e) => {
 								onSearchChange(e.target.value);
+							}}
+							onKeyDown={(e) => {
+								if (e.key !== "Escape") return;
+								e.stopPropagation();
+								onSearchChange("");
+								setSearchOpen(false);
+								searchBarRef.current?.blur();
 							}}
 							onBlur={() => !searchQuery && setSearchOpen(false)}
 							placeholder={"Search " + mediaType + "s..."}
@@ -291,83 +375,25 @@ export function DesktopListing<T extends BaseMediaProps>({
 				</div>
 			</div>
 			{/* HEADING */}
-			<div className="sticky top-0 z-10 w-full">
-				<div className="relative max-w-full mx-auto flex items-center gap-4 px-4 py-2 bg-zinc-900/75 backdrop-blur-xl border-x border-b border-zinc-800/50 rounded-b-lg select-none">
-					{mediaType === "show" && (
-						<Link
+			<ListingHeader
+				mediaType={mediaType}
+				count={isProcessing ? undefined : mediaItems.length}
+				differentColumns={differentColumns}
+				sortConfig={sortConfig}
+				onSortConfig={onSortConfig}
+				badge={
+					mediaType === "show" && (
+						<BadgeLink
 							href="/shows/discover"
 							title="Browse shows"
-							className="absolute -right-14 top-0 opacity-60 hover:opacity-80 hover:scale-105 transition-all duration-300 origin-top"
-							onClick={(e) => e.stopPropagation()}
-						>
-							<ShowsBadge />
-						</Link>
-					)}
-					{/* media type + count */}
-					<div className="flex items-baseline gap-2 shrink-0">
-						<span className="text-[0.6875rem] font-bold tracking-[0.22em] uppercase text-zinc-400">
-							{mediaType}s
-						</span>
-						<span className="text-[0.75rem] font-mono text-zinc-500 tracking-tight">
-							{mediaItems.length}
-						</span>
-					</div>
-					{/* sort options pushed right */}
-					<div className="flex items-center gap-0 ml-auto">
-						{(
-							[
-								{ key: "title", label: "Title" },
-								{ key: "score", label: "Score" },
-								{
-									key: differentColumns[0].sortKey,
-									label: differentColumns[0].label,
-								},
-								{
-									key: differentColumns[1].sortKey,
-									label: differentColumns[1].label,
-								},
-								{ key: "dateCompleted", label: "Completed" },
-							] as { key: string; label: string }[]
-						).map(({ key, label }, i, arr) => {
-							const active = sortConfig?.type === key;
-							return (
-								<div key={key} className="flex items-center">
-									<button
-										onClick={() => onSortConfig(key)}
-										className={`flex items-center gap-1 px-3 py-0.5 text-[0.75rem] font-medium tracking-wide transition-all duration-200 cursor-pointer ${
-											active
-												? "text-zinc-100"
-												: "text-zinc-500 hover:text-zinc-300"
-										}`}
-									>
-										{active &&
-											(sortConfig?.order === "desc" ? (
-												<ChevronDown className="w-3 h-3 text-zinc-500" />
-											) : (
-												<ChevronUp className="w-3 h-3 text-zinc-500" />
-											))}
-										{label}
-									</button>
-									{i < arr.length - 1 && (
-										<span className="text-zinc-700 text-xs select-none">
-											|
-										</span>
-									)}
-								</div>
-							);
-						})}
-					</div>
-				</div>
-			</div>
+							className="absolute -right-14 top-0"
+							onClick={() => flash()}
+						/>
+					)
+				}
+			/>
 			{/* LOADER */}
-			{isProcessing && (
-				<div className="relative bg-black/20 backdrop-blur-lg">
-					<Loading
-						customStyle="mt-72 h-12 w-12 border-gray-400"
-						text=""
-					/>
-				</div>
-			)}
+			{isProcessing && <ListingLoader />}
 			{/* NO MEDIA */}
 			{!isProcessing && mediaItems.length === 0 && (
 				<div className="text-center py-12">
@@ -380,6 +406,7 @@ export function DesktopListing<T extends BaseMediaProps>({
 			{!isProcessing && mediaItems.length > 0 && (
 				<div ref={parentRef} className="w-full overflow-auto flex-1">
 					<div
+						data-hover={hoverOn ? "" : undefined}
 						style={{
 							height: `${virtualizer.getTotalSize()}px`,
 							width: "100%",
@@ -406,6 +433,7 @@ export function DesktopListing<T extends BaseMediaProps>({
 										index={virtualItem.index}
 										total={mediaItems.length}
 										rank={ranks[virtualItem.index]}
+										isOpen={item.id === openItemId}
 										mediaType={mediaType}
 										onClick={onItemClicked}
 										differentColumns={differentColumns}

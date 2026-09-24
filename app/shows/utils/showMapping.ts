@@ -1,43 +1,31 @@
-import { ShowProps, TMDBProps, TMDBTvProps } from "@/types/show";
+import { ShowProps, ShowBaseProps, ShowEnrichmentProps } from "@/types/show";
+import { NEW_SLOT_KEY } from "./slotRef";
 
-export function resetMovieValues(show: Partial<ShowProps>): Partial<ShowProps> {
+export function mapNewShow(show: ShowBaseProps): Partial<ShowProps> {
 	return {
-		id: show.id,
 		tmdbId: show.tmdbId,
-		title: "",
-		score: undefined,
-		dateCompleted: undefined,
-		note: undefined,
-		studio: undefined,
-		posterUrl: undefined,
-		logoUrl: undefined,
-		dateReleased: undefined,
-		status: "Want to Watch",
-		lastUpdated: undefined,
-	};
-}
-
-export function mapTMDBToShow(dataTMDB: TMDBProps): Partial<ShowProps> {
-	return {
-		tmdbId: dataTMDB.tmdbId,
-		title: dataTMDB.title,
-		dateReleased: parseInt(dataTMDB.released_date || "0"),
-		posterUrl: dataTMDB.poster_url,
-		backdropUrl: dataTMDB.backdrop_url,
-		curSeasonIndex: 0,
+		title: show.title,
+		curSeasonIndex: NEW_SLOT_KEY,
 		curEpisode: 0,
 	};
 }
 
-export function mapTMDBTVToShow(dataTMDBTV: TMDBTvProps): Partial<ShowProps> {
+export function mapShowMeta(meta: ShowEnrichmentProps): Partial<ShowProps> {
+	const [poster] = meta.posters ?? [];
+	const [backdrop] = meta.backdrops ?? [];
+	const [logo] = meta.logos ?? [];
 	return {
-		seasons: dataTMDBTV.seasons,
-		studio: dataTMDBTV.studio,
-		...(dataTMDBTV.imdbId ? { imdbId: dataTMDBTV.imdbId } : {}),
-		...(dataTMDBTV.poster_url ? { posterUrl: dataTMDBTV.poster_url } : {}),
-		...(dataTMDBTV.backdrop_url
-			? { backdropUrl: dataTMDBTV.backdrop_url }
-			: {}),
-		...(dataTMDBTV.logo_url ? { logoUrl: dataTMDBTV.logo_url } : {}),
+		seasons: meta.seasons,
+		creator: meta.creator,
+		...(meta.released_date ? { dateReleased: meta.released_date } : {}),
+		...(meta.imdbId ? { imdbId: meta.imdbId } : {}),
+		...(poster ? { posterUrl: poster } : {}),
+		...(backdrop ? { backdropUrl: backdrop } : {}),
+		...(logo ? { logoUrl: logo } : {}),
+		...mapAnimeChain(meta),
 	};
+}
+
+export function mapAnimeChain(meta: ShowEnrichmentProps): Partial<ShowProps> {
+	return meta.anilistId ? { anilistId: meta.anilistId } : {};
 }

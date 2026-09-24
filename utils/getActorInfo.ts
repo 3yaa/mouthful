@@ -16,13 +16,14 @@ export type ActorWork = {
 
 import type { AuthFetch } from "@/app/auth/hooks/useAuthFetch";
 
+// creators rides like directors from movie does
 export async function fetchShowCast(
   tmdbId: number,
   authFetch: AuthFetch,
-): Promise<CastMember[]> {
+): Promise<{ cast: CastMember[]; creators: CastMember[] }> {
   const res = await authFetch(`/api/show-cast?tmdbId=${tmdbId}`);
   const data = await res.json();
-  return data.cast;
+  return { cast: data.cast ?? [], creators: data.creators ?? [] };
 }
 
 // get both actor and director
@@ -42,7 +43,7 @@ export async function fetchMovieCredits(
 export async function fetchActorWorks(
   actorId: number,
   authFetch: AuthFetch,
-  role?: "director",
+  role?: "director" | "creator",
 ): Promise<ActorWork[]> {
   const res = await authFetch(
     `/api/actor-works?actorId=${actorId}${role ? `&role=${role}` : ""}`,

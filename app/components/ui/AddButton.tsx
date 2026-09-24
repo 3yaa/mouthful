@@ -14,6 +14,7 @@ export function AddButton({ onClick, isVisible }: AddButtonProps) {
     >
       <button
         onClick={onClick}
+        aria-label="Add"
         className="flex items-center justify-center w-14 h-14 lg:w-14 lg:h-14 rounded-full 
         bg-linear-to-br from-zinc-transparent to-zinc-800/60 
         hover:bg-linear-to-br hover:from-zinc-800/60 hover:to-transparent

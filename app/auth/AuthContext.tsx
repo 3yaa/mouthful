@@ -8,6 +8,7 @@ import {
 	useRef,
 } from "react";
 import { usePathname } from "next/navigation";
+import { dropLists } from "@/hooks/mediaStore";
 
 interface AuthContextType {
 	authToken: string | null;
@@ -178,6 +179,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 			);
 		};
 	}, [authToken, refreshToken, parseTokenExpiry]);
+
+	// held lists belong to the session, not to the browser
+	useEffect(() => {
+		if (!isInitializing && !authToken) dropLists();
+	}, [authToken, isInitializing]);
 
 	// sets token with the scheduler
 	const setAuthTokenWithScheduling = useCallback(

@@ -1,9 +1,16 @@
+"use client";
+
 interface LoadingProps {
 	customStyle: string; //border
 	customBg?: string;
 	text?: string;
 	isMobile?: boolean;
 }
+
+// every spinner picks up where the last one left off
+const inPhase = (el: HTMLDivElement | null) => {
+	if (el) el.style.animationDelay = `-${Date.now() % 1000}ms`;
+};
 
 export function Loading({
 	customBg = "bg-[#121212]",
@@ -19,6 +26,7 @@ export function Loading({
 		>
 			<div className="flex flex-col items-center gap-3">
 				<div
+					ref={inPhase}
 					className={`animate-spin rounded-full border-b-2 shrink-0 ${customStyle}`}
 				></div>
 				{text && <span className="text-zinc-300 text-sm">{text}</span>}

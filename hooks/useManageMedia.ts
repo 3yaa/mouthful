@@ -1,4 +1,9 @@
-import { BaseMediaProps, MediaStatus, SortState } from "@/types/media";
+import {
+	BaseMediaProps,
+	MediaStatus,
+	SeriesTargetProps,
+	SortState,
+} from "@/types/media";
 import {
 	useCallback,
 	useEffect,
@@ -12,6 +17,9 @@ import { useScrollLock } from "./useScrollLock";
 import { debounce } from "@/utils/debounce";
 import { Score } from "@/lib/tierConfig";
 import { createSession } from "@/lib/battleSession";
+import { MODAL_EXIT_MS } from "@/app/components/ui/ModalMotion";
+
+const LIT_HOLD_SLACK_MS = 60;
 
 interface ManageMediaConfig<T extends BaseMediaProps> {
 	items: T[];
@@ -26,6 +34,8 @@ interface ManageMediaConfig<T extends BaseMediaProps> {
 		itemId: number,
 		metadata: Partial<T>,
 	) => Promise<T | undefined>;
+	// bc anime nodes can't be pitted against items
+	isEligibleOpponent?: (item: T) => boolean;
 }
 
 export function useManageMedia<T extends BaseMediaProps>({
@@ -34,6 +44,7 @@ export function useManageMedia<T extends BaseMediaProps>({
 	onRemove,
 	onUpdate,
 	onRefresh,
+	isEligibleOpponent,
 }: ManageMediaConfig<T>) {
 	const [statusFilter, setStatusFilter] = useState<MediaStatus | null>(null);
 	const [sortConfig, setSortConfig] = useState<SortState<string> | null>(
@@ -42,14 +53,15 @@ export function useManageMedia<T extends BaseMediaProps>({
 	const [debouncedQuery, setDebouncedQuery] = useState("");
 	const [selectedItem, setSelectedItem] = useState<T | null>(null);
 	const [searchQuery, setSearchQuery] = useState("");
-	const [titleToUse, setTitleToUse] = useState<string>("");
+	// what an add flow was opened for: a series jump knows the id it wants
+	const [titleToUse, setTitleToUse] = useState<SeriesTargetProps | null>(
+		null,
+	);
 	const [activeModal, setActiveModal] = useState<
 		"detailsModal" | "addModal" | "scoreBattlerModal" | null
 	>(null);
 	const [tempScore, setTempScore] = useState<Score | null>(null);
 	const pendingUpdates = useRef<Partial<T>>({});
-	// which item the pending batch belongs to -- the details modal can swap items
-	// in place (sequel/prequel nav), and those edits are not the new item's
 	const pendingFor = useRef<number | null>(null);
 	// used for mobile only
 	const isMenuButtonsVisible = useScrollVisibility(30);
@@ -145,13 +157,10 @@ export function useManageMedia<T extends BaseMediaProps>({
 		[selectedItem, queueUpdate],
 	);
 
-	// returns whether the battler took over -- the add modal must then skip its
-	// close handler, which would otherwise clear the item being scored
+	// returns whether the battler took over
 	const handleItemAdd = useCallback(
 		async (item: T) => {
 			const newItem = await onAdd(item);
-			// TEMP DIAGNOSTIC -- remove once the add-with-score path is settled
-			console.log("[add] sent score:", item.score, "| got back:", newItem?.score);
 			if (!newItem?.score) return false;
 			setActiveModal("scoreBattlerModal");
 			setSelectedItem(newItem);
@@ -183,7 +192,12 @@ export function useManageMedia<T extends BaseMediaProps>({
 					updates.score.mu >= 2000 ||
 					createSession(
 						items
-							.filter((i) => i.score !== null && i.id !== itemId)
+							.filter(
+								(i) =>
+									i.score !== null &&
+									i.id !== itemId &&
+									(isEligibleOpponent?.(i) ?? true),
+							)
 							.map((i) => ({ id: i.id, score: i.score! })),
 						{ id: itemId, score: updates.score },
 					).done;
@@ -209,7 +223,14 @@ export function useManageMedia<T extends BaseMediaProps>({
 			setSelectedItem({ ...selectedItem, ...updates });
 			queueUpdate(itemId, updates);
 		},
-		[onRemove, onUpdate, selectedItem, items, queueUpdate],
+		[
+			onRemove,
+			onUpdate,
+			selectedItem,
+			items,
+			queueUpdate,
+			isEligibleOpponent,
+		],
 	);
 
 	const handleItemRefresh = useCallback(
@@ -234,10 +255,25 @@ export function useManageMedia<T extends BaseMediaProps>({
 		setActiveModal(null);
 		// wait a frame before clearing state
 		requestAnimationFrame(() => {
-			setTitleToUse("");
+			setTitleToUse(null);
 			setSelectedItem(null);
 		});
 	}, [flushPending]);
+
+	// when item comes from landing page
+	const deepLinkUsed = useRef(false);
+	useEffect(() => {
+		if (deepLinkUsed.current || !items.length) return;
+		const params = new URLSearchParams(window.location.search);
+		const wanted = Number(params.get("open"));
+		if (!wanted) return;
+
+		deepLinkUsed.current = true;
+		window.history.replaceState(null, "", window.location.pathname);
+		const item = items.find((i) => i.id === wanted);
+		//
+		if (item) handleItemClicked(item);
+	}, [items, handleItemClicked]);
 
 	useEffect(() => {
 		const handleEnter = (e: KeyboardEvent) => {
@@ -260,6 +296,22 @@ export function useManageMedia<T extends BaseMediaProps>({
 		return () => window.removeEventListener("keydown", handleEnter);
 	}, [activeModal]);
 
+	// keep listing row awake
+	const [openItemId, setOpenItemId] = useState<number | null>(null);
+	const modalOwnsAnItem =
+		activeModal === "detailsModal" || activeModal === "scoreBattlerModal";
+	const litId = modalOwnsAnItem ? (selectedItem?.id ?? null) : null;
+	if (litId !== null && litId !== openItemId) setOpenItemId(litId);
+	//
+	useEffect(() => {
+		if (litId !== null) return;
+		const done = setTimeout(
+			() => setOpenItemId(null),
+			MODAL_EXIT_MS + LIT_HOLD_SLACK_MS,
+		);
+		return () => clearTimeout(done);
+	}, [litId]);
+
 	useScrollLock(!!activeModal);
 
 	return {
@@ -273,6 +325,7 @@ export function useManageMedia<T extends BaseMediaProps>({
 		searchQuery,
 		statusFilter,
 		selectedItem,
+		openItemId,
 		setTitleToUse,
 		setActiveModal,
 		isFilterPending,

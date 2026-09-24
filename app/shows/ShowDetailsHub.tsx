@@ -1,17 +1,44 @@
 "use client";
-import { DIFF_COLUMNS_SHOW, ShowProps } from "@/types/show";
+import { ShowProps, SlotIndex } from "@/types/show";
+import { DIFF_COLUMNS_SHOW } from "@/app/shows/utils/showDiffColumns";
+import type { SeriesInfo } from "@/app/shows/utils/episodeRatings";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { DesktopDetails } from "@/app/views/mediaDetails/DesktopDetails";
 import { showStatusOptions } from "@/utils/dropDownDetails";
 import { MobileDetails } from "@/app/views/mediaDetails/MobileDetails";
-import { TIER_PHI_THRESHOLD, getSeedMu, Tier } from "@/lib/tierConfig";
+import { TIER_PHI_THRESHOLD, getSeedMu, Score, Tier } from "@/lib/tierConfig";
 import {
 	activeLogoIndex,
 	clearedFrom,
 	stepLogoIndex,
 	stepArtworkIndex,
 } from "@/utils/artworkIndex";
+import {
+	activeCutsOf,
+	isAnimeRow,
+	clampToLine,
+	findSlotIndex,
+	slotIndexAt,
+	slotIndexOf,
+	slotRefFor,
+	slotName,
+	timelineOf,
+	stepWatchIndex,
+	mainOrdinalIndex,
+	mainOrdinalAt,
+	mainCount,
+	episodeCountOf,
+} from "@/app/shows/utils/slotRef";
+import { markOf } from "@/app/shows/utils/animePartMarks";
+import { useStudioCatalog } from "./hooks/useStudioCatalog";
+import { useSlotCursor } from "./hooks/useSlotCursor";
+import { usePartMarks } from "./hooks/usePartMarks";
+import { useCastPanel } from "@/hooks/useCastPanel";
 import { useScoreNudge } from "@/hooks/useScoreNudge";
+import { useAddWait } from "@/hooks/useAddWait";
+import { useEscapeClose } from "@/hooks/useEscapeClose";
+import { PickList, useReloadPreview } from "@/hooks/useReloadPreview";
+import { useWideCard } from "./hooks/useWideCard";
 import {
 	ActorWork,
 	CastMember,
@@ -25,15 +52,17 @@ import { AddMovie } from "@/app/movies/AddMovie";
 import { useAuthFetch } from "@/app/auth/hooks/useAuthFetch";
 import { MovieProps } from "@/types/movie";
 import { MovieDetails } from "@/app/movies/MovieDetailsHub";
-import { MediaStatus } from "@/types/media";
+import { MediaStatus, SeriesTargetProps } from "@/types/media";
 import { useShowSearch } from "@/hooks/external/useShowSearch";
-import { mapTMDBTVToShow } from "./utils/showMapping";
+import { mapShowMeta } from "./utils/showMapping";
+import { isRealTmdbId, isSameName, normName } from "@/utils/mediaMatch";
+import type { StudioWork } from "./utils/studioCatalog";
 // load actor modal dynamically
 const ActorItemsModal = dynamic(
 	() => import("../components/ActorModal").then((m) => m.ActorItemsModal),
 	{ ssr: false },
 );
-// load episode rating dynamically
+// load episode rating dynamically -- used for big desktop
 const EpisodeRatingsModal = dynamic(
 	() =>
 		import("./components/EpisodeRatingsModal").then(
@@ -41,6 +70,38 @@ const EpisodeRatingsModal = dynamic(
 		),
 	{ ssr: false },
 );
+// load episode rating dynamically -- used for small desktop
+const EpisodeRatingsRail = dynamic(
+	() =>
+		import("./components/EpisodeRatingsRail").then(
+			(m) => m.EpisodeRatingsRail,
+		),
+	{ ssr: false },
+);
+// anime slot breakdown
+const AnimeChainRail = dynamic(
+	() =>
+		import("./components/animeChain/WatchOrder").then(
+			(m) => m.AnimeChainRail,
+		),
+	{ ssr: false },
+);
+const AnimeChainModal = dynamic(
+	() =>
+		import("./components/animeChain/WatchOrder").then(
+			(m) => m.AnimeChainModal,
+		),
+	{ ssr: false },
+);
+// studio work
+const StudioCatalogModal = dynamic(
+	() =>
+		import("./components/StudioCatalogModal").then(
+			(m) => m.StudioCatalogModal,
+		),
+	{ ssr: false },
+);
+
 export type ShowAction =
 	| { type: "closeModal" }
 	| { type: "delete" }
@@ -62,7 +123,7 @@ export type ShowAction =
 	| { type: "submitEpisodeInput" }
 	| { type: "changeSeasonInput"; payload: string }
 	| { type: "changeEpisodeInput"; payload: string }
-	| { type: "changeSeasonNum"; payload: number }
+	| { type: "changeSeasonNum"; payload: SlotIndex }
 	| { type: "changeEpisodeNum"; payload: number }
 	| { type: "cast" }
 	| { type: "refresh" }
@@ -72,9 +133,18 @@ export type ShowAction =
 	| { type: "clearLogo" }
 	| { type: "changeCover"; payload: "next" | "prev" }
 	| { type: "changeBackdrop"; payload: "next" | "prev" }
-	| { type: "openRatings" };
+	| { type: "openRatings" }
+	| { type: "openChain" }
+	| { type: "viewSlot"; payload: SlotIndex | null }
+	| { type: "commitView" }
+	| { type: "hideSlot" }
+	// mobile only
+	| { type: "togglePosterSource" }
+	| { type: "toggleFranchiseView" }
+	| { type: "studioClick"; payload: string }
+	| { type: "creatorClick"; payload: string };
 
-interface ShowDetailsProps {
+export interface ShowDetailsProps {
 	show: ShowProps;
 	onClose: () => void;
 	isLoading?: { isTrue: boolean; style: string; text: string };
@@ -83,7 +153,7 @@ interface ShowDetailsProps {
 		updates?: Partial<ShowProps>,
 		takeAction?: boolean,
 	) => void;
-	addShow?: () => void;
+	addShow?: () => void | Promise<unknown>;
 	existingShows?: ShowProps[];
 	onAddWork?: (show: ShowProps) => Promise<unknown>;
 	//
@@ -96,7 +166,14 @@ interface ShowDetailsProps {
 	onAddMovie?: (movie: MovieProps) => Promise<unknown>;
 	// reload metadata from source (poster/backdrop, seasons, studio)
 	onRefresh?: (metadata: Partial<ShowProps>) => Promise<void>;
-	// title treatments to cycle through while adding (AddShow owns the index)
+	// a slot: score | note | skip
+	onUpdatePart?: (
+		showId: number,
+		anilistId: number,
+		patch: { score?: Score | null; note?: string | null; hidden?: boolean },
+	) => void | Promise<unknown>;
+	// seed a part's score and hand it to the battler
+	onPartBattle?: (showId: number, anilistId: number, seed: Score) => void;
 	logoUrls?: string[];
 	logoIndex?: number;
 	updateLogoIndex?: (newIndex: number) => void;
@@ -108,6 +185,15 @@ interface ShowDetailsProps {
 	backdropIndex?: number;
 	updateBackdropIndex?: (newIndex: number) => void;
 }
+
+// the choices a show reload offers
+type ShowArt = {
+	logos: PickList<string>;
+	posters: PickList<string>;
+	backdrops: PickList<string>;
+};
+//
+type CutMoves = ReadonlyMap<number, number>;
 
 export function ShowDetails({
 	onClose,
@@ -121,6 +207,8 @@ export function ShowDetails({
 	onMovieUpdate,
 	onAddMovie,
 	onRefresh,
+	onUpdatePart,
+	onPartBattle,
 	logoUrls,
 	logoIndex,
 	updateLogoIndex,
@@ -131,18 +219,30 @@ export function ShowDetails({
 	backdropIndex,
 	updateBackdropIndex,
 }: ShowDetailsProps) {
-	const [localNote, setLocalNote] = useState(show.note || "");
-	const [isRefreshing, setIsRefreshing] = useState(false);
-	// refresh preview state -- nothing is written until it is confirmed
-	const [isSelecting, setIsSelecting] = useState(false);
-	const [refreshMeta, setRefreshMeta] = useState<Partial<ShowProps>>({});
-	const [refreshLogos, setRefreshLogos] = useState<string[]>([]);
-	const [refreshLogoIndex, setRefreshLogoIndex] = useState(0);
-	const [refreshPosters, setRefreshPosters] = useState<string[]>([]);
-	const [refreshPosterIndex, setRefreshPosterIndex] = useState(0);
-	const [refreshBackdrops, setRefreshBackdrops] = useState<string[]>([]);
-	const [refreshBackdropIndex, setRefreshBackdropIndex] = useState(0);
-	const { searchForShowSeasonInfo } = useShowSearch();
+	// the timeline, and the two positions on it: where you are | where your looking
+	const cursor = useSlotCursor({ show, onUpdate });
+	const {
+		line: slotLine,
+		count: seasonCount,
+		realIndex,
+		shownIndex,
+		isBrowsing,
+		viewedComplete,
+	} = cursor;
+	// what the card says about one entry rather than about the row
+	const marks = usePartMarks({
+		show,
+		cursor,
+		onUpdate,
+		onUpdatePart,
+		onPartBattle,
+		addShow: !!addShow,
+	});
+	// null means the card is talking about the row
+	const { partId } = marks;
+	// notes
+	const [localNote, setLocalNote] = useState(marks.note);
+	// season/episode boxes -- open | typed
 	const [editingMode, setEditingMode] = useState({
 		season: false,
 		episode: false,
@@ -151,33 +251,126 @@ export function ShowDetails({
 		season: number | "";
 		episode: number | "";
 	}>({
-		season: show.curSeasonIndex + 1,
+		season: realIndex + 1,
 		episode: show.curEpisode,
 	});
-	// actor related
+	//
+	const reload = useReloadPreview<ShowProps, ShowArt, CutMoves>({
+		onRefresh,
+		canLoad: !!show.tmdbId,
+		load: async () => {
+			if (!show.tmdbId) return null;
+			// anime only
+			const cuts = activeCutsOf(show);
+			const tv = await loadShowChain(show.tmdbId, undefined, true, cuts);
+			if (!tv) return null;
+			const meta: Partial<ShowProps> = mapShowMeta(tv);
+			// imdbId (used for episode ratings) -- leave untouched
+			delete meta.imdbId;
+			delete meta.logoUrl;
+			const seasons = meta.seasons;
+			if (seasons && seasons.length) {
+				// resolve the stored reference against the *rebuilt* array
+				const nextShow = {
+					...show,
+					seasons,
+					anilistId: meta.anilistId ?? show.anilistId,
+				};
+				const nextLine = timelineOf(nextShow);
+				const si = slotIndexOf(nextShow);
+				let ep = show.curEpisode;
+				const maxEp = episodeCountOf(nextLine[si]);
+				if (ep > maxEp) ep = maxEp;
+				// a rebuilt anime chain can need a rewritten reference even when the position is unchanged
+				Object.assign(meta, slotRefFor(nextShow, si));
+				if (ep !== show.curEpisode) meta.curEpisode = ep;
+			}
+			return {
+				meta,
+				lists: {
+					logos: { items: tv.logos ?? [], index: 0 },
+					posters: { items: tv.posters ?? [], index: 0 },
+					backdrops: { items: tv.backdrops ?? [], index: 0 },
+				},
+				extra: new Map(),
+			};
+		},
+		toMeta: ({ meta, lists }) => ({
+			...meta,
+			logoUrl: lists.logos.items[lists.logos.index] ?? null,
+			// posterUrl already tracks the picked poster
+			...(lists.backdrops.items.length
+				? {
+						backdropUrl:
+							lists.backdrops.items[lists.backdrops.index],
+					}
+				: {}),
+		}),
+		// follow the cuts the reload switched to
+		onConfirmed: async ({ extra: moves }) => {
+			for (const [from, to] of moves) {
+				const mark = markOf(show, from);
+				if (!mark) continue;
+				await marks.write(to, {
+					score: mark.score ?? null,
+					note: mark.note ?? null,
+					hidden: !!mark.hidden,
+				});
+				await marks.write(from, {
+					score: null,
+					note: null,
+					hidden: false,
+				});
+			}
+		},
+	});
+	const { isRefreshing, isSelecting, patchMeta } = reload;
+	const setArtIndex = reload.setListIndex;
+	const art = isSelecting
+		? {
+				logos: reload.list("logos"),
+				posters: reload.list("posters"),
+				backdrops: reload.list("backdrops"),
+			}
+		: {
+				logos: { items: logoUrls, index: logoIndex },
+				posters: { items: posterUrls, index: posterIndex },
+				backdrops: { items: backdropUrls, index: backdropIndex },
+			};
+	const [previewCuts, setPreviewCuts] = useState<number[]>([]);
+	// companion panels
+	// only an anilist row has an order worth listing
+	const hasChain = isAnimeRow(show) && seasonCount > 0;
+	const isWideCard = useWideCard();
 	const [ratingsOpen, setRatingsOpen] = useState(false);
-	const [castOpen, setCastOpen] = useState(false);
-	const [cast, setCast] = useState<CastMember[]>([]);
-	const [castLoading, setCastLoading] = useState(false);
-	const [selectedActor, setSelectedActor] = useState<CastMember | null>(null);
-	const [actorWorks, setActorWorks] = useState<ActorWork[]>([]);
-	const [actorLoading, setActorLoading] = useState(false);
-	const [filmSort, setFilmSort] = useState<"popularity" | "recent">(
-		"popularity",
-	);
-	const [pendingWork, setPendingWork] = useState<ActorWork | null>(null);
-	// store only the id + type
+	const [chainOpen, setChainOpen] = useState(false);
+	const [seriesInfo, setSeriesInfo] = useState<SeriesInfo | null>(null);
+	// cast and creators
+	const castPanel = useCastPanel();
+	const [isCreatorView, setIsCreatorView] = useState(false);
+	const [clickedCreator, setClickedCreator] = useState<string | null>(null);
+	// handing off to another list
+	const [pendingWork, setPendingWork] = useState<{
+		title: string;
+		media_type: ActorWork["media_type"];
+		// tmdb id when the caller knew one -- a series jump does
+		id?: string | null;
+		// a jump off a movie card replaces it -- panel pick opens over it
+		handsOff?: boolean;
+	} | null>(null);
 	const [selectedWorkItem, setSelectedWorkItem] = useState<
 		{ type: "movie"; id: number } | { type: "tv"; id: number } | null
 	>(null);
+	//
+	const { loadShowChain } = useShowSearch();
 	const { authFetch } = useAuthFetch();
 
 	const addedStatusById = useMemo(() => {
 		const map = new Map<string, MediaStatus>();
 		for (const m of existingMovies)
-			if (m.tmdbId) map.set(`movie:${m.tmdbId}`, m.status);
+			if (isRealTmdbId(m.tmdbId)) map.set(`movie:${m.tmdbId}`, m.status);
 		for (const s of existingShows)
-			if (s.tmdbId) map.set(`tv:${s.tmdbId}`, s.status);
+			if (isRealTmdbId(s.tmdbId)) map.set(`tv:${s.tmdbId}`, s.status);
 		return map;
 	}, [existingMovies, existingShows]);
 
@@ -213,7 +406,12 @@ export function ShowDetails({
 						id: existing.id,
 					});
 			}
-			setPendingWork(work);
+			// work.id = the tmdb one
+			setPendingWork({
+				title: work.title,
+				media_type: work.media_type,
+				id: String(work.id),
+			});
 		},
 		[existingMovies, existingShows],
 	);
@@ -223,7 +421,6 @@ export function ShowDetails({
 		show,
 		onUpdate,
 	);
-
 	const handleAction = (action: ShowAction) => {
 		switch (action.type) {
 			// =========modal actions=============
@@ -241,6 +438,10 @@ export function ShowDetails({
 				handleStatusChange(action.payload);
 				break;
 			case "setInitialTier":
+				if (partId != null) {
+					marks.setTier(partId, action.payload);
+					break;
+				}
 				onUpdate(show.id, {
 					score: {
 						mu: getSeedMu(action.payload),
@@ -249,10 +450,14 @@ export function ShowDetails({
 				});
 				break;
 			case "resetScore":
+				if (partId != null) {
+					marks.clearScore(partId);
+					break;
+				}
 				onUpdate(show.id, { score: null });
 				break;
 			case "nudgeScore":
-				nudgeScore(action.payload);
+				(partId != null ? marks.nudge : nudgeScore)(action.payload);
 				break;
 			case "changeNote":
 				setLocalNote(action.payload);
@@ -292,21 +497,19 @@ export function ShowDetails({
 				});
 				break;
 			case "changeSeasonNum":
-				onUpdate(show.id, {
-					curSeasonIndex: action.payload,
-				});
+				cursor.moveTo(action.payload);
 				break;
 			case "cast":
 				handleCast();
 				break;
 			case "refresh":
-				handleRefresh();
+				reload.refresh();
 				break;
 			case "confirmRefresh":
-				handleConfirmRefresh();
+				reload.confirm();
 				break;
 			case "cancelRefresh":
-				exitSelecting();
+				reload.cancel();
 				break;
 			case "clearLogo":
 				handleClearLogo();
@@ -321,43 +524,235 @@ export function ShowDetails({
 				handleBackdropChange(action.payload);
 				break;
 			case "openRatings":
-				setRatingsOpen(true);
+				setRatingsOpen((open) => !open);
+				break;
+			case "openChain":
+				setChainOpen((open) => !open);
+				break;
+			case "viewSlot":
+				marks.exitFranchise();
+				cursor.browse(action.payload);
+				break;
+			case "commitView":
+				cursor.commitView();
+				break;
+			case "hideSlot":
+				handleHideSlot();
+				break;
+			case "toggleFranchiseView":
+				marks.toggleFranchise();
+				break;
+			case "togglePosterSource":
+				handleTogglePosterSource();
+				break;
+			case "studioClick":
+				studio.open(action.payload);
+				break;
+			case "creatorClick":
+				handleCreatorClick(action.payload);
 				break;
 		}
 	};
 
+	const findOwnedMovie = useCallback(
+		(title: string, year?: number) => {
+			const named = existingMovies.filter((m) => isSameName(m, title));
+			return (
+				named.find(
+					(m) =>
+						!year ||
+						!m.dateReleased ||
+						Math.abs(m.dateReleased - year) <= 1,
+				) ?? named[0]
+			);
+		},
+		[existingMovies],
+	);
+
+	// what a studio animated + alrdy owned
+	const studio = useStudioCatalog({
+		authFetch,
+		existingShows,
+		findOwnedMovie,
+	});
+
+	//
+	const resolveMovie = (target: SeriesTargetProps) =>
+		isRealTmdbId(target.id ?? undefined)
+			? existingMovies.find(
+					(m) => isRealTmdbId(m.tmdbId) && m.tmdbId === target.id,
+				)
+			: findOwnedMovie(target.title);
+
+	const handleWorkSeriesNav = (target: SeriesTargetProps) => {
+		const wanted = normName(target.title);
+		const at = slotIndexAt(
+			slotLine.findIndex(
+				(slot, i) =>
+					normName(slotName(show, slot, slotIndexAt(i))) === wanted,
+			),
+		);
+		if (at !== -1) {
+			setSelectedWorkItem(null);
+			cursor.browse(at);
+			return;
+		}
+		const owned = resolveMovie(target);
+		if (owned) return setSelectedWorkItem({ type: "movie", id: owned.id });
+		setSelectedWorkItem(null);
+		setPendingWork({
+			title: target.title,
+			media_type: "movie",
+			id: target.id,
+			handsOff: true,
+		});
+	};
+
+	// for anime only
+	const handlePickCut = async (groupIds: number[], chosenId: number) => {
+		if (!show.tmdbId) return;
+		await reload.runBusy(async () => {
+			if (isSelecting) {
+				reload.patch((p) => {
+					const from = groupIds.find(
+						(id) => markOf(show, id) != null,
+					);
+					if (from == null) return p;
+					const next = new Map(p.extra);
+					// swapped back to where the mark already is
+					if (from === chosenId) next.delete(from);
+					else next.set(from, chosenId);
+					return { ...p, extra: next };
+				});
+				const cuts = [
+					...activeCutsOf({
+						seasons: reload.meta.seasons ?? show.seasons,
+					}).filter((id) => !groupIds.includes(id)),
+					chosenId,
+				];
+				const tv = await loadShowChain(
+					show.tmdbId,
+					undefined,
+					false,
+					cuts,
+				);
+				if (!tv) return;
+				const rebuilt = mapShowMeta(tv);
+				patchMeta((prev) => {
+					const next: Partial<ShowProps> = {
+						...prev,
+						seasons: rebuilt.seasons,
+						anilistId:
+							rebuilt.anilistId ??
+							prev.anilistId ??
+							show.anilistId,
+					};
+					// resolved against the chain it is about to be written against -- same as reload
+					if (next.seasons?.length) {
+						const nextShow = {
+							...show,
+							seasons: next.seasons,
+							anilistId: next.anilistId,
+						};
+						const nextLine = timelineOf(nextShow);
+						const at = slotIndexOf(nextShow);
+						let ep = next.curEpisode ?? show.curEpisode;
+						const maxEp = episodeCountOf(nextLine[at]);
+						if (ep > maxEp) ep = maxEp;
+						Object.assign(next, slotRefFor(nextShow, at));
+						next.curEpisode = ep;
+					}
+					return next;
+				});
+				return;
+			}
+
+			// unsaved preview only: replace this grp's temp choice before another preview
+			const cuts = [
+				...previewCuts.filter((id) => !groupIds.includes(id)),
+				chosenId,
+			];
+			setPreviewCuts(cuts);
+
+			// graphCache is keyed without cuts
+			const tv = await loadShowChain(show.tmdbId, undefined, false, cuts);
+			if (!tv) return;
+			const rebuilt = mapShowMeta(tv);
+			//
+			const patch: Partial<ShowProps> = {
+				seasons: rebuilt.seasons,
+				anilistId: rebuilt.anilistId,
+			};
+			//
+			const seasons = patch.seasons;
+			if (seasons?.length) {
+				const nextShow = {
+					...show,
+					seasons,
+					anilistId: patch.anilistId ?? show.anilistId,
+				};
+				const nextLine = timelineOf(nextShow);
+				const survived = findSlotIndex(nextShow);
+				if (survived !== -1) {
+					const at = survived;
+					Object.assign(patch, slotRefFor(nextShow, at));
+					const maxEp = episodeCountOf(nextLine[at]);
+					if (maxEp && (show.curEpisode ?? 0) > maxEp)
+						patch.curEpisode = maxEp;
+				} else {
+					// part you were on is the one that just left
+					const at = clampToLine(nextLine, realIndex);
+					Object.assign(patch, slotRefFor(nextShow, at));
+					patch.curEpisode = 0;
+				}
+			}
+			if (onRefresh) await onRefresh(patch);
+			else onUpdate(show.id, patch);
+		});
+	};
+
+	// which poster part wears
+	const handleTogglePosterSource = () => {
+		const picking = isSelecting || !!addShow;
+		const stored = isSelecting
+			? (reload.meta.franchisePoster ?? show.franchisePoster)
+			: show.franchisePoster;
+		const wearsRow = picking ? stored !== false : !!stored;
+		// reload writes nothing until applied
+		if (isSelecting)
+			patchMeta((prev) => ({ ...prev, franchisePoster: !wearsRow }));
+		else onUpdate(show.id, { franchisePoster: !wearsRow });
+	};
+
 	//
 	const handleLogoChange = (dir: "next" | "prev") => {
-		const total = isSelecting
-			? refreshLogos.length
-			: (logoUrls?.length ?? 0);
+		const total = art.logos.items?.length ?? 0;
 		if (total < 2) return;
 		if (isSelecting)
-			setRefreshLogoIndex((i) => stepLogoIndex(i, dir, total));
+			setArtIndex("logos", (i) => stepLogoIndex(i, dir, total));
 		else updateLogoIndex?.(stepLogoIndex(logoIndex ?? 0, dir, total));
 	};
 
 	//
 	const handleClearLogo = () => {
-		const current = isSelecting ? refreshLogoIndex : (logoIndex ?? 0);
+		const current = art.logos.index ?? 0;
 		const next =
 			current < 0 ? activeLogoIndex(current) : clearedFrom(current);
-		if (isSelecting) setRefreshLogoIndex(next);
+		if (isSelecting) setArtIndex("logos", () => next);
 		else updateLogoIndex?.(next);
 	};
 
 	// load color of poster
 	const handlePosterChange = (dir: "next" | "prev") => {
-		const total = isSelecting
-			? refreshPosters.length
-			: (posterUrls?.length ?? 0);
+		const posters = art.posters;
+		const total = posters.items?.length ?? 0;
 		if (total < 2) return;
 		if (isSelecting) {
-			const next = stepArtworkIndex(refreshPosterIndex, dir, total);
-			setRefreshPosterIndex(next);
-			setRefreshMeta((prev) => ({
+			const next = stepArtworkIndex(posters.index ?? 0, dir, total);
+			setArtIndex("posters", () => next);
+			patchMeta((prev) => ({
 				...prev,
-				posterUrl: refreshPosters[next],
+				posterUrl: posters.items?.[next],
 			}));
 		} else {
 			updatePosterIndex?.(stepArtworkIndex(posterIndex ?? 0, dir, total));
@@ -365,118 +760,73 @@ export function ShowDetails({
 	};
 
 	const handleBackdropChange = (dir: "next" | "prev") => {
-		const total = isSelecting
-			? refreshBackdrops.length
-			: (backdropUrls?.length ?? 0);
+		const total = art.backdrops.items?.length ?? 0;
 		if (total < 2) return;
 		if (isSelecting)
-			setRefreshBackdropIndex((i) => stepArtworkIndex(i, dir, total));
+			setArtIndex("backdrops", (i) => stepArtworkIndex(i, dir, total));
 		else
 			updateBackdropIndex?.(
 				stepArtworkIndex(backdropIndex ?? 0, dir, total),
 			);
 	};
 
+	const handleCast = () => {
+		setIsCreatorView(false);
+		return castPanel.openCast(async () => {
+			const { cast } = await fetchShowCast(
+				Number(show.tmdbId),
+				authFetch,
+			);
+			return cast;
+		});
+	};
+
+	const handleActorClick = (member: CastMember) => {
+		setIsCreatorView(false);
+		return castPanel.openWorks(member, () =>
+			fetchActorWorks(member.id, authFetch),
+		);
+	};
+
 	//
-	const handleRefresh = async () => {
-		if (!onRefresh || !show.tmdbId || isRefreshing || isSelecting) return;
-		setIsRefreshing(true);
-		try {
-			const tv = await searchForShowSeasonInfo(show.tmdbId);
-			if (!tv) return;
-			const meta: Partial<ShowProps> = mapTMDBTVToShow(tv);
-			// imdbId (used for episode ratings) -- leave untouched
-			delete meta.imdbId;
-			//
-			delete meta.logoUrl;
-			const seasons = meta.seasons;
-			if (seasons && seasons.length) {
-				let si = show.curSeasonIndex;
-				let ep = show.curEpisode;
-				if (si > seasons.length - 1) {
-					si = seasons.length - 1;
-					ep = 0;
-				}
-				const maxEp = seasons[si]?.episode_count ?? 0;
-				if (ep > maxEp) ep = maxEp;
-				if (si !== show.curSeasonIndex) meta.curSeasonIndex = si;
-				if (ep !== show.curEpisode) meta.curEpisode = ep;
-			}
-			setRefreshMeta(meta);
-			setRefreshLogos(tv.logos ?? []);
-			setRefreshLogoIndex(0);
-			setRefreshPosters(tv.posters ?? []);
-			setRefreshPosterIndex(0);
-			setRefreshBackdrops(tv.backdrops ?? []);
-			setRefreshBackdropIndex(0);
-			setIsSelecting(true);
-		} finally {
-			setIsRefreshing(false);
-		}
+	const handleCreatorClick = (name: string) => {
+		if (!name) return;
+		setClickedCreator(name);
+		setIsCreatorView(true);
+		return castPanel.openOnPerson(async () => {
+			const { cast, creators } = await fetchShowCast(
+				Number(show.tmdbId),
+				authFetch,
+			);
+			// match the name that was clicked -- a show can have several
+			const wanted = name.toLowerCase().trim();
+			const member =
+				creators.find((c) => c.name.toLowerCase().trim() === wanted) ??
+				creators[0] ??
+				null;
+			return {
+				cast,
+				member,
+				works: member
+					? await fetchActorWorks(member.id, authFetch, "creator")
+					: [],
+			};
+		});
 	};
 
-	const handleConfirmRefresh = async () => {
-		if (!onRefresh) return;
-		//
-		const meta = {
-			...refreshMeta,
-			logoUrl: refreshLogos[refreshLogoIndex] ?? null,
-			// posterUrl already tracks the picked poster
-			...(refreshBackdrops.length
-				? { backdropUrl: refreshBackdrops[refreshBackdropIndex] }
-				: {}),
-		};
-		exitSelecting();
-		if (Object.keys(meta).length) await onRefresh(meta);
+	// for anime
+	const handleStudioPick = (work: StudioWork) => {
+		const owned = studio.ownedWork(work);
+		if (owned)
+			return setSelectedWorkItem({
+				type: owned.type,
+				id: owned.row.id,
+			});
+		setPendingWork({
+			title: work.base,
+			media_type: work.format === "MOVIE" ? "movie" : "tv",
+		});
 	};
-
-	const exitSelecting = () => {
-		setIsSelecting(false);
-		setRefreshMeta({});
-		setRefreshLogos([]);
-		setRefreshLogoIndex(0);
-		setRefreshPosters([]);
-		setRefreshPosterIndex(0);
-		setRefreshBackdrops([]);
-		setRefreshBackdropIndex(0);
-	};
-
-	const handleCast = async () => {
-		// reset on open instead of on close
-		setSelectedActor(null);
-		setCastOpen(true);
-		setCastLoading(true);
-		try {
-			setCast(await fetchShowCast(Number(show.tmdbId), authFetch));
-		} catch {
-			setCast([]);
-		} finally {
-			setCastLoading(false);
-		}
-	};
-
-	const handleActorClick = async (member: CastMember) => {
-		setSelectedActor(member);
-		setActorWorks([]);
-		setActorLoading(true);
-		try {
-			setActorWorks(await fetchActorWorks(member.id, authFetch));
-		} catch {
-			setActorWorks([]);
-		} finally {
-			setActorLoading(false);
-		}
-	};
-
-	const sortedWorks = useMemo(
-		() =>
-			[...actorWorks].sort((a, b) =>
-				filmSort === "recent"
-					? b.date.localeCompare(a.date)
-					: b.popularity - a.popularity,
-			),
-		[actorWorks, filmSort],
-	);
 
 	const handleStatusChange = (value: string) => {
 		const newStatus = value as "Completed" | "Want to Watch";
@@ -485,21 +835,27 @@ export function ShowDetails({
 		};
 		if (newStatus === "Completed") {
 			updatesViaStatus.dateCompleted = new Date();
-			if (show.seasons) {
-				updatesViaStatus.curEpisode =
-					show.seasons[show.seasons.length - 1].episode_count;
-				updatesViaStatus.curSeasonIndex = show.seasons.length - 1;
+			if (seasonCount) {
+				// the last main part
+				const last = mainOrdinalIndex(slotLine, mainCount(slotLine));
+				if (last !== -1) {
+					updatesViaStatus.curEpisode = episodeCountOf(
+						slotLine[last],
+					);
+					Object.assign(updatesViaStatus, slotRefFor(show, last));
+				}
 			}
 		} else if (show.dateCompleted) {
 			updatesViaStatus.dateCompleted = null;
 		}
+		if (updatesViaStatus.curSeasonIndex !== undefined) cursor.clear();
 		onUpdate(show.id, updatesViaStatus);
 	};
 
 	const handleSaveNote = () => {
-		if (localNote !== show.note) {
-			onUpdate(show.id, { note: localNote });
-		}
+		if (localNote === marks.note) return;
+		if (partId != null) marks.setNote(partId, localNote);
+		else onUpdate(show.id, { note: localNote });
 	};
 
 	const handleDelete = () => {
@@ -511,14 +867,12 @@ export function ShowDetails({
 	const handleModalClose = () => {
 		// fold the deferred phi drop into the update this close flushes
 		commitScoreNudge();
-		// if (addShow) return;
+		marks.commitNudge();
 		onClose();
 	};
+	useEscapeClose(handleModalClose);
 
-	const handleAddShow = useCallback(() => {
-		if (!addShow) return;
-		addShow();
-	}, [addShow]);
+	const { isSubmitting, submit: handleAddShow } = useAddWait(addShow);
 
 	const handleNeedYear = () => {
 		const needYear = true;
@@ -537,56 +891,65 @@ export function ShowDetails({
 		});
 		//
 		setInputValues({
-			season: show.curSeasonIndex + 1,
+			season: mainOrdinalAt(slotLine, realIndex),
 			episode: show.curEpisode,
 		});
 	};
 
 	const handleInputSubmit = (type: "season" | "episode") => {
-		if (!show.seasons) return;
+		if (!seasonCount) return;
 
 		if (type === "season") {
+			// A typed number counts main parts: "3" means season 3 | ovas sitting between not counted
+			const mainTotal = mainCount(slotLine);
 			// empty input
 			let seasonNum =
 				inputValues.season === ""
-					? show.curSeasonIndex + 1
+					? mainOrdinalAt(slotLine, realIndex)
 					: inputValues.season;
 			// force clamp top
-			seasonNum =
-				seasonNum > show.seasons.length
-					? show.seasons.length
-					: seasonNum;
+			seasonNum = seasonNum > mainTotal ? mainTotal : seasonNum;
+			const at = mainOrdinalIndex(slotLine, seasonNum);
 			//
-			if (seasonNum >= 1 && seasonNum <= show.seasons.length) {
+			if (seasonNum >= 1 && at !== -1) {
 				setEditingMode({ ...editingMode, season: false });
-				onUpdate(show.id, {
-					curSeasonIndex: seasonNum - 1,
-					curEpisode: 1,
-				});
+				// landing on a part means none of it is watched yet
+				cursor.moveTo(at, 0);
 			} else {
 				setInputValues({
 					...inputValues,
-					season: show.curSeasonIndex + 1,
+					season: mainOrdinalAt(slotLine, realIndex),
 				});
 				setEditingMode({ ...editingMode, season: false });
 			}
 		} else if (type === "episode") {
-			const maxEpisodes = show.seasons[show.curSeasonIndex].episode_count;
 			// empty input
-			let episodeNum =
+			const typed =
 				inputValues.episode === ""
 					? show.curEpisode
 					: inputValues.episode;
-			// force clamp top
-			episodeNum = episodeNum > maxEpisodes ? maxEpisodes : episodeNum;
-			//
-			if (episodeNum >= 1 && episodeNum <= maxEpisodes) {
-				setEditingMode({ ...editingMode, episode: false });
-				onUpdate(show.id, { curEpisode: episodeNum });
-			} else {
+			setEditingMode({ ...editingMode, episode: false });
+			if (!Number.isFinite(typed) || typed < 0) {
 				setInputValues({ ...inputValues, episode: show.curEpisode });
-				setEditingMode({ ...editingMode, episode: false });
+				return;
 			}
+			// past part you are on goes into next
+			let at = realIndex;
+			let ep = typed;
+			let max = episodeCountOf(slotLine[at]);
+			while (ep > max) {
+				const next = stepWatchIndex(slotLine, at, "right");
+				// end of road
+				if (next === -1 || max <= 0) {
+					ep = Math.max(max, 0);
+					break;
+				}
+				ep -= max;
+				at = next;
+				max = episodeCountOf(slotLine[at]);
+			}
+			//
+			cursor.moveTo(at, ep);
 		}
 	};
 
@@ -622,59 +985,53 @@ export function ShowDetails({
 	};
 
 	const handleSeasonChange = (dir: string) => {
-		if (!show.seasons) return;
-		//
-		let seasonIndex = show.curSeasonIndex;
-		const seasons = show.seasons;
-		//
-		const isFirstSeason = seasonIndex === 0;
-		const isLastSeason = seasonIndex === seasons.length - 1;
-		//
-		if (dir === "left") {
-			if (isFirstSeason) return;
-			//
-			seasonIndex -= 1;
-		} else if (dir === "right") {
-			if (isLastSeason) return;
-			//
-			seasonIndex += 1;
-		}
-		const curEp = 0;
-		onUpdate(show.id, { curSeasonIndex: seasonIndex, curEpisode: curEp });
+		if (!seasonCount) return;
+		// arrow walk for normal and anime
+		const seasonIndex = stepWatchIndex(
+			slotLine,
+			shownIndex,
+			dir === "left" ? "left" : "right",
+		);
+		if (seasonIndex === -1) return;
+		// look, do not move
+		cursor.browse(seasonIndex);
+	};
+
+	// set the browsed part aside from the card, the way its row in the order would
+	const handleHideSlot = () => {
+		const slot = slotLine[shownIndex];
+		if (!slot?.isSide || slot.anilistId == null) return;
+		marks.setHidden(slot.anilistId, true);
 	};
 
 	const handleEpisodeChange = (dir: string) => {
-		if (!show.seasons) return;
+		if (!seasonCount || isBrowsing) return;
 		//
-		let { curSeasonIndex: seasonIndex, curEpisode: curEp } = show;
-		const seasons = show.seasons;
-		//
-		const isFirstEpisode = seasonIndex === 0 && curEp === 0;
-		const isLastEpisode =
-			seasonIndex === seasons.length - 1 &&
-			curEp === seasons[seasonIndex].episode_count;
+		let seasonIndex = realIndex;
+		let curEp = show.curEpisode;
+		const total = episodeCountOf(slotLine[seasonIndex]);
 		//
 		if (dir === "left") {
-			if (isFirstEpisode) return;
-			// go back season's last ep
-			if (curEp === 0) {
-				seasonIndex -= 1;
-				curEp = seasons[seasonIndex].episode_count;
-			} else {
+			if (curEp > 0) {
 				curEp -= 1;
+			} else {
+				const prev = stepWatchIndex(slotLine, seasonIndex, "left");
+				if (prev === -1) return;
+				seasonIndex = prev;
+				curEp = episodeCountOf(slotLine[prev]);
 			}
 		} else if (dir === "right") {
-			if (isLastEpisode) return;
-			// go to next season's first ep
-			if (curEp === seasons[seasonIndex].episode_count) {
-				seasonIndex += 1;
-				curEp = 0;
-			} else {
+			if (curEp < total) {
 				curEp += 1;
+			} else {
+				const next = stepWatchIndex(slotLine, seasonIndex, "right");
+				if (next === -1) return;
+				seasonIndex = next;
+				curEp = 0;
 			}
 		}
-
-		onUpdate(show.id, { curSeasonIndex: seasonIndex, curEpisode: curEp });
+		//
+		cursor.moveTo(seasonIndex, curEp);
 	};
 
 	useEffect(() => {
@@ -697,22 +1054,52 @@ export function ShowDetails({
 
 	useEffect(() => {
 		setInputValues({
-			season: show.curSeasonIndex + 1,
+			season: mainOrdinalAt(slotLine, shownIndex),
 			episode: show.curEpisode,
 		});
-	}, [show.curSeasonIndex, show.curEpisode]);
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [show.curSeasonIndex, show.curEpisode, show.seasons, shownIndex]);
 
 	// need to reset local note -- since changing show doesn't remount
 	useEffect(() => {
-		setLocalNote(show.note || "");
-		exitSelecting();
+		setLocalNote(marks.note);
+		reload.cancel();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [show.id]);
+
+	// note follows the entry the card is showing
+	useEffect(() => {
+		setLocalNote(marks.note);
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [partId, marks.franchiseView]);
 
 	if (!show) return null;
 
 	// while previewing render new
-	const previewShow = isSelecting ? { ...show, ...refreshMeta } : show;
+	const previewShow = isSelecting ? { ...show, ...reload.meta } : show;
+
+	// display only -- the slot's poster | studio | year beat the row's; writes go through `show`
+	const viewRef = isBrowsing ? slotRefFor(previewShow, shownIndex) : {};
+	const previewLine = isSelecting ? timelineOf(previewShow) : slotLine;
+	const curSlot =
+		previewLine[Math.min(shownIndex, Math.max(0, previewLine.length - 1))];
+	const slotYear = Number(curSlot?.startDate?.slice(0, 4));
+	// ...unless the row keeps its own -- the default flips while picking
+	const posterPref = previewShow.franchisePoster;
+	const wearsRowPoster =
+		isSelecting || addShow ? posterPref !== false : !!posterPref;
+	const slotMeta: Partial<ShowProps> = {
+		...(curSlot?.posterUrl && !wearsRowPoster
+			? { posterUrl: curSlot.posterUrl }
+			: {}),
+		...(slotYear ? { dateReleased: slotYear } : {}),
+		...(partId != null ? { score: marks.mark?.score ?? null } : {}),
+	};
+	// unchanged rows keep their identity
+	const displayShow =
+		Object.keys(slotMeta).length || isBrowsing
+			? { ...previewShow, ...viewRef, ...slotMeta }
+			: previewShow;
 
 	const displayLoading = isRefreshing
 		? {
@@ -722,70 +1109,126 @@ export function ShowDetails({
 			}
 		: isLoading;
 
+	// handing over to movie list
+	const handedOff = !!selectedWorkItem || !!pendingWork?.handsOff;
+
 	return (
 		<>
-			<div className="lg:block hidden">
-				<DesktopDetails
-					item={previewShow}
-					localNote={localNote}
-					statusOptions={showStatusOptions}
-					mediaType="show"
-					isLoading={displayLoading}
-					isAdding={!!addShow}
-					isSelecting={isSelecting}
-					onAdd={handleAddShow}
-					onClose={handleModalClose}
-					canRefresh={!!onRefresh}
-					logoUrls={isSelecting ? refreshLogos : logoUrls}
-					logoIndex={isSelecting ? refreshLogoIndex : logoIndex}
-					posterUrls={isSelecting ? refreshPosters : posterUrls}
-					posterIndex={isSelecting ? refreshPosterIndex : posterIndex}
-					backdropUrls={isSelecting ? refreshBackdrops : backdropUrls}
-					backdropIndex={
-						isSelecting ? refreshBackdropIndex : backdropIndex
-					}
-					onAction={
-						handleAction as (action: {
-							type: string;
-							payload?: unknown;
-						}) => void
-					}
-					differentColumns={DIFF_COLUMNS_SHOW}
-					editingMode={editingMode}
-					inputValues={inputValues}
-				/>
-			</div>
-			<div className="block lg:hidden">
-				<MobileDetails
-					item={previewShow}
-					localNote={localNote}
-					statusOptions={showStatusOptions}
-					mediaType="show"
-					isLoading={displayLoading}
-					isAdding={!!addShow}
-					isSelecting={isSelecting}
-					onAdd={handleAddShow}
-					onClose={handleModalClose}
-					logoUrls={isSelecting ? refreshLogos : logoUrls}
-					logoIndex={isSelecting ? refreshLogoIndex : logoIndex}
-					posterUrls={isSelecting ? refreshPosters : posterUrls}
-					posterIndex={isSelecting ? refreshPosterIndex : posterIndex}
-					backdropUrls={isSelecting ? refreshBackdrops : backdropUrls}
-					backdropIndex={
-						isSelecting ? refreshBackdropIndex : backdropIndex
-					}
-					canRefresh={!!onRefresh}
-					onAction={
-						handleAction as (action: {
-							type: string;
-							payload?: unknown;
-						}) => void
-					}
-					differentColumns={DIFF_COLUMNS_SHOW}
-				/>
-			</div>
+			{!handedOff && (
+				<div className="lg:block hidden">
+					<DesktopDetails
+						item={displayShow}
+						localNote={localNote}
+						noteSubject={marks.noteSubject}
+						franchiseView={marks.franchiseView}
+						statusOptions={showStatusOptions}
+						isInList={(target) => !!resolveMovie(target)}
+						isBrowsing={isBrowsing}
+						viewedComplete={viewedComplete}
+						mediaType="show"
+						isLoading={displayLoading}
+						isAdding={!!addShow}
+						isSelecting={isSelecting}
+						onAdd={handleAddShow}
+						isSubmitting={isSubmitting}
+						onClose={handleModalClose}
+						canRefresh={!!onRefresh}
+						logoUrls={art.logos.items}
+						logoIndex={art.logos.index}
+						posterUrls={art.posters.items}
+						posterIndex={art.posters.index}
+						backdropUrls={art.backdrops.items}
+						backdropIndex={art.backdrops.index}
+						onAction={
+							handleAction as (action: {
+								type: string;
+								payload?: unknown;
+							}) => void
+						}
+						differentColumns={DIFF_COLUMNS_SHOW}
+						editingMode={editingMode}
+						inputValues={inputValues}
+						ratingsDocked={isWideCard && ratingsOpen}
+						seriesInfo={seriesInfo}
+						sidePanel={
+							<AnimatePresence>
+								{/* RATING RAIL */}
+								{isWideCard && ratingsOpen && (
+									<EpisodeRatingsRail
+										key="ratings-rail"
+										show={show}
+										authFetch={authFetch}
+										onSeries={setSeriesInfo}
+									/>
+								)}
+								{/* WATCH ORDER RAIL */}
+								{isWideCard && chainOpen && hasChain && (
+									<AnimeChainRail
+										key="rail"
+										show={previewShow}
+										onClose={() => setChainOpen(false)}
+										onPickSlot={(index) =>
+											handleAction({
+												type: "viewSlot",
+												payload: index,
+											})
+										}
+										onWatchSlot={cursor.watchSlot}
+										viewIndex={
+											isBrowsing ? shownIndex : null
+										}
+										onPickCut={handlePickCut}
+										canPickCut={!!addShow || isSelecting}
+										onHide={(anilistId) =>
+											marks.setHidden(anilistId, true)
+										}
+										onUnhide={(anilistId) =>
+											marks.setHidden(anilistId, false)
+										}
+									/>
+								)}
+							</AnimatePresence>
+						}
+					/>
+				</div>
+			)}
+			{!handedOff && (
+				<div className="block lg:hidden">
+					<MobileDetails
+						item={displayShow}
+						localNote={localNote}
+						noteSubject={marks.noteSubject}
+						franchiseView={marks.franchiseView}
+						statusOptions={showStatusOptions}
+						isInList={(target) => !!resolveMovie(target)}
+						isBrowsing={isBrowsing}
+						mediaType="show"
+						isLoading={displayLoading}
+						isAdding={!!addShow}
+						isSelecting={isSelecting}
+						onAdd={handleAddShow}
+						isSubmitting={isSubmitting}
+						onClose={handleModalClose}
+						logoUrls={art.logos.items}
+						logoIndex={art.logos.index}
+						posterUrls={art.posters.items}
+						posterIndex={art.posters.index}
+						backdropUrls={art.backdrops.items}
+						backdropIndex={art.backdrops.index}
+						canRefresh={!!onRefresh}
+						onAction={
+							handleAction as (action: {
+								type: string;
+								payload?: unknown;
+							}) => void
+						}
+						differentColumns={DIFF_COLUMNS_SHOW}
+					/>
+				</div>
+			)}
+			{/* ratings, when desktop is small */}
 			<AnimatePresence>
-				{ratingsOpen && (
+				{!isWideCard && ratingsOpen && (
 					<EpisodeRatingsModal
 						key="ratings"
 						show={show}
@@ -794,27 +1237,78 @@ export function ShowDetails({
 					/>
 				)}
 			</AnimatePresence>
+			{/* watch order, when desktop is small */}
 			<AnimatePresence>
-				{castOpen && (
-					<ActorItemsModal
-						key="cast"
-						mediaTitle={show.title}
-						cast={cast}
-						castLoading={castLoading}
-						selectedActor={selectedActor}
-						sortedWorks={sortedWorks}
-						actorLoading={actorLoading}
-						filmSort={filmSort}
-						onClose={() => setCastOpen(false)}
-						onActorClick={handleActorClick}
-						onActorBack={() => setSelectedActor(null)}
-						onFilmSortChange={setFilmSort}
-						onWorkClick={handleWorkClick}
-						addedStatusById={addedStatusById}
+				{!isWideCard && chainOpen && hasChain && (
+					<AnimeChainModal
+						key="chain"
+						show={previewShow}
+						onClose={() => setChainOpen(false)}
+						onPickSlot={(index) =>
+							handleAction({
+								type: "viewSlot",
+								payload: index,
+							})
+						}
+						onWatchSlot={cursor.watchSlot}
+						viewIndex={isBrowsing ? shownIndex : null}
+						onPickCut={handlePickCut}
+						canPickCut={!!addShow || isSelecting}
+						onHide={(anilistId) => marks.setHidden(anilistId, true)}
+						onUnhide={(anilistId) =>
+							marks.setHidden(anilistId, false)
+						}
 					/>
 				)}
 			</AnimatePresence>
-
+			{/* STUDIO WORKS */}
+			<AnimatePresence>
+				{studio.name && (
+					<StudioCatalogModal
+						key="studio"
+						studioName={studio.name}
+						catalog={studio.catalog}
+						loading={studio.loading}
+						sort={studio.sort}
+						onSortChange={studio.setSort}
+						onPageChange={studio.setPage}
+						loadingMore={studio.loadingMore}
+						onClose={studio.close}
+						onPick={handleStudioPick}
+						ownedStatus={(work) =>
+							studio.ownedWork(work)?.row.status
+						}
+						isDropped={studio.isDropped}
+					/>
+				)}
+			</AnimatePresence>
+			{/* ACTOR WORKS */}
+			<AnimatePresence>
+				{castPanel.isOpen && (
+					<ActorItemsModal
+						key="cast"
+						mediaTitle={show.title}
+						cast={castPanel.cast}
+						castLoading={castPanel.castLoading}
+						selectedActor={castPanel.actor}
+						sortedWorks={castPanel.sortedWorks}
+						actorLoading={castPanel.worksLoading}
+						movieSort={castPanel.sort}
+						onClose={castPanel.close}
+						onActorClick={handleActorClick}
+						onActorBack={() => {
+							castPanel.clearActor();
+							setIsCreatorView(false);
+						}}
+						onMovieSortChange={castPanel.setSort}
+						onWorkClick={handleWorkClick}
+						addedStatusById={addedStatusById}
+						isPersonView={isCreatorView}
+						personName={clickedCreator ?? show.creator}
+					/>
+				)}
+			</AnimatePresence>
+			{/* ADD SHOW */}
 			{pendingWork?.media_type === "tv" && (
 				<AddShow
 					isOpen={true}
@@ -842,6 +1336,7 @@ export function ShowDetails({
 					show={selectedShow}
 					onClose={() => setSelectedWorkItem(null)}
 					onUpdate={onUpdate}
+					onUpdatePart={onUpdatePart}
 					existingShows={existingShows}
 					existingMovies={existingMovies}
 					onMovieUpdate={onMovieUpdate}
@@ -849,7 +1344,7 @@ export function ShowDetails({
 					onAddMovie={onAddMovie}
 				/>
 			)}
-			{/* movie stuff */}
+			{/* MOVIE DETAILS */}
 			{selectedMovie && onMovieUpdate && (
 				<MovieDetails
 					movie={selectedMovie}
@@ -858,26 +1353,62 @@ export function ShowDetails({
 					existingMovies={existingMovies}
 					existingShows={existingShows}
 					onShowUpdate={onUpdate}
+					onShowUpdatePart={onUpdatePart}
+					showSequelPrequel={handleWorkSeriesNav}
 					onAddWork={onAddMovie}
 					onAddShow={onAddWork}
 				/>
 			)}
+			{/* MOVIE ADD */}
 			{pendingWork?.media_type === "movie" && (
 				<AddMovie
-					isOpen={true}
-					titleFromAbove={pendingWork.title}
-					onClose={() => setPendingWork(null)}
+					isOpen
+					targetFromAbove={{
+						title: pendingWork.title,
+						id: pendingWork.id,
+					}}
+					// if movie turns out to be an anime
+					onAnimeChain={(found) =>
+						setPendingWork({
+							title: found.showTitle ?? "",
+							media_type: "tv",
+						})
+					}
+					existingShows={existingShows}
+					onSeriesNav={(target) => {
+						setPendingWork(null);
+						handleWorkSeriesNav(target);
+					}}
+					onClose={() => {
+						setPendingWork(null);
+					}}
 					existingMovies={existingMovies}
+					onDuplicate={(dup) => {
+						const owned =
+							(dup.tmdbId
+								? existingMovies.find(
+										(m) => m.tmdbId === dup.tmdbId,
+									)
+								: undefined) ??
+							(dup.imdbId
+								? existingMovies.find(
+										(m) => m.imdbId === dup.imdbId,
+									)
+								: undefined) ??
+							findOwnedMovie(dup.title);
+						if (!owned) return false;
+						setPendingWork(null);
+						setSelectedWorkItem({ type: "movie", id: owned.id });
+						return true;
+					}}
 					onAddMovie={async (m) => {
-						if (onAddMovie) {
-							await onAddMovie(m);
-						} else {
+						if (onAddMovie) await onAddMovie(m);
+						else
 							await authFetch("/api/movies", {
 								method: "POST",
 								headers: { "Content-Type": "application/json" },
 								body: JSON.stringify(m),
 							});
-						}
 						setPendingWork(null);
 					}}
 				/>

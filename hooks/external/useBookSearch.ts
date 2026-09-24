@@ -12,21 +12,29 @@ export function useBookSearch() {
 	// HARDCOVER API -- BOOK PRIMARY
 	const searchForBooks = async (
 		title: string,
+		// the key a series jump is aiming at
+		knownKey?: string,
 	): Promise<
 		| BookAPIProps
 		| null
-		| { isDuplicate: boolean; title: string; key: "DUP" }
+		| { isDuplicate: boolean; title: string; key?: string }
 	> => {
 		try {
 			setIsSearching(true);
 			setError(null);
 			// make call
-			const url = `/api/books-api/hardcover?title=${title}`;
+			const params = new URLSearchParams({ title });
+			if (knownKey) params.set("key", knownKey);
+			const url = `/api/books-api/hardcover?${params}`;
 			const response = await authFetch(url);
 			// if duplicate
 			if (response.status === 409) {
 				const data = await response.json();
-				return { isDuplicate: true, title: data.title, key: "DUP" };
+				return {
+					isDuplicate: true,
+					title: data.title,
+					key: data.key,
+				};
 			}
 			if (!response.ok) {
 				throw new Error(`HTTP error--status: ${response.status}`);
@@ -72,15 +80,13 @@ export function useBookSearch() {
 		}
 	};
 
-	// HARDCOVER BY KEY -- reload an existing book's metadata (no dup check)
-	const searchForBookByKey = async (
-		key: string,
-	): Promise<BookAPIProps | null> => {
+	// reload + multi book
+	const loadBookByKey = async (key: string): Promise<BookAPIProps | null> => {
 		try {
 			setIsSearching(true);
 			setError(null);
 			// make call
-			const url = `/api/books-api/hardcover-by-key?key=${key}`;
+			const url = `/api/books-api/hardcover-refresh?key=${key}`;
 			const response = await authFetch(url);
 			if (!response.ok) {
 				throw new Error(`HTTP error--status: ${response.status}`);
@@ -104,6 +110,6 @@ export function useBookSearch() {
 		isBookSearching,
 		searchForBooks,
 		searchForBooksMulti,
-		searchForBookByKey,
+		loadBookByKey,
 	};
 }

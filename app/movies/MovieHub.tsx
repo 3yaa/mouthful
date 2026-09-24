@@ -1,12 +1,15 @@
 "use client";
 import { useCallback, useState } from "react";
 import { MovieProps } from "@/types/movie";
+import { isRealTmdbId, isSameName } from "@/utils/mediaMatch";
+import { SeriesTargetProps } from "@/types/media";
 import { DIFF_COLUMNS_MOVIE } from "@/types/movie";
 import { useMediaData } from "@/hooks/useMediaData";
 import { useManageMedia } from "@/hooks/useManageMedia";
 import { useSortMedia } from "@/hooks/useSortMedia";
 import { movieStatusOptions } from "@/utils/dropDownDetails";
 import { AddMovie } from "./AddMovie";
+import { AddShow } from "@/app/shows/AddShow";
 import { MovieDetails } from "./MovieDetailsHub";
 import { DesktopListing } from "@/app/views/mediaListing/DesktopListing";
 import { MobileListing } from "@/app/views/mediaListing/MobileListing";
@@ -23,6 +26,7 @@ const ScoreBattlerHub = dynamic(
 );
 import { Score } from "@/lib/tierConfig";
 import { ShowProps } from "@/types/show";
+import { withPartPatch } from "@/app/shows/utils/animePartMarks";
 
 export default function MoviesHub() {
 	const { items, add, update, refresh, remove, isProcessing } =
@@ -30,12 +34,7 @@ export default function MoviesHub() {
 			endpoint: "movies",
 			requiredFieldsToPost: ["title", "status", "imdbId"],
 			statusOrder: { "Want to Watch": 0, Completed: 1, Dropped: 2 },
-			extraFieldsToUpdate: [
-				"seriesTitle",
-				"placeInSeries",
-				"prequel",
-				"sequel",
-			],
+			extraFieldsToUpdate: ["series"],
 		});
 
 	// IN-CASE NEED SHOW DATA
@@ -43,6 +42,7 @@ export default function MoviesHub() {
 		items: showItems,
 		add: showAdd,
 		update: showUpdate,
+		updatePart: showUpdatePart,
 		remove: showRemove,
 	} = useMediaData<ShowProps>({
 		endpoint: "shows",
@@ -90,6 +90,7 @@ export default function MoviesHub() {
 		statusFilter,
 		searchQuery,
 		selectedItem,
+		openItemId,
 		titleToUse,
 		setTitleToUse,
 		activeModal,
@@ -127,18 +128,12 @@ export default function MoviesHub() {
 		[refresh],
 	);
 
-	// adding a show from a movie's actor modal -- routes through the cross
-	// media battler instead of the raw data hook, which skips scoring entirely
+	const [chainShowTitle, setChainShowTitle] = useState<string | null>(null);
+
+	// adding a show from a movie's actor modal
 	const handleShowAdd = useCallback(
 		async (show: ShowProps) => {
 			const newItem = await showAdd(show);
-			// TEMP DIAGNOSTIC -- remove once the add-with-score path is settled
-			console.log(
-				"[cross-add] sent score:",
-				show.score,
-				"| got back:",
-				newItem?.score,
-			);
 			if (!newItem?.score) return false;
 			setShowBattle({ item: newItem, score: newItem.score });
 			return true;
@@ -146,34 +141,36 @@ export default function MoviesHub() {
 		[showAdd],
 	);
 
-	const isInList = useCallback(
-		(title: string) =>
-			items.some(
-				(movie) =>
-					movie.title.toLowerCase().trim() ===
-					title.toLowerCase().trim(),
-			),
+	const findOwned = useCallback(
+		(target: SeriesTargetProps) =>
+			isRealTmdbId(target.id ?? undefined)
+				? items.find(
+						(movie) =>
+							isRealTmdbId(movie.tmdbId) &&
+							movie.tmdbId === target.id,
+					)
+				: items.find((movie) => isSameName(movie, target.title)),
 		[items],
+	);
+
+	const isInList = useCallback(
+		(target: SeriesTargetProps) => !!findOwned(target),
+		[findOwned],
 	);
 
 	// sequel/prequel navigation
 	const showSequelPrequel = useCallback(
-		(targetTitle: string) => {
-			if (!targetTitle) return;
-			const targetMovie = items.find(
-				(movie) =>
-					movie.title.toLowerCase().trim() ===
-					targetTitle.toLowerCase().trim(),
-			);
-			if (targetMovie) {
+		(target: SeriesTargetProps) => {
+			const owned = findOwned(target);
+			if (owned) {
 				// owned -- hand it to the real details modal
-				handleItemClicked(targetMovie);
+				handleItemClicked(owned);
 			} else {
-				setTitleToUse(targetTitle);
+				setTitleToUse(target);
 				setActiveModal("addModal");
 			}
 		},
-		[items, handleItemClicked, setTitleToUse, setActiveModal],
+		[findOwned, handleItemClicked, setTitleToUse, setActiveModal],
 	);
 
 	return (
@@ -191,6 +188,7 @@ export default function MoviesHub() {
 					differentColumns={DIFF_COLUMNS_MOVIE}
 					searchQuery={searchQuery}
 					emptyListText="No movies yet — add one!"
+					openItemId={openItemId}
 					onItemClicked={handleItemClicked}
 					onSortConfig={handleSortConfig}
 					onSearchChange={handleSearchQueryChange}
@@ -229,10 +227,29 @@ export default function MoviesHub() {
 						isOpen={activeModal === "addModal"}
 						onClose={handleModalClose}
 						existingMovies={items}
+						existingShows={showItems}
 						onAddMovie={handleItemAdd}
-						titleFromAbove={titleToUse}
+						targetFromAbove={titleToUse}
 						onSeriesNav={showSequelPrequel}
 						isInList={isInList}
+						onAnimeChain={(found) => {
+							handleModalClose();
+							setChainShowTitle(found.showTitle);
+						}}
+						onDuplicate={(dup) => {
+							const owned =
+								(dup.tmdbId
+									? items.find((m) => m.tmdbId === dup.tmdbId)
+									: undefined) ??
+								(dup.imdbId
+									? items.find((m) => m.imdbId === dup.imdbId)
+									: undefined) ??
+								items.find((m) => isSameName(m, dup.title));
+							if (!owned) return false;
+							setTitleToUse(null);
+							handleItemClicked(owned);
+							return true;
+						}}
 					/>
 				)}
 			</AnimatePresence>
@@ -253,7 +270,25 @@ export default function MoviesHub() {
 						//
 						existingShows={showItems}
 						onShowUpdate={handleShowUpdates}
+						onShowUpdatePart={(showId, anilistId, patch) =>
+							showUpdatePart(showId, anilistId, patch, (item) =>
+								withPartPatch(item, anilistId, patch),
+							)
+						}
 						onAddShow={handleShowAdd}
+					/>
+				)}
+			</AnimatePresence>
+			{/* THE SHOW A MOVIE TURNED OUT TO BELONG TO */}
+			<AnimatePresence>
+				{chainShowTitle && (
+					<AddShow
+						key="chain-show"
+						isOpen
+						titleFromAbove={chainShowTitle}
+						existingShows={showItems}
+						onAddShow={handleShowAdd}
+						onClose={() => setChainShowTitle(null)}
 					/>
 				)}
 			</AnimatePresence>

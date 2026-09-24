@@ -3,31 +3,42 @@ import Image from "next/image";
 import { isResizable } from "@/utils/image-loader";
 import { BaseMediaProps, ColumnConfig, SeriesMediaProps } from "@/types/media";
 import { GameProps } from "@/types/game";
+import { formatDateShort } from "@/utils/formattingUtils";
+import { seriesPlace, seriesTitleOf } from "@/utils/seriesRead";
 import {
-	formatDateShort,
 	getStatusBg,
 	getStatusBorderColor,
 	getStatusStrokeColor,
 	getStatusWaveColor,
-} from "@/utils/formattingUtils";
-import { getDisplayScore } from "@/lib/tierConfig";
+} from "@/utils/styleUtils";
 import { BackdropDesktop } from "../../components/ui/BackdropDesktop";
 import { BookBackdropDesktop } from "../../components/ui/BookBackdrop";
-import { ScoreBadge } from "../../components/ui/ScoreBadge";
+import { ScoreMark } from "../../components/ui/ScoreMark";
 import { ShowProgressBarDesktop } from "@/app/shows/components/showProgressListing";
+import { slotPoster } from "@/app/shows/utils/slotRef";
 import { ShowProps } from "@/types/show";
 import { BookProps } from "@/types/book";
 import { MovieProps } from "@/types/movie";
 import { Leaf } from "lucide-react";
+import { useLogoPrime } from "../mediaDetails/shared/useLogoPrime";
 
-// the first mounted item that needs priority loading (cover/backdrop)
-const EAGER_ROWS = 9;
+// for the wave under item
+function seededRand(seed: string | number, salt = 0): number {
+	const str = String(seed) + salt;
+	let h = 2166136261;
+	for (let i = 0; i < str.length; i++) {
+		h ^= str.charCodeAt(i);
+		h = Math.imul(h, 16777619);
+	}
+	return ((h >>> 0) % 1000) / 1000;
+}
 
 interface DesktopItemProps<T extends BaseMediaProps> {
 	item: T;
 	index: number;
 	total: number;
 	rank: number;
+	isOpen: boolean;
 	mediaType: string;
 	onClick: (item: T) => void;
 	differentColumns: [ColumnConfig<T>, ColumnConfig<T>];
@@ -38,8 +49,9 @@ export const DesktopItem = React.memo(function DesktopItem<
 >({
 	item,
 	index,
-	total,
+	// total,
 	// rank,
+	isOpen,
 	mediaType,
 	onClick,
 	differentColumns,
@@ -52,42 +64,40 @@ export const DesktopItem = React.memo(function DesktopItem<
 			? gameItem.dlcIndex !== 0
 				? gameItem.mainTitle
 				: null
-			: series.seriesTitle;
+			: seriesTitleOf(series);
+	const place = seriesPlace(series);
 	const bookItem = item as unknown as BookProps;
 	const movieItem = item as unknown as MovieProps;
-	const coverSrc = item.cover?.url ?? item.posterUrl;
+	const showItem = item as unknown as ShowProps;
+	// franchise or season poster
+	const coverSrc =
+		item.cover?.url ??
+		(mediaType === "show" ? slotPoster(showItem) : item.posterUrl);
 
-	function pseudoRand(seed: string | number, salt = 0): number {
-		const str = String(seed) + salt;
-		let h = 2166136261;
-		for (let i = 0; i < str.length; i++) {
-			h ^= str.charCodeAt(i);
-			h = Math.imul(h, 16777619);
-		}
-		return ((h >>> 0) % 1000) / 1000; // 0..1
-	}
+	// fetch logo on hover
+	const prime = useLogoPrime(item.logoUrl);
+
 	return (
-		// hover:scale-[1.005]
 		<div
-			className={`relative group max-w-[99%] mx-auto grid md:grid-cols-[auto_1fr_1.2fr_0.3fr] gap-3 pt-0.5 items-center
+			data-open={isOpen ? "" : undefined}
+			className={`relative group max-w-[99%] mx-auto grid md:grid-cols-[auto_1fr_1.2fr_0.3fr] gap-3 px-1.5 pt-0.5 items-center
 		bg-zinc-900/65 hover:bg-zinc-800/80
 			shadow-sm hover:shadow-lg hover:shadow-black/40
 			border-l-4 ${getStatusBorderColor(item.status)}
 			border-b border-b-zinc-700/20
-			rounded-md rounded-l-xl
+			rounded-lg overflow-hidden
 			backdrop-blur-sm
-			hover:-translate-y-0.5 
-			transition-[transform,background-color,box-shadow]
-			duration-420 ease-[cubic-bezier(0.34,1.56,0.64,1)]
+			transition-[background-color,box-shadow]
+			duration-300 ease-out
 			hover:cursor-pointer
 			${index === 0 ? "" : "my-0.5"}
-			${index === total - 1 && "rounded-bl-md"}
 		`}
 			onClick={() => onClick(item)}
+			{...prime}
 		>
 			{/* ISLAND - COVER */}
 			{coverSrc ? (
-				<div className="w-20 aspect-2/3 relative shrink-0 overflow-hidden rounded-l-lg rounded-r-sm">
+				<div className="w-20 aspect-2/3 relative shrink-0 overflow-hidden rounded-md shadow-sm shadow-black/40 bg-linear-to-br from-zinc-800 to-zinc-900">
 					{mediaType === "game" || mediaType === "book" ? (
 						<Image
 							src={coverSrc}
@@ -95,8 +105,7 @@ export const DesktopItem = React.memo(function DesktopItem<
 							fill
 							sizes="(min-width: 2200px) 160px, 80px"
 							unoptimized={!isResizable(coverSrc)}
-							priority={index < EAGER_ROWS}
-							className="object-cover transition-transform duration-450 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-[1.04]"
+							className="object-cover transition-transform duration-420 ease-leave live:scale-[1.04] live:duration-800 live:ease-arrive"
 						/>
 					) : (
 						<Image
@@ -106,13 +115,12 @@ export const DesktopItem = React.memo(function DesktopItem<
 							height={240}
 							sizes="(min-width: 2200px) 160px, 80px"
 							unoptimized={!isResizable(coverSrc)}
-							priority={index < EAGER_ROWS}
-							className="relative w-full h-full aspect-2/3 object-fill transition-transform duration-450 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-[1.04]"
+							className="relative w-full h-full aspect-2/3 object-fill transition-transform duration-420 ease-leave live:scale-[1.04] live:duration-800 live:ease-arrive"
 						/>
 					)}
 				</div>
 			) : (
-				<div className="w-20 relative self-stretch aspect-2/3 bg-linear-to-br from-zinc-700 to-zinc-800 rounded-sm border border-zinc-600/30" />
+				<div className="w-20 relative self-stretch aspect-2/3 bg-linear-to-br from-zinc-700 to-zinc-800 rounded-md border border-zinc-600/30" />
 			)}
 
 			{/* ISLAND - CONTENT */}
@@ -120,22 +128,20 @@ export const DesktopItem = React.memo(function DesktopItem<
 				{/* TOP PART */}
 				<div className="flex-1 flex flex-col justify-center">
 					{/* SERIES TITLE */}
-					<div className="h-5 font-semibold text-zinc-400 text-sm group-hover:text-zinc-300 flex gap-1">
+					<div className="h-5 font-semibold text-zinc-400 text-sm live:text-zinc-300 transition-colors duration-300 ease-out flex gap-1">
 						{seriesLabel && (
 							<>
 								<span className="block max-w-[88%] whitespace-nowrap text-ellipsis overflow-hidden shrink">
 									{seriesLabel} ᭡
 								</span>
-								{series.placeInSeries && (
-									<span>{series.placeInSeries}</span>
-								)}
+								{place && <span>{place}</span>}
 							</>
 						)}
 					</div>
 					{/* TITLE */}
 					<div className="flex items-start justify-between gap-4 min-w-0 -mt-0.75">
 						<div className="flex items-baseline gap-2 min-w-0 max-w-full">
-							<span className="title-line font-semibold text-zinc-300 text-[1.125rem] group-hover:text-zinc-100/90 transition-colors duration-200 max-w-full inline-block align-bottom">
+							<span className="title-line font-semibold text-zinc-300 text-[1.125rem] live:text-zinc-100/90 transition-colors duration-300 ease-out max-w-full inline-block align-bottom">
 								<span className="block truncate">
 									{item.title || "-"}
 								</span>
@@ -151,15 +157,15 @@ export const DesktopItem = React.memo(function DesktopItem<
 											// stronger amplitude 3.5 - 4.8 for visible curves
 											const amp =
 												3.5 +
-												pseudoRand(seed, 11) * 1.3;
+												seededRand(seed, 11) * 1.3;
 											// random direction (above or below baseline first)
 											const dir =
-												pseudoRand(seed, 23) > 0.5
+												seededRand(seed, 23) > 0.5
 													? 1
 													: -1;
 											// slight phase offset so curves don't all look the same
 											const phase =
-												pseudoRand(seed, 37) * 0.4 -
+												seededRand(seed, 37) * 0.4 -
 												0.2;
 											const baseline = 5;
 											// cubic bezier — control points placed for smooth sine-like wave
@@ -182,7 +188,7 @@ export const DesktopItem = React.memo(function DesktopItem<
 						</div>
 					</div>
 
-					<div className="flex items-center gap-x-1.5 group-hover:mt-1.25 ml-px text-[0.8125rem] text-zinc-500 font-semibold min-w-0 transition-[margin] ease-out">
+					<div className="flex items-center gap-x-1.5 live:translate-y-1.25 ml-px text-[0.8125rem] text-zinc-500 font-semibold min-w-0 transition-transform duration-300 ease-out">
 						{/* AUTHOR */}
 						<span className="truncate">
 							{differentColumns[0].getValue(item)}
@@ -257,41 +263,24 @@ export const DesktopItem = React.memo(function DesktopItem<
 			</div>
 
 			{/* ISLAND - BACKDROP */}
-			{item.backdropUrl ? (
-				<BackdropDesktop
-					src={item.backdropUrl}
-					priority={index < EAGER_ROWS}
-				/>
-			) : mediaType === "book" && bookItem.cover ? (
-				<BookBackdropDesktop
-					color={bookItem.cover.color}
-					title={item.title}
-				/>
-			) : (
-				<div />
-			)}
+			<div className="listing-art-window h-full">
+				<div className="h-full origin-left will-change-transform transition-transform duration-420 ease-leave live:translate-x-[20%] live:duration-800 live:ease-arrive">
+					{item.backdropUrl ? (
+						<BackdropDesktop src={item.backdropUrl} />
+					) : mediaType === "book" && bookItem.cover ? (
+						<BookBackdropDesktop
+							color={bookItem.cover.color}
+							title={item.title}
+						/>
+					) : (
+						<div />
+					)}
+				</div>
+			</div>
 
 			{/* ISLAND - SCORE */}
-			<div className="relative flex flex-col items-center justify-center -ml-3 mr-2">
-				<ScoreBadge
-					score={
-						item.score?.mu
-							? getDisplayScore(item.score.mu)
-							: undefined
-					}
-					seed={item.id ?? item.title ?? index}
-				/>
-				<div
-					className="w-px h-1.5 opacity-20 rounded-full"
-					style={{ background: getStatusStrokeColor(item.status) }}
-				/>
-				<div
-					className="h-px w-36 rounded-full"
-					style={{
-						background: `linear-gradient(to right, transparent, ${getStatusStrokeColor(item.status)}, transparent)`,
-						opacity: 0.65,
-					}}
-				/>
+			<div className="relative z-10 flex -translate-x-5.5 items-center justify-center">
+				<ScoreMark mu={item.score?.mu} />
 			</div>
 		</div>
 	);

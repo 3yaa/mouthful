@@ -13,7 +13,9 @@ export function useGameSearch() {
 		title: string,
 		limit: number,
 	): Promise<
-		IGDBProps[] | null | { isDuplicate: boolean; title: string }
+		| IGDBProps[]
+		| null
+		| { isDuplicate: boolean; title: string; igdbId?: number }
 	> => {
 		try {
 			setIsSearching(true);
@@ -24,7 +26,11 @@ export function useGameSearch() {
 			// if duplicate
 			if (response.status === 409) {
 				const data = await response.json();
-				return { isDuplicate: true, title: data.title };
+				return {
+					isDuplicate: true,
+					title: data.title,
+					igdbId: data.igdbId,
+				};
 			}
 			if (!response.ok) {
 				throw new Error(`HTTP error--status: ${response.status}`);
@@ -43,8 +49,7 @@ export function useGameSearch() {
 		}
 	};
 
-	// fetch a single game/dlc directly by IGDB id (no duplicate filtering -- used for reload)
-	const searchForGameById = async (
+	const reloadGame = async (
 		igdbId: number,
 		title?: string,
 	): Promise<IGDBProps | null> => {
@@ -52,7 +57,7 @@ export function useGameSearch() {
 			setIsSearching(true);
 			setError(null);
 			//
-			const url = `/api/games-api/igdb-by-id?igdbId=${igdbId}${
+			const url = `/api/games-api/igdb-refresh?igdbId=${igdbId}${
 				title ? `&title=${encodeURIComponent(title)}` : ""
 			}`;
 			const response = await authFetch(url);
@@ -91,7 +96,9 @@ export function useGameSearch() {
 	const searchForGameDlc = async (
 		igdbId: number,
 	): Promise<
-		IGDBDlcProps[] | null | { isDuplicate: boolean; title: string }
+		| IGDBDlcProps[]
+		| null
+		| { isDuplicate: boolean; title: string; igdbId?: number }
 	> => {
 		try {
 			setIsSearching(true);
@@ -102,7 +109,11 @@ export function useGameSearch() {
 			// if duplicate
 			if (response.status === 409) {
 				const data = await response.json();
-				return { isDuplicate: true, title: data.title };
+				return {
+					isDuplicate: true,
+					title: data.title,
+					igdbId: data.igdbId,
+				};
 			}
 			if (!response.ok) {
 				throw new Error(`HTTP error--status: ${response.status}`);
@@ -125,7 +136,7 @@ export function useGameSearch() {
 		error,
 		isGameSearching,
 		searchForGame,
-		searchForGameById,
+		reloadGame,
 		searchForGameLogos,
 		searchForGameDlc,
 	};

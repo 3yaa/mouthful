@@ -3,21 +3,19 @@
 import { useEffect, useState } from "react";
 import { Leaf, X } from "lucide-react";
 import { ShowProps } from "@/types/show";
+import {
+	EpisodeRating,
+	SeriesInfo,
+	type ExtraScores,
+	fetchEpisodeRatings,
+	formatVotes,
+	getTier,
+	partitionRatings,
+} from "@/app/shows/utils/episodeRatings";
 import type { AuthFetch } from "@/app/auth/hooks/useAuthFetch";
 import Image from "next/image";
 import { Loading } from "@/app/components/ui/Loading";
 import { ModalBackdrop, ModalPanel } from "@/app/components/ui/ModalMotion";
-
-interface EpisodeRating {
-	season: number;
-	episode: number;
-	score: number | null;
-}
-
-interface SeriesInfo {
-	rating: number | null;
-	votes: number | null;
-}
 
 interface EpisodeRatingsModalProps {
 	show: ShowProps;
@@ -25,65 +23,10 @@ interface EpisodeRatingsModalProps {
 	authFetch: AuthFetch;
 }
 
-const RATING_TIERS = [
-	// BLUE
-	{
-		label: "Goosebumps",
-		min: 9.7,
-		bg: "bg-[#1da1f2]",
-		text: "text-white",
-	},
-	// DARK GREEN
-	{ label: "Exceptional", min: 9.0, bg: "bg-[#186a3b]", text: "text-white" },
-	// GREEN
-	{ label: "Amazing", min: 8.0, bg: "bg-[#28b463]", text: "text-zinc-900" },
-	// EMERALD
-	{
-		label: "Good",
-		min: 7.0,
-		bg: "bg-emerald-400",
-		text: "text-zinc-900",
-	},
-	// YELLOW
-	{
-		label: "Pretty Good",
-		min: 6.0,
-		bg: "bg-[#f4d03f]",
-		text: "text-zinc-900",
-	},
-	// ORANGE
-	{ label: "Average", min: 5.0, bg: "bg-[#f39c12]", text: "text-zinc-900" },
-	// RED
-	{ label: "Off-key", min: 4.0, bg: "bg-[#e74c3c]", text: "text-white" },
-	// PURPLE
-	{ label: "Bad", min: 0.0, bg: "bg-[#633974]", text: "text-white" },
-] as const;
-
-function getTier(score: number | null) {
-	if (score === null) return null;
-	for (const tier of RATING_TIERS) {
-		if (score >= tier.min) return tier;
-	}
-	return null;
-}
-
-function getTierRgba(score: number | null): string {
-	if (score === null) return "transparent";
-	if (score >= 9.7) return "rgba(29,161,242,0.5)";
-	if (score >= 9.0) return "rgba(24,106,59,0.6)";
-	if (score >= 8.0) return "rgba(40,180,99,0.5)";
-	if (score >= 7.0) return "rgba(52,211,153,0.45)";
-	if (score >= 6.0) return "rgba(244,208,63,0.5)";
-	if (score >= 5.0) return "rgba(243,156,18,0.5)";
-	if (score >= 4.0) return "rgba(231,76,60,0.5)";
-	return "rgba(99,57,116,0.5)";
-}
-
-function formatVotes(votes: number): string {
-	if (votes >= 1_000_000) return `${(votes / 1_000_000).toFixed(1)}M`;
-	if (votes >= 1_000) return `${(votes / 1_000).toFixed(0)}K`;
-	return String(votes);
-}
+const getTierRgba = (score: number | null): string => {
+	const hex = getTier(score)?.hex;
+	return hex ? `color-mix(in srgb, ${hex} 50%, transparent)` : "transparent";
+};
 
 export function EpisodeRatingsModal({
 	show,
@@ -91,6 +34,8 @@ export function EpisodeRatingsModal({
 	authFetch,
 }: EpisodeRatingsModalProps) {
 	const [ratings, setRatings] = useState<EpisodeRating[]>([]);
+	// a movie or an ova is not in the series' run
+	const [extraScores, setExtraScores] = useState<ExtraScores>({});
 	const [series, setSeries] = useState<SeriesInfo | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -101,21 +46,13 @@ export function EpisodeRatingsModal({
 				setLoading(true);
 				setError(null);
 
-				const params = new URLSearchParams();
-				if (show.imdbId) {
-					params.set("imdbId", show.imdbId);
-				} else {
-					params.set("tmdbId", show.tmdbId);
-					params.set("showId", String(show.id));
-				}
-
-				const res = await authFetch(
-					`/api/shows-api/episodes-score?${params}`,
+				const { ratings, series, extras } = await fetchEpisodeRatings(
+					show,
+					authFetch,
 				);
-				if (!res.ok) throw new Error("Could not fetch episode ratings");
-				const data = await res.json();
-				setRatings(data.data ?? []);
-				setSeries(data.series ?? null);
+				setRatings(ratings);
+				setExtraScores(extras);
+				setSeries(series);
 			} catch (e) {
 				setError(
 					e instanceof Error ? e.message : "Failed to load ratings",
@@ -126,27 +63,14 @@ export function EpisodeRatingsModal({
 		}
 
 		fetchRatings();
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [show.id, show.tmdbId, show.imdbId, authFetch]);
 
-	const seasons = show.seasons ?? [];
-	const maxEpisodes =
-		seasons.length > 0
-			? Math.max(...seasons.map((s) => s.episode_count))
-			: 0;
-
-	const grid: Record<number, Record<number, number | null>> = {};
-	for (const { season, episode, score } of ratings) {
-		if (!grid[season]) grid[season] = {};
-		grid[season][Number(episode)] = score;
-	}
-
-	const seasonAverages = seasons.map((_, i) => {
-		const scores = Object.values(grid[i + 1] ?? {}).filter(
-			(s): s is number => s !== null,
-		);
-		if (scores.length === 0) return null;
-		return +(scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1);
-	});
+	// the shared cut
+	const { columns } = partitionRatings(show, ratings, extraScores);
+	const cells = columns.map((c) => c.scores);
+	const seasonAverages = columns.map((c) => c.average);
+	const maxEpisodes = Math.max(0, ...cells.map((c) => c.length));
 
 	return (
 		<ModalBackdrop className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-30">
@@ -249,7 +173,7 @@ export function EpisodeRatingsModal({
 						{!loading &&
 							!error &&
 							(() => {
-								const isSingleSeason = seasons.length === 1;
+								const isSingleSeason = columns.length === 1;
 								const CHUNK = 11;
 								const numChunks = isSingleSeason
 									? Math.max(
@@ -257,28 +181,24 @@ export function EpisodeRatingsModal({
 											Math.ceil(maxEpisodes / CHUNK),
 										)
 									: 1;
-								// spread the episodes evenly down those columns
-								// rather than filling each to CHUNK first -- 12
-								// episodes was a column of 11 beside a stub of 1
+								// spread the episodes evenly
 								const perChunk = Math.ceil(
 									maxEpisodes / numChunks,
 								);
 
 								const EpisodeCell = ({
 									epNum,
-									season,
-									sIdx,
+									col,
 								}: {
 									epNum: number;
-									season: (typeof seasons)[0];
-									sIdx: number;
+									col: number;
 								}) => {
-									if (epNum > season.episode_count)
-										return <td key={sIdx} />;
-									const score = grid[sIdx + 1]?.[epNum];
+									const column = cells[col] ?? [];
+									if (epNum > column.length) return <td />;
+									const score = column[epNum - 1];
 									const tier = getTier(score ?? null);
 									return (
-										<td key={sIdx}>
+										<td>
 											<div
 												className={`${tier?.bg ?? "bg-zinc-800"} ${tier?.text ?? "text-zinc-400"} rounded-lg w-14 h-9 flex items-center justify-center tabular-nums text-xl font-bold`}
 											>
@@ -372,23 +292,20 @@ export function EpisodeRatingsModal({
 																				epNum
 																			}
 																		</td>
-																		{seasons.map(
+																		{columns.map(
 																			(
-																				season,
-																				sIdx,
+																				column,
+																				ci,
 																			) => (
 																				<EpisodeCell
 																					key={
-																						sIdx
+																						column.key
 																					}
 																					epNum={
 																						epNum
 																					}
-																					season={
-																						season
-																					}
-																					sIdx={
-																						sIdx
+																					col={
+																						ci
 																					}
 																				/>
 																			),
@@ -449,12 +366,13 @@ export function EpisodeRatingsModal({
 										<thead>
 											<tr>
 												<th className="w-10" />
-												{seasons.map((_, i) => (
+												{columns.map((column) => (
 													<th
-														key={i}
+														key={column.key}
+														title={column.title}
 														className="text-zinc-400 font-semibold text-center text-sm w-14 pb-1"
 													>
-														S{i + 1}
+														{column.label}
 													</th>
 												))}
 											</tr>
@@ -469,24 +387,19 @@ export function EpisodeRatingsModal({
 															<td className="text-zinc-400 text-sm font-semibold pr-1 text-right">
 																E{epNum}
 															</td>
-															{seasons.map(
+															{columns.map(
 																(
-																	season,
-																	sIdx,
+																	column,
+																	ci,
 																) => (
 																	<EpisodeCell
 																		key={
-																			sIdx
+																			column.key
 																		}
 																		epNum={
 																			epNum
 																		}
-																		season={
-																			season
-																		}
-																		sIdx={
-																			sIdx
-																		}
+																		col={ci}
 																	/>
 																),
 															)}

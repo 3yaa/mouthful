@@ -1,12 +1,13 @@
 import Image from "next/image";
 import { isResizable } from "@/utils/image-loader";
 import { Option } from "@/app/components/ui/Dropdown";
-import { DirectorNames } from "../../movies/components/DirectorNames";
+import { CreditNames } from "./shared/CreditNames";
 import {
 	BaseMediaProps,
 	ColumnConfig,
 	MediaCoverProps,
 	SeriesMediaProps,
+	SeriesTargetProps,
 } from "@/types/media";
 import { GameProps } from "@/types/game";
 import { ShowProps } from "@/types/show";
@@ -22,10 +23,15 @@ import {
 	Type,
 	Feather,
 	Hourglass,
+	Boxes,
+	Box,
 	Leaf,
 	BookCheck,
+	EyeOff,
+	Milestone,
 	Users,
 	BarChart2,
+	ListTree,
 	RefreshCw,
 	RotateCcw,
 	Unlink,
@@ -33,28 +39,49 @@ import {
 	Check,
 	X,
 	Wallpaper,
+	Loader2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Loading } from "@/app/components/ui/Loading";
+import { formatDateShort } from "@/utils/formattingUtils";
+import { hasSeries, seriesTitleOf } from "@/utils/seriesRead";
 import {
-	formatDateShort,
+	coverWave,
 	getStatusBg,
 	getStatusDetailWaveColor,
-} from "@/utils/formattingUtils";
-import { coverWave } from "@/app/components/ui/DesktopDetailsUtils";
-import { isLogoCleared } from "../../../utils/artworkIndex";
+} from "@/utils/styleUtils";
+import { slotSubtitle } from "@/app/shows/utils/animeTitles";
+import { activeLogoIndex, isLogoCleared } from "../../../utils/artworkIndex";
 import { MovieProps } from "@/types/movie";
 import { MobileAutoTextarea } from "@/app/components/ui/MobileAutoTextArea";
 import { BookCoverConfig } from "@/app/books/components/BookCoverConfigDetails";
 import { CoverColorPicker } from "@/app/components/ui/CoverColorPicker";
 import { MobileProgressPicker } from "@/app/components/ui/MobileSeasonEpPicker";
 import { MobileSeriesNav } from "./shared/MobileSeriesNav";
-import { MediaTitle, SERIES_TEXT, TITLE_TEXT } from "./shared/MediaTitle";
-import { calcCurProgress } from "@/app/shows/utils/progressCalc";
+import { LOGO_SPEC } from "./shared/logoMetrics";
+import { useArtworkPrime } from "@/hooks/useArtworkPrime";
+import {
+	MediaTitle,
+	SERIES_TEXT,
+	SLOT_TEXT,
+	TITLE_TEXT,
+} from "./shared/MediaTitle";
+import {
+	calcCurProgress,
+	franchiseEpisodes,
+} from "@/app/shows/utils/progressCalc";
+import {
+	isAnimeRow,
+	isMovieSlot,
+	slotIndexOf,
+	slotName,
+	timelineOf,
+	franchiseRomajiOf,
+} from "@/app/shows/utils/slotRef";
 import { canNudgeMu, getDisplayScore, getTierFromMu } from "@/lib/tierConfig";
 import { BookProps } from "@/types/book";
 import { useScrollLock } from "@/hooks/useScrollLock";
-import { ConfirmPrompt } from "@/app/components/ui/Confirm";
+import { ConfirmPrompt } from "@/app/components/ui/ConfirmButton";
 
 //
 const MOBILE_ACTION_TONE = {
@@ -62,7 +89,11 @@ const MOBILE_ACTION_TONE = {
 	blue: "text-blue-400/90 bg-blue-800/30",
 	orange: "text-orange-400/90 bg-orange-700/30",
 	red: "text-red-400/90 bg-red-700/30",
+	purple: "text-purple-400/90 bg-purple-800/30",
 } as const;
+
+const POSTER_SPEC = { width: 342, sizes: "100vw" };
+const BACKDROP_SPEC = { width: 540, sizes: "100vw" };
 
 type Control = {
 	key: string;
@@ -79,26 +110,35 @@ function MobileActionBtn({
 	tone,
 	label,
 	expanded,
+	busy = false,
 	onPress,
 }: {
 	icon: LucideIcon;
 	tone: keyof typeof MOBILE_ACTION_TONE;
 	label: string;
 	expanded: boolean;
+	busy?: boolean;
 	onPress: () => void;
 }) {
 	return (
 		<button
 			type="button"
 			onClick={onPress}
+			disabled={busy}
 			title={label}
-			className={`flex items-center gap-1.5 h-7 shrink-0 rounded-lg transition-all duration-200 active:scale-95 ${
+			className={`flex items-center gap-1.5 h-7 shrink-0 rounded-lg transition-all duration-200 ${
+				busy ? "" : "active:scale-95"
+			} ${
 				expanded
 					? `px-2 ${MOBILE_ACTION_TONE[tone]}`
 					: "w-7 justify-center neu-carved text-zinc-400/50"
 			}`}
 		>
-			<Icon className="w-4 h-4 shrink-0" />
+			{busy ? (
+				<Loader2 className="w-4 h-4 shrink-0 animate-spin" />
+			) : (
+				<Icon className="w-4 h-4 shrink-0" />
+			)}
 			{expanded && (
 				<span className="text-[0.7rem] font-semibold uppercase tracking-wide whitespace-nowrap">
 					{label}
@@ -115,20 +155,26 @@ interface MobileDetailsProps<T extends BaseMediaProps> {
 	isLoading?: { isTrue: boolean; style: string; text: string };
 	isAdding: boolean;
 	onAdd: () => void;
+	isSubmitting?: boolean;
 	statusOptions: Option[];
 	mediaType: string;
 	onAction: (action: { type: string; payload?: unknown }) => void;
 	differentColumns: [ColumnConfig<T>, ColumnConfig<T>];
 	onSeriesNav?: (dir: "left" | "right") => void; // book + movie
-	isInList?: (title: string) => boolean;
+	isInList?: (target: SeriesTargetProps) => boolean;
+	// show only
+	noteSubject?: string;
+	franchiseView?: boolean;
+	isBrowsing?: boolean;
 	isSelecting?: boolean;
 	canRefresh?: boolean;
-	coverUrls?: MediaCoverProps[]; // book only
-	coverIndex?: number; // book only
-	// movie/show -- the parent keeps item.cover/posterUrl on the picked one
+	// book only
+	coverUrls?: MediaCoverProps[];
+	coverIndex?: number;
+	// movie/show
 	posterUrls?: string[];
 	posterIndex?: number;
-	// game/movie/show -- previewed in the hero slot while picking
+	// game/movie/show
 	backdropUrls?: string[];
 	backdropIndex?: number;
 	// movie/show/game
@@ -139,16 +185,20 @@ interface MobileDetailsProps<T extends BaseMediaProps> {
 export function MobileDetails<T extends BaseMediaProps>({
 	item,
 	localNote,
+	noteSubject,
+	franchiseView,
 	onClose,
 	isLoading,
 	isAdding,
 	onAdd,
+	isSubmitting,
 	statusOptions,
 	mediaType,
 	onAction,
 	differentColumns,
 	onSeriesNav,
 	isInList,
+	isBrowsing,
 	isSelecting,
 	canRefresh,
 	coverUrls,
@@ -161,21 +211,7 @@ export function MobileDetails<T extends BaseMediaProps>({
 	logoIndex,
 }: MobileDetailsProps<T>) {
 	const isBook = mediaType === "book";
-	// for movies only
-	const canOpenDirector =
-		mediaType === "movie" &&
-		!isAdding &&
-		!isSelecting &&
-		!!differentColumns[0].getValue(item);
-
-	// split director names
-	const directorNames = canOpenDirector
-		? String(differentColumns[0].getValue(item) ?? "")
-				.split(",")
-				.map((n) => n.trim())
-				.filter(Boolean)
-		: [];
-
+	const isPicking = isAdding || !!isSelecting;
 	const [isProgressPickerOpen, setIsProgressPickerOpen] = useState(false);
 	const [isScorePickerOpen, setIsScorePickerOpen] = useState(false);
 	// swaps the hero over to the backdrop candidates while picking
@@ -231,6 +267,46 @@ export function MobileDetails<T extends BaseMediaProps>({
 	const s = item as unknown as SeriesMediaProps;
 	const g = item as unknown as GameProps;
 	const show = item as unknown as ShowProps;
+	const isAnimeShow = mediaType === "show" && isAnimeRow(show);
+	//
+	const creditNames =
+		(mediaType === "movie" || mediaType === "show") && !isPicking
+			? String(differentColumns[0].getValue(item) ?? "")
+					.split(",")
+					.map((n) => n.trim())
+					.filter(Boolean)
+			: [];
+	const creditOpens: "director" | "studio" | "creator" | null =
+		!creditNames.length
+			? null
+			: mediaType === "movie"
+				? "director"
+				: isAnimeShow
+					? "studio"
+					: "creator";
+	//
+	const slotAt = slotIndexOf(show);
+	const slotLine = timelineOf(show);
+	//
+	const franchise = franchiseView
+		? franchiseEpisodes(slotLine, slotAt, show.curEpisode ?? 0)
+		: null;
+	//
+	const slotArc =
+		mediaType === "show"
+			? slotSubtitle(
+					slotLine[slotAt]?.title,
+					item.title,
+					franchiseRomajiOf(show),
+				)
+			: null;
+	//
+	const slotCopyTitle = isAnimeShow
+		? (slotLine[slotAt]?.title ?? null)
+		: null;
+	// side content is the only thing the order lets you set aside
+	const canHideSlot =
+		!!slotLine[slotAt]?.isSide && slotLine[slotAt]?.anilistId != null;
 
 	//
 	const stepFrom = (type: string) => (e: React.MouseEvent<HTMLElement>) => {
@@ -244,17 +320,14 @@ export function MobileDetails<T extends BaseMediaProps>({
 	const handleCoverChange = stepFrom("changeCover");
 	const handleBackdropChange = stepFrom("changeBackdrop");
 
-	// the cover being shown right now
+	//
 	const activeCover =
-		mediaType === "book"
-			? coverUrls?.[coverIndex ?? 0]
-			: (item.cover ?? undefined);
+		(isBook && isPicking ? coverUrls?.[coverIndex ?? 0] : undefined) ??
+		item.cover ??
+		undefined;
 
 	const coverSrc = item.cover?.url ?? item.posterUrl;
 
-	// while adding or previewing a reload
-	const isPicking = isAdding || !!isSelecting;
-	//
 	const posterCount = (isBook ? coverUrls?.length : posterUrls?.length) ?? 0;
 	const posterPos = (isBook ? coverIndex : posterIndex) ?? 0;
 	//
@@ -269,6 +342,35 @@ export function MobileDetails<T extends BaseMediaProps>({
 		isPicking && logoUrls?.length ? logoUrls[logoIndex ?? 0] : item.logoUrl;
 	const logoIsCleared = isLogoCleared(logoIndex);
 
+	// warm once it is opened
+	useArtworkPrime("mobile", [
+		{
+			urls: posterUrls,
+			index: posterIndex,
+			spec: POSTER_SPEC,
+			enabled: isPicking && !isBook,
+			palette: true,
+		},
+		{
+			urls: coverUrls?.map((cover) => cover.url),
+			index: coverIndex,
+			spec: POSTER_SPEC,
+			enabled: isPicking && isBook,
+		},
+		{
+			urls: backdropUrls,
+			index: backdropIndex,
+			spec: BACKDROP_SPEC,
+			enabled: viewingBackdrop,
+		},
+		{
+			urls: logoUrls,
+			index: activeLogoIndex(logoIndex ?? 0),
+			spec: LOGO_SPEC,
+			enabled: isPicking,
+		},
+	]);
+
 	const coverColor = activeCover?.color;
 	const underlineColor =
 		mediaType === "show"
@@ -281,7 +383,7 @@ export function MobileDetails<T extends BaseMediaProps>({
 	const externalRating =
 		mediaType === "movie" && item.status === "Want to Watch"
 			? (item as unknown as MovieProps).imdbRating
-			: mediaType === "book" && item.status === "Want to Read"
+			: isBook && item.status === "Want to Read"
 				? (item as unknown as BookProps).rating
 				: null;
 
@@ -292,15 +394,14 @@ export function MobileDetails<T extends BaseMediaProps>({
 	//
 	const MOBILE_SCORE_SUB_BTN =
 		"flex justify-center items-center w-7.5 h-7.5 rounded-lg neu-carved text-zinc-400/55 active:scale-95 active:text-zinc-200 transition-all duration-150 disabled:neu-carved-off disabled:opacity-40 disabled:active:scale-100";
-	const canNudgeScore = !!item.score && !isAdding && !isSelecting;
+	const canNudgeScore = !!item.score && !isPicking && !franchiseView;
 
 	// the modal swaps items in place on a series jump
 	useEffect(() => {
 		setPending(null);
 	}, [item.id]);
 
-	const hasSeriesMeta =
-		!!s.seriesTitle || !!s.placeInSeries || !!s.prequel || !!s.sequel;
+	const hasSeriesMeta = hasSeries(s);
 
 	const controls: Control[] = isAdding
 		? [
@@ -367,7 +468,7 @@ export function MobileDetails<T extends BaseMediaProps>({
 								} as Control,
 							]
 						: []),
-					...(item.score
+					...(item.score && !franchiseView
 						? [
 								{
 									key: "resetScore",
@@ -382,6 +483,19 @@ export function MobileDetails<T extends BaseMediaProps>({
 								} as Control,
 							]
 						: []),
+					...(franchiseView === undefined
+						? []
+						: [
+								{
+									key: "toggleFranchiseView",
+									icon: franchiseView ? Boxes : Box,
+									tone: "purple",
+									label: franchiseView
+										? "This part"
+										: "Whole franchise",
+									action: "toggleFranchiseView",
+								} as Control,
+							]),
 					{
 						key: "delete",
 						icon: Trash2,
@@ -406,6 +520,7 @@ export function MobileDetails<T extends BaseMediaProps>({
 			tone={c.tone}
 			label={c.label}
 			expanded={!c.confirm}
+			busy={c.action === "add" && !!isSubmitting}
 			onPress={() =>
 				c.confirm
 					? setPending(c)
@@ -693,9 +808,10 @@ export function MobileDetails<T extends BaseMediaProps>({
 								width={540}
 								height={304}
 								sizes="100vw"
-								className="object-cover w-full"
+								draggable={false}
+								className="object-cover w-full select-none"
 							/>
-						) : mediaType === "book" ? (
+						) : isBook ? (
 							<BookCoverConfig
 								coverUrl={
 									(item as unknown as BookProps).cover?.url
@@ -706,7 +822,7 @@ export function MobileDetails<T extends BaseMediaProps>({
 								height={585}
 								width={390}
 								sizes="100vw"
-								className="object-cover w-full"
+								className="object-cover w-full select-none"
 							/>
 						) : coverSrc ? (
 							<Image
@@ -716,7 +832,8 @@ export function MobileDetails<T extends BaseMediaProps>({
 								height={513}
 								sizes="100vw"
 								unoptimized={!isResizable(coverSrc)}
-								className="object-cover w-full"
+								draggable={false}
+								className="object-cover w-full select-none"
 							/>
 						) : (
 							<div className="h-64 bg-linear-to-br from-zinc-700 to-zinc-800" />
@@ -733,7 +850,7 @@ export function MobileDetails<T extends BaseMediaProps>({
 										? g.dlcIndex !== 0
 											? g.mainTitle
 											: null
-										: s.seriesTitle;
+										: seriesTitleOf(s);
 
 								return seriesLabel ? (
 									<div className={SERIES_TEXT.sm}>
@@ -748,6 +865,8 @@ export function MobileDetails<T extends BaseMediaProps>({
 								<div className="min-w-0">
 									<MediaTitle
 										title={item.title}
+										subtitle={slotArc}
+										copyTitle={slotCopyTitle}
 										logoUrl={
 											logoIsCleared
 												? null
@@ -756,15 +875,23 @@ export function MobileDetails<T extends BaseMediaProps>({
 										size="sm"
 										className="-mt-0.5 mx-auto min-w-0 max-w-full"
 										textClass={TITLE_TEXT.sm}
-										isBook={mediaType === "book"}
+										isBook={isBook}
 										underlineColor={underlineColor}
 									/>
+									{/* CURRENT ARC */}
+									{slotArc && (
+										<div className={SLOT_TEXT.sm}>
+											{slotArc}
+										</div>
+									)}
 									{/* AUTHOR/STUDIO/DIRECTOR AND DATES */}
 									<div className="mt-1.5 text-zinc-200/70 text-[0.8rem] font-medium leading-5 flex items-center justify-center gap-2 min-w-0">
 										{/* AUTHOR / DIRECTOR / STUDIO */}
 										<span className="flex items-center gap-1.5 min-w-0">
-											{(mediaType === "show" ||
-												mediaType === "movie") && (
+											{/* not on an anime row */}
+											{(mediaType === "movie" ||
+												(mediaType === "show" &&
+													!isAnimeShow)) && (
 												<button
 													onClick={() =>
 														onAction({
@@ -796,27 +923,73 @@ export function MobileDetails<T extends BaseMediaProps>({
 													/>
 												</button>
 											)}
+											{/* anilist rows only */}
+											{mediaType === "show" &&
+												show.anilistId && (
+													<button
+														onClick={() =>
+															onAction({
+																type: "openChain",
+															})
+														}
+														title="Parts & side stories"
+														className="shrink-0 text-zinc-400/70 active:text-zinc-200 active:scale-95 transition-all duration-200"
+													>
+														<ListTree
+															className="w-3.5 h-3.5"
+															strokeWidth={1.75}
+														/>
+													</button>
+												)}
 											{isBook && (
 												<Feather
 													className="w-3.5 h-3.5 shrink-0 text-zinc-400/70 rotate-280"
 													strokeWidth={1.75}
 												/>
 											)}
-											{canOpenDirector ? (
-												<DirectorNames
-													names={directorNames}
+											{creditOpens === "director" ? (
+												<CreditNames
+													names={creditNames}
 													width="max-w-32"
+													label="Directors"
+													pickTitle="See their movies"
 													onPick={(name) =>
 														onAction({
 															type: "directorClick",
 															payload: name,
 														})
 													}
-													onMore={() =>
+												/>
+											) : creditOpens === "studio" ? (
+												<CreditNames
+													names={creditNames}
+													width="max-w-32"
+													label="Studios"
+													pickTitle="See what they made"
+													onPick={(name) =>
 														onAction({
-															type: "directorPicker",
+															type: "studioClick",
+															payload: name,
 														})
 													}
+												/>
+											) : creditOpens === "creator" ? (
+												<CreditNames
+													names={creditNames}
+													width="max-w-32"
+													label="Creators"
+													pickTitle="See their shows"
+													onPick={(name) =>
+														onAction({
+															type: "creatorClick",
+															payload: name,
+														})
+													}
+												/>
+											) : creditNames.length > 1 ? (
+												<CreditNames
+													names={creditNames}
+													width="max-w-32"
 												/>
 											) : (
 												<span className="truncate min-w-0">
@@ -876,10 +1049,11 @@ export function MobileDetails<T extends BaseMediaProps>({
 										)}
 										<button
 											onClick={() => {
+												if (franchiseView) return;
 												if (!item.score || isAdding)
 													setIsScorePickerOpen(true);
 											}}
-											className="inline-flex items-center justify-center h-7.5 px-2 min-w-15 text-sm leading-5 text-zinc-300/85 font-semibold tracking-wide tabular-nums"
+											className="inline-flex items-center justify-center h-7.5 px-2 min-w-15 text-sm leading-5 font-semibold tracking-wide tabular-nums text-zinc-300/85"
 										>
 											{item.score?.mu == null
 												? "-"
@@ -916,20 +1090,17 @@ export function MobileDetails<T extends BaseMediaProps>({
 							</div>
 						</div>
 						{/* PROGRESS BAR — show only */}
-						{mediaType === "show" && show.seasons && (
+						{mediaType === "show" && slotLine.length > 0 && (
 							<div onClick={() => setIsProgressPickerOpen(true)}>
 								<div className="mt-4.5 w-full bg-zinc-800/80 rounded-md h-1.5 overflow-hidden shadow-md shadow-black/50">
 									<div
 										className={`${getStatusBg(item.status)} h-1.5 transition-all duration-500 ease-out rounded-md`}
 										style={{
 											width: `${
-												show.seasons?.[
-													show.curSeasonIndex ?? 0
-												]?.episode_count
+												slotLine[slotAt]
 													? calcCurProgress(
-															show.seasons,
-															show.curSeasonIndex ??
-																0,
+															slotLine,
+															slotAt,
 															show.curEpisode ??
 																0,
 														)
@@ -939,14 +1110,79 @@ export function MobileDetails<T extends BaseMediaProps>({
 									/>
 								</div>
 								<div className="mt-1 flex justify-between text-zinc-400 text-sm font-bold mb-0.5">
-									<span>
-										Season:{" "}
-										{(show.curSeasonIndex ?? 0) + 1 || "-"}
+									{/* same rule as the desktop box */}
+									<span className="min-w-0 truncate pr-2">
+										{franchiseView
+											? "All seasons"
+											: slotName(
+													show,
+													slotLine[slotAt],
+													slotAt,
+												)}
 									</span>
-									<span>
-										Episode: {show.curEpisode ?? "-"}
-									</span>
+									{/* movie */}
+									{franchise ? (
+										<span>
+											Episode: {franchise.watched}/
+											{franchise.total}
+										</span>
+									) : isMovieSlot(slotLine[slotAt]) ? (
+										<span>
+											Runtime:{" "}
+											{(slotLine[slotAt]?.episode_count ||
+												1) *
+												(slotLine[slotAt]?.duration ||
+													0) || "-"}{" "}
+											min
+										</span>
+									) : (
+										<span>
+											Episode:{" "}
+											{isBrowsing
+												? "—"
+												: (show.curEpisode ?? "-")}
+										</span>
+									)}
 								</div>
+								{isBrowsing && (
+									<div
+										className="mt-1.5 flex justify-end gap-2"
+										data-no-drag
+										onClick={(e) => e.stopPropagation()}
+									>
+										{/* what the order's own node does, for the part in view */}
+										{canHideSlot && (
+											<button
+												onClick={() =>
+													onAction({
+														type: "hideSlot",
+													})
+												}
+												aria-label="Set aside"
+												className="flex items-center justify-center w-8 h-8 rounded-lg neu-carved active:scale-95 transition-all duration-150"
+											>
+												<EyeOff
+													className="w-4 h-4 text-zinc-500"
+													strokeWidth={2.25}
+												/>
+											</button>
+										)}
+										<button
+											onClick={() =>
+												onAction({
+													type: "commitView",
+												})
+											}
+											aria-label="Watch from here"
+											className="flex items-center justify-center w-8 h-8 rounded-lg neu-carved active:scale-95 transition-all duration-150"
+										>
+											<Milestone
+												className="w-4 h-4 text-emerald-600 drop-shadow-[0_0_5px_rgba(16,185,129,0.3)]"
+												strokeWidth={2.25}
+											/>
+										</button>
+									</div>
+								)}
 							</div>
 						)}
 						{/* STATUS */}
@@ -961,14 +1197,14 @@ export function MobileDetails<T extends BaseMediaProps>({
 										onClick={() =>
 											onAction({
 												type: "changeStatus",
-												payload: `${status.label}`,
+												payload: `${status.value}`,
 											})
 										}
 										className={`${
 											index === 3 ? "w-full" : "flex-1"
 										} px-4 py-1.5 text-sm rounded-md border border-zinc-700/30 font-semibold whitespace-nowrap transition-all duration-200 active:scale-95 shadow-lg shadow-black/50 ${
-											status.label === item.status
-												? `${getStatusBg(status.label)} text-zinc-100`
+											status.value === item.status
+												? `${getStatusBg(status.value)} text-zinc-100`
 												: "text-zinc-300 bg-zinc-900/40 hover:bg-zinc-800/60"
 										}`}
 									>
@@ -1006,11 +1242,9 @@ export function MobileDetails<T extends BaseMediaProps>({
 									onBlur={() =>
 										onAction({ type: "saveNote" })
 									}
-									placeholder={
-										"Add your thoughts about this " +
-										mediaType +
-										"..."
-									}
+									placeholder={`Add your thoughts about ${
+										noteSubject ?? `this ${mediaType}`
+									}...`}
 									className="w-full bg-transparent text-zinc-200 text-sm leading-relaxed resize-none outline-none placeholder-zinc-500"
 								/>
 							</div>
@@ -1028,8 +1262,10 @@ export function MobileDetails<T extends BaseMediaProps>({
 			{mediaType === "show" && (
 				<MobileProgressPicker
 					isOpen={isProgressPickerOpen}
-					seasons={show.seasons || []}
-					curSeasonIndex={show.curSeasonIndex ?? 0}
+					seasons={slotLine}
+					showTitle={item.title}
+					showTitleAlt={franchiseRomajiOf(show)}
+					slotIndex={slotAt}
 					curEpisode={show.curEpisode ?? 1}
 					onClose={() => setIsProgressPickerOpen(false)}
 					onSeasonIndexChange={(seasonIndex) => {

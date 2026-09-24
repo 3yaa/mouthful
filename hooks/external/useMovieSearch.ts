@@ -15,8 +15,18 @@ export function useMovieSearch() {
 		year?: number | undefined,
 		// legacy no tmdb id  -- skips the duplicate
 		isReload?: boolean,
+		movieOnly?: boolean,
+		// the id a series jump is aiming at
+		knownTmdbId?: string,
 	): Promise<
-		MovieAPIProps | null | { isDuplicate: boolean; title: string }
+		| MovieAPIProps
+		| null
+		| {
+				isDuplicate: boolean;
+				title: string;
+				tmdbId?: string;
+				imdbId?: string;
+		  }
 	> => {
 		try {
 			setIsSearching(true);
@@ -25,12 +35,19 @@ export function useMovieSearch() {
 			const params = new URLSearchParams({ title });
 			if (year) params.set("year", String(year));
 			if (isReload) params.set("reload", "1");
+			if (movieOnly) params.set("movieOnly", "1");
+			if (knownTmdbId) params.set("tmdbId", knownTmdbId);
 			const url = `/api/movies-api/tmdb?${params}`;
 			const response = await authFetch(url);
 			// if duplicate
 			if (response.status === 409) {
 				const data = await response.json();
-				return { isDuplicate: true, title: data.title };
+				return {
+					isDuplicate: true,
+					title: data.title,
+					tmdbId: data.tmdbId,
+					imdbId: data.imdbId,
+				};
 			}
 			if (!response.ok) {
 				throw new Error(`HTTP error--status: ${response.status}`);
@@ -57,7 +74,7 @@ export function useMovieSearch() {
 			setIsSearching(true);
 			setError(null);
 			//
-			const url = `/api/movies-api/tmdb-by-id?tmdbId=${tmdbId}`;
+			const url = `/api/movies-api/tmdb-refresh?tmdbId=${tmdbId}`;
 			const response = await authFetch(url);
 			if (!response.ok) {
 				throw new Error(`HTTP error--status: ${response.status}`);

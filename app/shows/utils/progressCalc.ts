@@ -1,24 +1,54 @@
-import { TMDBSeasonProps } from "@/types/show";
+import { ShowSeasonProps, SlotIndex } from "@/types/show";
+import { episodeCountOf, isMovieSlot } from "./slotRef";
+
+const movieWeight = (slot: ShowSeasonProps, perEpisode: number): number => {
+	const runtime = slot.duration ?? 0;
+	if (!runtime || !perEpisode) return slot.episode_count || 1;
+	return Math.max(1, Math.round(runtime / perEpisode));
+};
+
+export const franchiseEpisodes = (
+	timeline: ShowSeasonProps[],
+	at: SlotIndex,
+	curEp: number,
+): { watched: number; total: number } => {
+	// 1 episode length for the whole bar
+	const perEpisode =
+		timeline.find(
+			(slot) => !slot.isSide && !isMovieSlot(slot) && slot.duration,
+		)?.duration ?? 0;
+
+	let completedEps = 0;
+	let totalEps = 0;
+
+	for (let i = 0; i < timeline.length; i++) {
+		if (timeline[i].isSide) continue;
+		// movie counted
+		const count = isMovieSlot(timeline[i])
+			? movieWeight(timeline[i], perEpisode)
+			: episodeCountOf(timeline[i]);
+		totalEps += count;
+		if (i < at) completedEps += count;
+	}
+
+	// sitting on side doesnt add nothing of its own
+	const on = timeline[at];
+	if (on && !on.isSide && !isMovieSlot(on)) completedEps += curEp;
+
+	return { watched: completedEps, total: totalEps };
+};
 
 export const calcCurProgress = (
-  seasons: TMDBSeasonProps[],
-  curSeasonIndex: number,
-  curEp: number,
+	timeline: ShowSeasonProps[],
+	at: SlotIndex,
+	curEp: number,
 ) => {
-  if (curSeasonIndex === 0 && curEp === 0) return 100;
+	if (at === 0 && curEp === 0) return 100;
+	if (at === 0 && curEp === 1) return 1;
 
-  if (curSeasonIndex === 0 && curEp === 1) return 1;
+	const { watched, total } = franchiseEpisodes(timeline, at, curEp);
+	// an airing series has no known total -- a NaN width collapses the bar
+	if (!total) return 100;
 
-  let completedEps = 0;
-  let totalEps = 0;
-
-  for (let i = 0; i < seasons.length; i++) {
-    totalEps += seasons[i].episode_count;
-    if (i < curSeasonIndex) {
-      completedEps += seasons[i].episode_count;
-    }
-  }
-  completedEps += curEp;
-
-  return (completedEps / totalEps) * 100;
+	return (watched / total) * 100;
 };

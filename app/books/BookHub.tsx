@@ -11,6 +11,8 @@ import { BookDetails } from "./BookDetailsHub";
 import { DesktopListing } from "@/app/views/mediaListing/DesktopListing";
 import { MobileListing } from "@/app/views/mediaListing/MobileListing";
 import { AddButton } from "../components/ui/AddButton";
+import { isSameName } from "@/utils/mediaMatch";
+import { SeriesTargetProps } from "@/types/media";
 import { AnimatePresence } from "framer-motion";
 import dynamic from "next/dynamic";
 // load score dynamically
@@ -22,12 +24,6 @@ const ScoreBattlerHub = dynamic(
 	{ ssr: false },
 );
 
-const normalizeTitle = (title: string) =>
-	title
-		.toLowerCase()
-		.trim()
-		.replace(/^(the|a|an)\s+/, "");
-
 export default function BookHub() {
 	// GET DATA FROM DB
 	const { items, add, update, refresh, remove, isProcessing } =
@@ -35,12 +31,7 @@ export default function BookHub() {
 			endpoint: "books",
 			requiredFieldsToPost: ["title", "status", "key"],
 			statusOrder: { "Want to Read": 0, Completed: 1, Dropped: 2 },
-			extraFieldsToUpdate: [
-				"seriesTitle",
-				"placeInSeries",
-				"prequel",
-				"sequel",
-			],
+			extraFieldsToUpdate: ["series"],
 		});
 
 	// MANAGEMENT OF STATES
@@ -51,6 +42,7 @@ export default function BookHub() {
 		statusFilter,
 		searchQuery,
 		selectedItem,
+		openItemId,
 		titleToUse,
 		setTitleToUse,
 		activeModal,
@@ -81,31 +73,33 @@ export default function BookHub() {
 		DIFF_COLUMNS_BOOK,
 	);
 
-	const isInList = useCallback(
-		(title: string) =>
-			items.some(
-				(book) => normalizeTitle(book.title) === normalizeTitle(title),
-			),
+	// item a series jump points at 
+	const findOwned = useCallback(
+		(target: SeriesTargetProps) =>
+			target.id
+				? items.find((book) => book.key === target.id)
+				: items.find((book) => isSameName(book, target.title)),
 		[items],
+	);
+
+	const isInList = useCallback(
+		(target: SeriesTargetProps) => !!findOwned(target),
+		[findOwned],
 	);
 
 	// sequel/prequel navigation
 	const showSequelPrequel = useCallback(
-		(targetTitle: string) => {
-			if (!targetTitle) return;
-			const targetBook = items.find(
-				(book) =>
-					normalizeTitle(book.title) === normalizeTitle(targetTitle),
-			);
-			if (targetBook) {
+		(target: SeriesTargetProps) => {
+			const owned = findOwned(target);
+			if (owned) {
 				// owned -- hand it to the real details modal
-				handleItemClicked(targetBook);
+				handleItemClicked(owned);
 			} else {
-				setTitleToUse(targetTitle);
+				setTitleToUse(target);
 				setActiveModal("addModal");
 			}
 		},
-		[items, handleItemClicked, setTitleToUse, setActiveModal],
+		[findOwned, handleItemClicked, setTitleToUse, setActiveModal],
 	);
 
 	return (
@@ -123,6 +117,7 @@ export default function BookHub() {
 					differentColumns={DIFF_COLUMNS_BOOK}
 					searchQuery={searchQuery}
 					emptyListText="No books yet — add one!"
+					openItemId={openItemId}
 					onItemClicked={handleItemClicked}
 					onSortConfig={handleSortConfig}
 					onSearchChange={handleSearchQueryChange}
@@ -162,9 +157,20 @@ export default function BookHub() {
 						onClose={handleModalClose}
 						existingBooks={items}
 						onAddBook={handleItemAdd}
-						titleFromAbove={titleToUse}
+						targetFromAbove={titleToUse}
 						onSeriesNav={showSequelPrequel}
 						isInList={isInList}
+						onDuplicate={(dup) => {
+							const owned =
+								(dup.key
+									? items.find((b) => b.key === dup.key)
+									: undefined) ??
+								items.find((b) => isSameName(b, dup.title));
+							if (!owned) return false;
+							setTitleToUse(null);
+							handleItemClicked(owned);
+							return true;
+						}}
 					/>
 				)}
 			</AnimatePresence>

@@ -1,6 +1,5 @@
-// STATUS
-
 import { TIER_THRESHOLDS, TIERS } from "@/lib/tierConfig";
+import { statusLabel } from "@/utils/formattingUtils";
 
 const statusConfig = {
 	"Want to Read": {
@@ -12,8 +11,8 @@ const statusConfig = {
 		bgStyle: "to-blue-500/10",
 	},
 	Watching: {
-		textStyle: "text-cyan-500/80",
-		bgStyle: "to-cyan-600/10",
+		textStyle: "text-rose-dusk-lit/90",
+		bgStyle: "to-rose-dusk/12",
 	},
 	Playing: {
 		textStyle: "text-blue-500/80",
@@ -34,7 +33,7 @@ const createStatusOptions = <T extends keyof typeof statusConfig>(
 ) =>
 	statuses.map((status) => ({
 		value: status,
-		label: status,
+		label: statusLabel(status),
 		...statusConfig[status],
 	}));
 
@@ -54,8 +53,8 @@ export const movieStatusOptions = createStatusOptions([
 export const showStatusOptions = createStatusOptions([
 	"Watching",
 	"Want to Watch",
-	"Dropped",
 	"Completed",
+	"Dropped",
 ]);
 
 export const gameStatusOptions = createStatusOptions([

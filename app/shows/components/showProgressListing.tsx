@@ -1,68 +1,25 @@
 import { ShowProps } from "@/types/show";
-import {
-	formatDateShort,
-	getStatusBg,
-	getStatusWaveColor,
-} from "@/utils/formattingUtils";
+import { getStatusBg, getStatusWaveColor } from "@/utils/styleUtils";
 import { calcCurProgress } from "../utils/progressCalc";
-
-export function ShowProgressBarMobile({ show }: { show: ShowProps }) {
-	return (
-		<>
-			{/* DATE COMPLETED */}
-			<div className="flex justify-between items-center pt-0.5">
-				<span className="text-zinc-500 text-[0.65rem] font-medium mt-1">
-					{formatDateShort(show.dateCompleted)}
-				</span>
-				{/* PROGRESS TEXT */}
-				<div className="text-zinc-400 text-xs font-semibold mb-0.5">
-					<span className="pr-1">
-						S{show.curSeasonIndex + 1 || "-"}
-					</span>
-					<span>Ep {show.curEpisode ?? "-"}/</span>
-					{show.seasons?.[show.curSeasonIndex]?.episode_count ? (
-						<>
-							<span>
-								{
-									show.seasons[show.curSeasonIndex]
-										.episode_count
-								}
-							</span>
-						</>
-					) : (
-						0
-					)}
-				</div>
-			</div>
-			{/* PROCESS BAR */}
-			<div className="mt-1.5 w-full bg-zinc-800/80 rounded-md h-1.5 overflow-hidden">
-				<div
-					className={`${getStatusBg(
-						show.status,
-					)} h-1.5 transition-all duration-500 ease-out rounded-md`}
-					style={{
-						width: `${
-							show.seasons?.[show.curSeasonIndex]?.episode_count
-								? calcCurProgress(
-										show.seasons,
-										show.curSeasonIndex,
-										show.curEpisode,
-									)
-								: 100
-						}%`,
-					}}
-				/>
-			</div>
-		</>
-	);
-}
+import {
+	episodeCountOf,
+	slotBadge,
+	slotIndexOf,
+	timelineOf,
+} from "../utils/slotRef";
 
 export function ShowProgressBarDesktop({ show }: { show: ShowProps }) {
+	const line = timelineOf(show);
+	const at = slotIndexOf(show);
+	const slot = line[at];
+	const totalEps = episodeCountOf(slot);
+	const partLabel = slotBadge(line, at);
+
 	return (
-		<div className="mt-1.5">
+		<div className="relative mt-1.5">
 			{/* PROGRESS TEXT */}
-			<div className="absolute right-0 bottom-10.5 text-[0.6875rem] font-medium tracking-wide tabular-nums text-zinc-400 mb-0.5">
-				{`S${show.curSeasonIndex + 1 || "-"} · E${show.curEpisode ?? "-"}/${show.seasons?.[show.curSeasonIndex]?.episode_count || 0}`}
+			<div className="absolute right-0 bottom-full mb-1 text-[0.6875rem] font-medium tracking-wide tabular-nums text-zinc-400">
+				{`${partLabel} · E${show.curEpisode ?? "-"}/${totalEps}`}
 			</div>
 			{/* PROGRESS BAR */}
 			<div className="w-full bg-zinc-800/80 rounded-md h-1 overflow-hidden">
@@ -70,12 +27,8 @@ export function ShowProgressBarDesktop({ show }: { show: ShowProps }) {
 					className={`${getStatusBg(show.status)} h-1 transition-all duration-500 ease-out rounded-md relative overflow-hidden`}
 					style={{
 						width: `${
-							show.seasons?.[show.curSeasonIndex]?.episode_count
-								? calcCurProgress(
-										show.seasons,
-										show.curSeasonIndex,
-										show.curEpisode,
-									)
+							line.length && totalEps
+								? calcCurProgress(line, at, show.curEpisode)
 								: 100
 						}%`,
 					}}

@@ -9,10 +9,15 @@ import {
 } from "lucide-react";
 import { BaseMediaProps, MediaStatus, ColumnConfig } from "@/types/media";
 import { useNav } from "../../components/NavContext";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { Loading } from "../../components/ui/Loading";
 import { MobileItem } from "./MobileItem";
+import { statusLabel } from "@/utils/formattingUtils";
+
+// default row sizes
+const ROW_FALLBACK = 133;
+const GAME_ROW_FALLBACK = 160;
 
 interface MobileListingProps<T extends BaseMediaProps> {
 	mediaItems: T[];
@@ -52,8 +57,9 @@ export function MobileListing<T extends BaseMediaProps>({
 	const [openSortOption, setOpenSortOption] = useState(false);
 	const [openStatusOption, setOpenStatusOption] = useState(false);
 	const [searchOpen, setSearchOpen] = useState(false);
-	// 120px wide at 3/4 for games, 0.677 otherwise
-	const rowEstimate = mediaType === "game" ? 160 : 178;
+	const [rowEstimate, setRowEstimate] = useState(
+		mediaType === "game" ? GAME_ROW_FALLBACK : ROW_FALLBACK,
+	);
 	//
 	const virtualizer = useWindowVirtualizer({
 		count: mediaItems.length,
@@ -101,6 +107,27 @@ export function MobileListing<T extends BaseMediaProps>({
 		setSearchOpen(false);
 		searchBarRef.current?.blur();
 	};
+
+	//
+	useEffect(() => {
+		const update = () => {
+			const row = document.querySelector("[data-index]");
+			const measured = row?.getBoundingClientRect().height;
+			// a hair of slack, or a sub-pixel difference re-renders forever
+			if (measured)
+				setRowEstimate((held) =>
+					Math.abs(held - measured) > 1 ? measured : held,
+				);
+		};
+		// once now, for the fallback, and once after the first paint, when there is a row to read
+		update();
+		const frame = requestAnimationFrame(update);
+		window.addEventListener("resize", update);
+		return () => {
+			cancelAnimationFrame(frame);
+			window.removeEventListener("resize", update);
+		};
+	}, [mediaItems.length]);
 
 	return (
 		<div className="w-full mx-auto tracking-tight ">
@@ -177,7 +204,7 @@ export function MobileListing<T extends BaseMediaProps>({
 									}}
 								>
 									<span className="font-medium">
-										{status}
+										{statusLabel(status)}
 									</span>
 									<div
 										className={`
@@ -390,7 +417,6 @@ export function MobileListing<T extends BaseMediaProps>({
 								>
 									<MobileItem
 										item={item}
-										index={virtualItem.index}
 										isNavOpen={isNavOpen}
 										mediaType={mediaType}
 										differentColumns={differentColumns}

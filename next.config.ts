@@ -57,6 +57,13 @@ const nextConfig: NextConfig = {
 				port: "",
 				pathname: "/igdb/image/upload/**",
 			},
+			// ANILIST
+			{
+				protocol: "https",
+				hostname: "s4.anilist.co",
+				port: "",
+				pathname: "/file/anilistcdn/**",
+			},
 			// STEAMGRIDDB
 			{
 				protocol: "https",

@@ -1,14 +1,9 @@
 import {
 	BaseMediaProps,
 	ColumnConfig,
-	SeriesAPIProps,
 	SeriesMediaProps,
-	SortState,
+	SeriesProps,
 } from "./media";
-
-export type MovieSortConfig = SortState<
-	"title" | "score" | "dateCompleted" | "director" | "dateReleased"
->;
 
 export const DIFF_COLUMNS_MOVIE: [
 	ColumnConfig<MovieProps>,
@@ -33,7 +28,7 @@ export interface MovieProps extends BaseMediaProps, SeriesMediaProps {
 }
 
 export interface MovieAPIProps {
-	imdbId: string; // used to call other api
+	imdbId: string;
 	tmdb_id?: string;
 	title: string;
 	director?: string;
@@ -41,10 +36,26 @@ export interface MovieAPIProps {
 	imdbRating?: number | null;
 	poster_url?: string;
 	backdrop_url?: string;
-	// every candidate tmdb has, ranked -- poster_url/backdrop_url are just [0]
 	posters?: string[];
 	backdrops?: string[];
 	logo_url?: string | null;
 	logos?: string[];
-	series?: SeriesAPIProps | null;
+	series?: SeriesProps | null;
+	//
+	isAnime?: boolean;
+	animeMovie?: AnimeMovieResolve; // in an anime chian
 }
+
+// a movie's place on an anime chain
+export type AnimeMovieResolve =
+	// kind == movie -> log into movie list
+	| { kind: "movie"; why: string }
+	| {
+			kind: "show";
+			// why gives reason as to why its not in chain
+			why: string;
+			showTitle: string | null;
+			tmdbId: string;
+			anilistId: number;
+			parts: number;
+	  };

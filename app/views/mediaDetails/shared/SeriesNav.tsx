@@ -1,14 +1,18 @@
 // FOR GAME/MOVIE/BOOK
 import Image from "next/image";
-import { BaseMediaProps, SeriesMediaProps } from "@/types/media";
+import {
+	BaseMediaProps,
+	SeriesMediaProps,
+	SeriesTargetProps,
+} from "@/types/media";
 import { GameProps } from "@/types/game";
-import { BookProps } from "@/types/book";
+import { seriesNeighbours, seriesPlace } from "@/utils/seriesRead";
 
 interface SeriesNavProps {
 	item: BaseMediaProps;
 	mediaType: string;
 	onAction: (action: { type: string; payload?: unknown }) => void;
-	isInList?: (title: string) => boolean;
+	isInList?: (target: SeriesTargetProps) => boolean;
 	accentColor?: string;
 }
 
@@ -81,71 +85,40 @@ export function SeriesNav({
 								: null,
 					};
 				})()
-			: mediaType === "book"
-				? (() => {
-						const b = item as unknown as BookProps;
-						return {
-							prev: b.prequel
-								? {
-										label: "Prequel",
-										name: b.prequel,
-										action: {
-											type: "seriesNav",
-											payload: "prequel",
-										},
-									}
-								: null,
-							center: b.placeInSeries
-								? b.total
-									? `${b.placeInSeries}/${b.total}`
-									: b.placeInSeries
-								: null,
-							next: b.sequel
-								? {
-										label: "Sequel",
-										name: b.sequel,
-										action: {
-											type: "seriesNav",
-											payload: "sequel",
-										},
-									}
-								: null,
-						};
-					})()
-				: (() => {
-						const s = item as unknown as SeriesMediaProps;
-						return {
-							prev: s.prequel
-								? {
-										label: "Prequel",
-										name: s.prequel,
-										action: {
-											type: "seriesNav",
-											payload: "prequel",
-										},
-									}
-								: null,
-							center: s.placeInSeries ?? null,
-							next: s.sequel
-								? {
-										label: "Sequel",
-										name: s.sequel,
-										action: {
-											type: "seriesNav",
-											payload: "sequel",
-										},
-									}
-								: null,
-						};
-					})();
+			: (() => {
+					// movies and books both step along a stored run
+					const row = item as unknown as SeriesMediaProps;
+					const { prev, next } = seriesNeighbours(row);
+					return {
+						prev: prev
+							? {
+									label: "Prequel",
+									name: prev.title,
+									target: prev,
+									action: {
+										type: "seriesNav",
+										payload: "prequel",
+									},
+								}
+							: null,
+						center: seriesPlace(row),
+						next: next
+							? {
+									label: "Sequel",
+									name: next.title,
+									target: next,
+									action: {
+										type: "seriesNav",
+										payload: "sequel",
+									},
+								}
+							: null,
+					};
+				})();
 
 	const isMissing = (
-		entry: { name?: string | null; action: { type: string } } | null,
-	) =>
-		!!entry?.name &&
-		!!isInList &&
-		entry.action.type === "seriesNav" &&
-		!isInList(entry.name);
+		entry: { name?: string | null; target?: SeriesTargetProps } | null,
+	) => !!entry?.target && !!isInList && !isInList(entry.target);
 	const prevMissing = isMissing(nav.prev);
 	const nextMissing = isMissing(nav.next);
 
@@ -156,7 +129,7 @@ export function SeriesNav({
 				: "text-zinc-300/70 group-hover:text-zinc-300/85"
 		}`;
 
-	// show art if no series
+	// show art if there is no series to step through
 	if (!nav.prev && !nav.center && !nav.next) {
 		const tinted = !!accentColor;
 		return (
@@ -192,9 +165,7 @@ export function SeriesNav({
 										style={{
 											backgroundImage: `radial-gradient(58% 78% at 50% 62%, ${tint(
 												34,
-											)} 0%, ${tint(
-												12,
-											)} 45%, transparent 74%)`,
+											)} 0%, ${tint(12)} 45%, transparent 74%)`,
 										}}
 									/>
 								)}
@@ -220,9 +191,7 @@ export function SeriesNav({
 										style={{
 											backgroundImage: `linear-gradient(to bottom, ${tint(
 												100,
-											)} 0%, ${tint(
-												92,
-											)} 45%, ${tint(78)} 100%)`,
+											)} 0%, ${tint(92)} 45%, ${tint(78)} 100%)`,
 											mixBlendMode: "multiply",
 											...ART_MASK,
 										}}

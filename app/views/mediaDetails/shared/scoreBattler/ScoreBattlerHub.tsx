@@ -175,8 +175,6 @@ export function ScoreBattlerHub<T extends BaseMediaProps>({
 
 	if (!opponentItem || !session) return null;
 
-	// const displayScore = getDisplayScore(session.selectedItem.score.mu);
-
 	return (
 		<>
 			<div className="lg:block hidden">

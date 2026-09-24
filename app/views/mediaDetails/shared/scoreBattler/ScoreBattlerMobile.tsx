@@ -1,7 +1,7 @@
 import { BattlerCover } from "./BattlerCover";
 import { BaseMediaProps } from "@/types/media";
 import { actions, coverFor, ScoreBattlerUIProps } from "./shared";
-import { getStatusBg, getStatusWaveColor } from "@/utils/formattingUtils";
+import { getStatusBg, getStatusWaveColor } from "@/utils/styleUtils";
 import { useScrollLock } from "@/hooks/useScrollLock";
 
 export function ScoreBattlerMobile<T extends BaseMediaProps>({

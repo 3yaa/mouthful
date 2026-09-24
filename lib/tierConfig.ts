@@ -55,24 +55,6 @@ export const getSeedMu = (tier: Tier): number => {
 	return TIER_THRESHOLDS[tier].seed;
 };
 
-// range include self + half of adj
-// export const getTierAdjacentRange = (
-//   tier: Tier,
-// ): { min: number; max: number } => {
-//   const i = TIERS.indexOf(tier);
-//   const current = TIER_THRESHOLDS[TIERS[i]];
-//   const above = i > 0 ? TIER_THRESHOLDS[TIERS[i - 1]] : null;
-//   const below = i < TIERS.length - 1 ? TIER_THRESHOLDS[TIERS[i + 1]] : null;
-
-//   const aboveRange = above ? above.muMax - above.muMin : 0;
-//   const belowRange = below ? below.muMax - below.muMin : 0;
-
-//   return {
-//     min: current.muMin - belowRange / 2,
-//     max: current.muMax + aboveRange / 2,
-//   };
-// };
-
 // just within own tier
 export const getTierAdjacentRange = (
 	tier: Tier,
@@ -95,9 +77,7 @@ const MU_MAX = 2000;
 
 // one manual 0.1 step up/down on the displayed score
 export const nudgeMu = (mu: number, dir: "up" | "down"): number => {
-	// Goosebumps seeds above the display ceiling, where the number has nowhere
-	// left to go up -- and a step down has to start from the ceiling, or the
-	// first few clicks would move mu without moving what's on screen
+	// goosebumps clmap
 	if (dir === "up" && mu >= MU_MAX) return mu;
 	const base = Math.min(MU_MAX, Math.max(MU_MIN, mu));
 	const step = dir === "up" ? MU_PER_DISPLAY_STEP : -MU_PER_DISPLAY_STEP;
@@ -106,10 +86,3 @@ export const nudgeMu = (mu: number, dir: "up" | "down"): number => {
 
 export const canNudgeMu = (mu: number, dir: "up" | "down"): boolean =>
 	nudgeMu(mu, dir) !== mu;
-
-export const getRatingNormal = (
-	rating: { mu: number; phi: number },
-	k: number = 1,
-): number => {
-	return rating.mu - k * rating.phi;
-};

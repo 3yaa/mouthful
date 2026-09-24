@@ -1,14 +1,14 @@
 "use client";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { ModalBackdrop } from "@/app/components/ui/ModalMotion";
-import { Book } from "lucide-react";
+import { Book, Loader2 } from "lucide-react";
 //
 import { BookProps, BookSearchResult } from "@/types/book";
-import { MediaCoverProps, SeriesAPIProps } from "@/types/media";
+import { MediaCoverProps, SeriesProps, SeriesTargetProps } from "@/types/media";
 //
 import {
 	mapBookAPIDatatoBook,
-	mapBookAPISeriesData,
+	pickBookSeries,
 } from "@/app/books/utils/bookMapping";
 //
 import { BookDetails } from "./BookDetailsHub";
@@ -16,6 +16,7 @@ import { ShowMultBooks } from "./components/ShowMultBooks";
 import { AnimatePresence } from "framer-motion";
 //
 import { useBookSearch } from "@/hooks/external/useBookSearch";
+import { findOnlyNamed } from "@/utils/mediaMatch";
 
 interface AddBookProps {
 	isOpen: boolean;
@@ -23,19 +24,22 @@ interface AddBookProps {
 	existingBooks: BookProps[];
 	// resolves true when the score battler took over the flow
 	onAddBook: (item: BookProps) => void | Promise<boolean | void>;
-	titleFromAbove?: string;
+	targetFromAbove?: SeriesTargetProps | null;
 	// keeps prequel/sequel jumps alive while previewing an unadded book
-	onSeriesNav?: (targetTitle: string) => void;
-	isInList?: (title: string) => boolean;
+	onSeriesNav?: (target: SeriesTargetProps) => void;
+	isInList?: (target: SeriesTargetProps) => boolean;
+	onDuplicate?: (dup: { title: string; key?: string }) => boolean;
 }
 
 export function AddBook({
 	isOpen,
 	onClose,
 	onAddBook,
-	titleFromAbove,
+	existingBooks,
+	targetFromAbove,
 	onSeriesNav,
 	isInList,
+	onDuplicate,
 }: AddBookProps) {
 	//failure reasons && their fixes -- for user
 	const [failedReason, setFailedReason] = useState("");
@@ -48,7 +52,7 @@ export function AddBook({
 	const [isDupTitle, setIsDupTitle] = useState(false);
 	//
 	const [newBook, setNewBook] = useState<Partial<BookProps>>({});
-	const [series, setSeries] = useState<SeriesAPIProps[]>([]);
+	const [series, setSeries] = useState<SeriesProps[]>([]);
 	const [seriesIndex, setSeriesIndex] = useState(0);
 	//
 	const [covers, setCovers] = useState<MediaCoverProps[]>([]);
@@ -59,7 +63,7 @@ export function AddBook({
 	const {
 		searchForBooks,
 		searchForBooksMulti,
-		searchForBookByKey,
+		loadBookByKey,
 		isBookSearching,
 	} = useBookSearch();
 
@@ -78,40 +82,63 @@ export function AddBook({
 		}
 	}, []);
 
-	const handleBookSearch = useCallback(async () => {
-		setActiveModal("bookDetails");
-		//
-		const titleSearching = titleToSearch.current?.value.trim();
-		if (!titleSearching) return null;
-		//
-		const response = await searchForBooks(titleSearching);
-		// error
-		if (!response) return null;
-		if (!response?.key || !response.title) {
-			setFailedReason("Could Not Find Book.");
+	// a title already on file
+	const handleDuplicate = useCallback(
+		(dup: { title: string; key?: string }) => {
 			setActiveModal(null);
-			return;
-		}
-		// dup logic
-		if (response && "isDuplicate" in response) {
-			setFailedReason(`Already Have Book: ${response.title}`);
+			// go to it
+			if (onDuplicate?.(dup)) return;
+			setFailedReason(`Already Have Book: ${dup.title}`);
 			setIsDupTitle(true);
-			setActiveModal(null);
-			return;
-		}
-		//save books
-		setCovers(response.covers || []);
-		setNewBook({
-			...mapBookAPIDatatoBook(response),
-			status: "Want to Read",
-			...mapBookAPISeriesData(response.series),
-		}); //main
-		setSeries(response.series);
-		setSeriesIndex(0);
-		setCovers(response.covers);
-		// reset for series jump
-		setCoverIndex(0);
-	}, [searchForBooks]);
+		},
+		[onDuplicate],
+	);
+
+	const handleBookSearch = useCallback(
+		async (knownKey?: string) => {
+			if (targetFromAbove) setActiveModal("bookDetails");
+			//
+			const titleSearching = titleToSearch.current?.value.trim();
+			if (!titleSearching) return null;
+			//
+			if (!targetFromAbove && !knownKey) {
+				const owned = findOnlyNamed(existingBooks, titleSearching);
+				if (owned) {
+					handleDuplicate({ title: owned.title, key: owned.key });
+					return;
+				}
+			}
+			//
+			const response = await searchForBooks(titleSearching, knownKey);
+			// error
+			if (!response) return null;
+			// dup logic --- NEEDS TO BE ABOVE EMPTY LOGIC CAUSE RESPONSE IS EMPTY
+			if ("isDuplicate" in response) {
+				handleDuplicate(response);
+				return;
+			}
+			// empty
+			if (!response.key || !response.title) {
+				setFailedReason("Could Not Find Book.");
+				setActiveModal(null);
+				return;
+			}
+			//save books
+			setCovers(response.covers || []);
+			setNewBook({
+				...mapBookAPIDatatoBook(response),
+				status: "Want to Read",
+				series: pickBookSeries(response.series),
+			}); //main
+			setSeries(response.series);
+			setSeriesIndex(0);
+			setCovers(response.covers);
+			// reset for series jump
+			setCoverIndex(0);
+			setActiveModal("bookDetails");
+		},
+		[searchForBooks, handleDuplicate, existingBooks, targetFromAbove],
+	);
 
 	const handleShowMore = useCallback(async () => {
 		const q = titleToSearch.current?.value.trim();
@@ -125,7 +152,7 @@ export function AddBook({
 	const handlePickFromMultBooks = useCallback(
 		async (candidate: BookSearchResult) => {
 			setActiveModal("bookDetails");
-			const full = await searchForBookByKey(candidate.key);
+			const full = await loadBookByKey(candidate.key);
 			if (!full) {
 				setFailedReason("Could Not Load Book.");
 				setActiveModal(null);
@@ -138,10 +165,10 @@ export function AddBook({
 			setNewBook({
 				...mapBookAPIDatatoBook(full),
 				status: "Want to Read",
-				...mapBookAPISeriesData(full.series),
+				series: pickBookSeries(full.series),
 			});
 		},
-		[searchForBookByKey],
+		[loadBookByKey],
 	);
 
 	const handleBookDetailsUpdates = useCallback(
@@ -160,11 +187,9 @@ export function AddBook({
 		const finalBook = {
 			...newBook,
 			cover: covers[coverIndex],
-			...mapBookAPISeriesData(series, seriesIndex),
+			series: pickBookSeries(series, seriesIndex),
 		};
-		console.log(finalBook);
-		// only close when the battler did not take over -- closing
-		// would clear the very item it is scoring
+		// only close when the battler did not take over -- closing would clear item scoring
 		const isBattling = await onAddBook(finalBook as BookProps);
 		if (!isBattling) onClose();
 	};
@@ -181,17 +206,10 @@ export function AddBook({
 			})(option);
 			// series mapping
 			setSeriesIndex(newSeriesIndex);
-			const mappedSeriesData = mapBookAPISeriesData(
-				series,
-				newSeriesIndex,
-			);
-			setNewBook((prev) => {
-				const updated = {
-					...prev,
-					...mappedSeriesData,
-				};
-				return updated;
-			});
+			setNewBook((prev) => ({
+				...prev,
+				series: pickBookSeries(series, newSeriesIndex),
+			}));
 		},
 		[series, seriesIndex],
 	);
@@ -199,7 +217,7 @@ export function AddBook({
 	const handleBookDetailsClose = () => {
 		reset();
 		setActiveModal(null);
-		if (titleFromAbove) {
+		if (targetFromAbove) {
 			onClose();
 		}
 	};
@@ -223,22 +241,16 @@ export function AddBook({
 		reset();
 	}, [isOpen, reset]);
 
-	// useEffect(() => {
-	//   if (activeModal === null && !failedReason) {
-	//     reset();
-	//   }
-	// }, [activeModal, reset, failedReason]);
-
 	// for when to search book without modal
 	useEffect(() => {
-		if (titleFromAbove) {
+		if (targetFromAbove) {
 			if (titleToSearch.current) {
-				titleToSearch.current.value = titleFromAbove;
+				titleToSearch.current.value = targetFromAbove.title;
 			}
-			handleBookSearch();
+			handleBookSearch(targetFromAbove.id ?? undefined);
 		}
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [titleFromAbove]);
+	}, [targetFromAbove?.id, targetFromAbove?.title]);
 
 	useEffect(() => {
 		const handleEscape = (e: KeyboardEvent) => {
@@ -257,22 +269,27 @@ export function AddBook({
 		<ModalBackdrop className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-10">
 			{/* maybe not allow user to close modal as new book coming? */}
 			<div className="fixed inset-0" onClick={onClose} />
-			{!titleFromAbove || !!failedReason ? (
-				<div className="bg-linear-to-b from-zinc-950/80 to-zinc-900/50 backdrop-blur-xl border border-zinc-800/50 rounded-2xl p-6 w-full max-w-xl mx-4 animate-in zoom-in-95 duration-200 relative">
+			{!targetFromAbove || !!failedReason ? (
+				<div className="bg-linear-to-b from-zinc-950/80 to-zinc-900/50 backdrop-blur-xl border border-zinc-800/50 rounded-2xl p-6 w-full max-w-xl mx-4 relative">
 					<h2 className="text-xl font-semibold mb-4 text-zinc-300/90 flex justify-center items-center gap-2">
 						<Book className="w-5 h-5 text-zinc-300/90" />
 						Search for New Book
 					</h2>
 					<div className="flex gap-3">
-						<input
-							type="text"
-							ref={titleToSearch}
-							placeholder="Search for book..."
-							onKeyDown={handleKeyPress}
-							onInput={eraseErrMsg}
-							disabled={isBookSearching}
-							className="w-full bg-zinc-800/50 border border-zinc-800/50 rounded-xl px-4 py-3 text-zinc-300 font-medium placeholder-zinc-400 focus:border-zinc-800 focus:ring-1 focus:ring-zinc-900/50 outline-none transition-all duration-200 shadow-lg shadow-black/20"
-						/>
+						<div className="relative w-full">
+							<input
+								type="text"
+								ref={titleToSearch}
+								placeholder="Search for book..."
+								onKeyDown={handleKeyPress}
+								onInput={eraseErrMsg}
+								disabled={isBookSearching}
+								className="w-full bg-zinc-800/50 border border-zinc-800/50 rounded-xl px-4 py-3 pr-11 text-zinc-300 font-medium placeholder-zinc-400 focus:border-zinc-800 focus:ring-1 focus:ring-zinc-900/50 outline-none transition-all duration-200 shadow-lg shadow-black/20"
+							/>
+							{isBookSearching && (
+								<Loader2 className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-zinc-500" />
+							)}
+						</div>
 					</div>
 					<div className="flex justify-between mx-2">
 						{failedReason && !isBookSearching && (

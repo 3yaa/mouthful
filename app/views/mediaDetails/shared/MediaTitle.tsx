@@ -1,18 +1,28 @@
 "use client";
 import Image from "next/image";
-import { Fragment, useEffect, useRef, useState } from "react";
+import {
+	Fragment,
+	useCallback,
+	useEffect,
+	useReducer,
+	useRef,
+	useState,
+} from "react";
 import { corsMode, isResizable } from "@/utils/image-loader";
+import {
+	ASSUMED_METRIC,
+	LOGO_H,
+	LOGO_W,
+	type LogoMetric,
+	measureLogo,
+	metricFor,
+} from "./logoMetrics";
 
 // sizing for logo
 const SIZES = {
-	lg: { ink: 6000, minWidth: 140, maxWidth: 360, maxHeight: 100 },
-	sm: { ink: 1850, minWidth: 78, maxWidth: 205, maxHeight: 58 },
+	lg: { ink: 13.82, minWidth: 6.72, maxWidth: 17.28, maxHeight: 4.8 },
+	sm: { ink: 7.23, minWidth: 4.875, maxWidth: 12.8125, maxHeight: 3.625 },
 };
-const MAX_LINES = 3;
-// stand-ins for the frame before the measurement lands -- a mid-range banner
-const ASSUMED_COVERAGE = 0.38;
-
-type Metric = { ratio: number; coverage: number; lines: number };
 
 //
 const TITLE_FILL =
@@ -35,86 +45,29 @@ const SERIES_BASE = `font-display uppercase font-normal ${SERIES_HALO} text-bala
 
 export const SERIES_TEXT = {
 	lg: `${SERIES_BASE} text-center max-w-full mb-0.5 text-[0.95rem] leading-[1.5] tracking-[0.25em] text-zinc-200/80`,
-	lgScreen: `${SERIES_BASE} text-center max-w-full mb-0.5 text-[0.85rem] leading-[1.5] tracking-[0.28em] text-zinc-200/80`,
+	lgScreen: `${SERIES_BASE} text-center max-w-full mb-0.5 text-[0.85rem] leading-[1.5] tracking-[0.28em] text-zinc-400/75`,
 	sm: `${SERIES_BASE} text-center max-w-full -mt-2.5 text-[0.7rem] leading-[1.4] tracking-[0.26em] text-zinc-400/75`,
 };
 
-// measured once per url and reused -- cache for relook
-const metrics = new Map<string, Metric>();
-
-// how much of the image is painted, and over how many lines of type
-function inkStatsOf(img: HTMLImageElement): Omit<Metric, "ratio"> | null {
-	// downscale first
-	const w = 128;
-	const h = Math.max(
-		1,
-		Math.round((w * img.naturalHeight) / img.naturalWidth),
-	);
-	const canvas = document.createElement("canvas");
-	canvas.width = w;
-	canvas.height = h;
-	const ctx = canvas.getContext("2d", { willReadFrequently: true });
-	if (!ctx) return null;
-	ctx.drawImage(img, 0, 0, w, h);
-
-	// cross-origin pixels would taint the canvas
-	let data: Uint8ClampedArray;
-	try {
-		data = ctx.getImageData(0, 0, w, h).data;
-	} catch {
-		return null;
-	}
-
-	const INK_ALPHA = 40;
-	// columns that barely clip a serif would otherwise vote on the line count
-	const MIN_INK_ROWS = Math.max(2, Math.round(h * 0.1));
-
-	let ink = 0;
-	// runs of ink down each column: a column crossing AVENGERS and DOOMSDAY
-	// breaks into two, one crossing a single word stays whole. taking the median
-	// tolerates the descenders and flourishes that bridge the gap in places
-	const runsPerColumn: number[] = [];
-	for (let x = 0; x < w; x++) {
-		let runs = 0;
-		let inked = 0;
-		let wasInk = false;
-		for (let y = 0; y < h; y++) {
-			const alpha = data[(y * w + x) * 4 + 3];
-			ink += alpha / 255;
-			const isInk = alpha > INK_ALPHA;
-			if (isInk) {
-				inked += 1;
-				if (!wasInk) runs += 1;
-			}
-			wasInk = isInk;
-		}
-		if (inked >= MIN_INK_ROWS) runsPerColumn.push(runs);
-	}
-
-	const coverage = ink / (w * h);
-	// a fully opaque rectangle means no alpha channel to read -- treat it as
-	// unmeasurable rather than shrinking it to nothing
-	if (!(coverage > 0 && coverage < 0.97)) return null;
-
-	runsPerColumn.sort((a, b) => a - b);
-	const median = runsPerColumn[Math.floor(runsPerColumn.length / 2)] ?? 1;
-	return { coverage, lines: Math.min(Math.max(median, 1), MAX_LINES) };
-}
+// for anime
+export const SLOT_TEXT = {
+	lg: `${SERIES_BASE} text-center max-w-full mt-1 text-[0.9rem] leading-[1.5] tracking-[0.3em] text-zinc-200/90`,
+	sm: `${SERIES_BASE} text-center max-w-full mt-1.5 text-[0.72rem] leading-[1.4] tracking-[0.28em] text-zinc-300/85`,
+};
 
 const widthFor = (
-	{ ratio, coverage, lines }: Metric,
+	{ ratio, coverage, lines }: LogoMetric,
 	size: keyof typeof SIZES,
 ) => {
 	const { ink, minWidth, maxWidth, maxHeight } = SIZES[size];
 	// inkPerLine = w * (w / ratio) * coverage / lines, solved for w
 	const ideal = Math.sqrt((ink * lines * ratio) / coverage);
 	const ceiling = Math.min(maxWidth, maxHeight * ratio);
-	return Math.round(Math.min(Math.max(ideal, minWidth), ceiling));
+	// rem out, so keep the fraction a subpixel step at any root size
+	return Math.round(Math.min(Math.max(ideal, minWidth), ceiling) * 100) / 100;
 };
 
-// A title breaks at its subtitle colon before anywhere else: "MISTBORN:" over
-// "THE FINAL EMPIRE", not the mid-phrase split an even balance would pick.
-// Split on the first colon only, and only when there is something either side.
+// A title breaks at its subtitle colon before anywhere else
 function titleParts(title: string): string[] {
 	const at = title.indexOf(":");
 	if (at <= 0 || at >= title.length - 1) return [title];
@@ -188,6 +141,8 @@ function StatusWave({
 
 interface MediaTitleProps {
 	title: string;
+	subtitle?: string | null;
+	copyTitle?: string | null;
 	logoUrl?: string | null;
 	isBook: boolean;
 	size: keyof typeof SIZES;
@@ -198,6 +153,8 @@ interface MediaTitleProps {
 
 export function MediaTitle({
 	title,
+	subtitle,
+	copyTitle,
 	logoUrl,
 	size,
 	textClass,
@@ -206,7 +163,26 @@ export function MediaTitle({
 	isBook,
 }: MediaTitleProps) {
 	const [brokenUrl, setBrokenUrl] = useState<string | null>(null);
-	const [, setMeasuredAt] = useState(0);
+	const [, remeasured] = useReducer((n: number) => n + 1, 0);
+	const [revealAnyway, setRevealAnyway] = useState(false);
+	useEffect(() => {
+		setRevealAnyway(false);
+		if (!logoUrl) return;
+		const timer = setTimeout(() => setRevealAnyway(true), 1500);
+		return () => clearTimeout(timer);
+	}, [logoUrl]);
+
+	const handleError = useCallback(
+		() => setBrokenUrl(logoUrl ?? null),
+		[logoUrl],
+	);
+
+	// clicking either puts it into clipboard
+	const copyName = useCallback(() => {
+		navigator.clipboard
+			?.writeText(copyTitle ?? [title, subtitle].filter(Boolean).join(" "))
+			.catch(() => {});
+	}, [copyTitle, title, subtitle]);
 
 	const showsText = !logoUrl || brokenUrl === logoUrl;
 	const textRef = useRef<HTMLDivElement | null>(null);
@@ -234,10 +210,11 @@ export function MediaTitle({
 	if (showsText) {
 		return (
 			<div className={`flex flex-col max-w-full ${className}`}>
-				<div ref={textRef} className={textClass}>
-					{/* inline-block keeps each part whole: they share a line
-					    when they fit, split at the colon when they don't, and a
-					    part too wide on its own still wraps inside itself */}
+				<div
+					ref={textRef}
+					onClick={copyName}
+					className={`${textClass} cursor-pointer select-none`}
+				>
 					{titleParts(title || "Untitled").map((part, i) => (
 						<Fragment key={i}>
 							{i > 0 && " "}
@@ -258,55 +235,47 @@ export function MediaTitle({
 		);
 	}
 
-	const measured = metrics.get(logoUrl);
-	const { maxWidth, maxHeight } = SIZES[size];
-	// Before the measurement lands, cap by height and let width follow the
-	// artwork. Guessing a ratio is what let a near-square mark render at banner
-	// width: the height clamp is spent as `maxHeight * ratio` worth of width, so
-	// a guess of 3.5 handed a 1.2:1 logo three times the headroom it was owed.
-	const sizing = measured
-		? { width: widthFor(measured, size), height: "auto", maxHeight }
-		: { height: maxHeight, width: "auto", maxWidth };
+	// real size is only known after the load
+	const measured = metricFor(logoUrl);
+
+	// decoded before the reveal, so the frame never eases open on a blank box.
+	const reveal = (img: HTMLImageElement) => {
+		const measure = () => {
+			measureLogo(logoUrl, img);
+			// only when this instance is still showing the guess
+			if (!measured && metricFor(logoUrl)) remeasured();
+		};
+		if (img.decode) img.decode().then(measure, measure);
+		else measure();
+	};
+
+	const frame = measured ?? ASSUMED_METRIC;
+	const frameWidth = widthFor(frame, size);
+	const sizing = {
+		width: `${frameWidth}rem`,
+		height: `${Math.round((frameWidth / frame.ratio) * 100) / 100}rem`,
+	};
 
 	return (
 		<div className={`w-fit max-w-full ${className}`}>
 			<Image
 				src={logoUrl}
 				alt={title || "Untitled"}
-				// the real size comes from `sizing` below -- 500 landed on the
-				// w500 tmdb logos are stored at, 342 keeps the 2.5 ratio and
-				// gives retina a w780 instead of w1280
-				width={342}
-				height={137}
-				// next/image refuses to optimise svg without dangerouslyAllowSVG,
-				// and steamgriddb serves one fixed file per logo
+				width={LOGO_W}
+				height={LOGO_H}
 				unoptimized={!isResizable(logoUrl)}
-				// tmdb logos can be read back off the canvas; steamgriddb sends
-				// no cors header -- inkStatsOf falls back on taint
 				crossOrigin={corsMode(logoUrl)}
 				priority
-				onLoad={(e) => {
-					if (metrics.has(logoUrl)) return;
-					const img = e.currentTarget;
-					if (!img.naturalWidth || !img.naturalHeight) return;
-					// same element, already decoded -- no second fetch, and the
-					// cors request above keeps the canvas readable
-					metrics.set(logoUrl, {
-						ratio: img.naturalWidth / img.naturalHeight,
-						...(inkStatsOf(img) ?? {
-							coverage: ASSUMED_COVERAGE,
-							lines: 1,
-						}),
-					});
-					setMeasuredAt(Date.now());
+				onLoad={(e) => reveal(e.currentTarget)}
+				onClick={copyName}
+				onError={handleError}
+				draggable={false}
+				style={{
+					...sizing,
+					opacity: measured || revealAnyway ? 1 : 0,
+					transition:
+						"opacity 150ms ease-out, width 220ms ease-out, height 220ms ease-out",
 				}}
-				// copy to clipboard for logo
-				onClick={() => {
-					navigator.clipboard?.writeText(title).catch(() => {});
-				}}
-				onError={() => setBrokenUrl(logoUrl)}
-				// height auto -- the ratio is the artwork's, never imposed
-				style={sizing}
 				className="block max-w-full object-contain cursor-pointer select-none drop-shadow-[0_2px_8px_rgba(0,0,0,0.55)]"
 			/>
 			{underlineColor && (

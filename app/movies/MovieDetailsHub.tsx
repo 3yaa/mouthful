@@ -17,7 +17,11 @@ import {
 	stepLogoIndex,
 	stepArtworkIndex,
 } from "@/utils/artworkIndex";
+import { useCastPanel } from "@/hooks/useCastPanel";
 import { useScoreNudge } from "@/hooks/useScoreNudge";
+import { useAddWait } from "@/hooks/useAddWait";
+import { useEscapeClose } from "@/hooks/useEscapeClose";
+import { PickList, useReloadPreview } from "@/hooks/useReloadPreview";
 import {
 	ActorWork,
 	CastMember,
@@ -25,25 +29,22 @@ import {
 	fetchMovieCredits,
 } from "../../utils/getActorInfo";
 import dynamic from "next/dynamic";
-import { DirectorPicker } from "@/app/movies/components/DirectorPicker";
 import { AnimatePresence } from "framer-motion";
 import { AddShow } from "@/app/shows/AddShow";
 import { AddMovie } from "@/app/movies/AddMovie";
 import { useAuthFetch } from "@/app/auth/hooks/useAuthFetch";
 import { ShowProps } from "@/types/show";
 import { ShowDetails } from "../shows/ShowDetailsHub";
-import { MediaStatus } from "@/types/media";
+import { MediaStatus, SeriesTargetProps } from "@/types/media";
 import { useMovieSearch } from "@/hooks/external/useMovieSearch";
-import { mapSeriesToMovie } from "./utils/movieMapping";
 import { buildCover } from "@/utils/coverColor";
+import { isRealTmdbId } from "@/utils/mediaMatch";
+import { seriesNeighbours } from "@/utils/seriesRead";
 // load actor modal dynamically
 const ActorItemsModal = dynamic(
 	() => import("../components/ActorModal").then((m) => m.ActorItemsModal),
 	{ ssr: false },
 );
-
-// check if movie has tmdbID
-const isRealTmdbId = (tmdbId?: string) => !!tmdbId && tmdbId !== "-1";
 
 const normalizeTitle = (title: string) =>
 	title
@@ -75,8 +76,7 @@ export type MovieAction =
 	| { type: "changeCover"; payload: "next" | "prev" }
 	| { type: "changeBackdrop"; payload: "next" | "prev" }
 	| { type: "pickCoverColor"; payload: string }
-	| { type: "directorClick"; payload: string }
-	| { type: "directorPicker" };
+	| { type: "directorClick"; payload: string };
 
 interface MovieDetailsProps {
 	movie: MovieProps;
@@ -87,19 +87,11 @@ interface MovieDetailsProps {
 		updates?: Partial<MovieProps>,
 		takeAction?: boolean,
 	) => void;
-	addMovie?: () => void;
-	showSequelPrequel?: (sequelTitle: string) => void;
-	isInList?: (title: string) => boolean;
+	addMovie?: () => void | Promise<unknown>;
+	showSequelPrequel?: (target: SeriesTargetProps) => void;
+	isInList?: (target: SeriesTargetProps) => boolean;
 	existingMovies?: MovieProps[];
 	onAddWork?: (movie: MovieProps) => Promise<unknown>;
-	//
-	onShowUpdate?: (
-		showId: number,
-		updates?: Partial<ShowProps>,
-		takeAction?: boolean,
-	) => void;
-	existingShows?: ShowProps[];
-	onAddShow?: (movie: ShowProps) => Promise<unknown>;
 	onRefresh?: (metadata: Partial<MovieProps>) => Promise<void>;
 	// legacy
 	onBackfillTmdbId?: (movieId: number, tmdbId: string) => void;
@@ -113,7 +105,27 @@ interface MovieDetailsProps {
 	backdropUrls?: string[];
 	backdropIndex?: number;
 	updateBackdropIndex?: (newIndex: number) => void;
+	// SHOW
+	onShowUpdatePart?: (
+		showId: number,
+		anilistId: number,
+		patch: { note?: string | null; hidden?: boolean },
+	) => void | Promise<unknown>;
+	onShowUpdate?: (
+		showId: number,
+		updates?: Partial<ShowProps>,
+		takeAction?: boolean,
+	) => void;
+	existingShows?: ShowProps[];
+	onAddShow?: (movie: ShowProps) => Promise<unknown>;
 }
+
+// choices a movie reload offers
+type MovieArt = {
+	logos: PickList<string>;
+	posters: PickList<string>;
+	backdrops: PickList<string>;
+};
 
 export function MovieDetails({
 	onClose,
@@ -126,6 +138,7 @@ export function MovieDetails({
 	existingMovies = [],
 	existingShows = [],
 	onShowUpdate,
+	onShowUpdatePart,
 	onAddWork,
 	onAddShow,
 	onRefresh,
@@ -141,33 +154,77 @@ export function MovieDetails({
 	updateBackdropIndex,
 }: MovieDetailsProps) {
 	const [localNote, setLocalNote] = useState(movie.note || "");
-	const [isRefreshing, setIsRefreshing] = useState(false);
 	const { reloadMovie, searchForMovie } = useMovieSearch();
-	// refresh preview state -- nothing is written until it is confirmed
-	const [isSelecting, setIsSelecting] = useState(false);
-	const [refreshMeta, setRefreshMeta] = useState<Partial<MovieProps>>({});
-	const [refreshLogos, setRefreshLogos] = useState<string[]>([]);
-	const [refreshLogoIndex, setRefreshLogoIndex] = useState(0);
-	const [refreshPosters, setRefreshPosters] = useState<string[]>([]);
-	const [refreshPosterIndex, setRefreshPosterIndex] = useState(0);
-	const [refreshBackdrops, setRefreshBackdrops] = useState<string[]>([]);
-	const [refreshBackdropIndex, setRefreshBackdropIndex] = useState(0);
+	const reload = useReloadPreview<MovieProps, MovieArt>({
+		onRefresh,
+		// legacy movies that doesn't have tmdbid are looked up by title
+		canLoad: isRealTmdbId(movie.tmdbId) || !!movie.title,
+		load: async () => {
+			const hasTmdbId = isRealTmdbId(movie.tmdbId);
+			// no tmdb id to look up -- resolve one by title first
+			const reloaded = hasTmdbId
+				? await reloadMovie(movie.tmdbId as string)
+				: await searchForMovie(movie.title, movie.dateReleased, true);
+			if (!reloaded || "isDuplicate" in reloaded) return null;
+			// tmdbId is identity, left untouched
+			const meta: Partial<MovieProps> = {
+				cover: await buildCover(reloaded.poster_url),
+				backdropUrl: reloaded.backdrop_url,
+			};
+			// legacy
+			if (!hasTmdbId) {
+				meta.tmdbId = reloaded.tmdb_id;
+				meta.director = reloaded.director;
+				meta.dateReleased = reloaded.released_date;
+			}
+			// reload can clear series
+			meta.series = reloaded.series ?? null;
+			if (reloaded.title) meta.title = reloaded.title;
+			return {
+				meta,
+				lists: {
+					logos: { items: reloaded.logos ?? [], index: 0 },
+					posters: { items: reloaded.posters ?? [], index: 0 },
+					backdrops: { items: reloaded.backdrops ?? [], index: 0 },
+				},
+			};
+		},
+		toMeta: ({ meta, lists }) => ({
+			...meta,
+			logoUrl: lists.logos.items[lists.logos.index] ?? null,
+			// cover already tracks the picked poster
+			...(lists.backdrops.items.length
+				? {
+						backdropUrl:
+							lists.backdrops.items[lists.backdrops.index],
+					}
+				: {}),
+		}),
+	});
+	const { isRefreshing, isSelecting, patchMeta } = reload;
+	const setArtIndex = reload.setListIndex;
+	const art = isSelecting
+		? {
+				logos: reload.list("logos"),
+				posters: reload.list("posters"),
+				backdrops: reload.list("backdrops"),
+			}
+		: {
+				logos: { items: logoUrls, index: logoIndex },
+				posters: { items: posterUrls, index: posterIndex },
+				backdrops: { items: backdropUrls, index: backdropIndex },
+			};
 	// actor related
-	const [castOpen, setCastOpen] = useState(false);
-	const [cast, setCast] = useState<CastMember[]>([]);
-	const [castLoading, setCastLoading] = useState(false);
-	const [selectedActor, setSelectedActor] = useState<CastMember | null>(null);
-	const [actorWorks, setActorWorks] = useState<ActorWork[]>([]);
-	const [actorLoading, setActorLoading] = useState(false);
+	const castPanel = useCastPanel();
 	// director related
 	const [isDirectorView, setIsDirectorView] = useState(false);
 	const [clickedDirector, setClickedDirector] = useState<string | null>(null);
-	const [directorPickerOpen, setDirectorPickerOpen] = useState(false);
 	//
-	const [filmSort, setFilmSort] = useState<"popularity" | "recent">(
-		"popularity",
-	);
-	const [pendingWork, setPendingWork] = useState<ActorWork | null>(null);
+	// TITLE AND WHICH LIST
+	const [pendingWork, setPendingWork] = useState<Pick<
+		ActorWork,
+		"title" | "media_type"
+	> | null>(null);
 	const [selectedWorkItem, setSelectedWorkItem] = useState<
 		{ type: "movie"; id: number } | { type: "tv"; id: number } | null
 	>(null);
@@ -185,13 +242,13 @@ export function MovieDetails({
 	// for legacy
 	const backfilled = useRef<Set<number>>(new Set());
 	useEffect(() => {
-		if (!onBackfillTmdbId || actorWorks.length === 0) return;
+		if (!onBackfillTmdbId || castPanel.works.length === 0) return;
 		const legacy = existingMovies.filter(
 			(m) => !isRealTmdbId(m.tmdbId) && !backfilled.current.has(m.id),
 		);
 		if (legacy.length === 0) return;
 		//
-		for (const work of actorWorks) {
+		for (const work of castPanel.works) {
 			if (work.media_type !== "movie") continue;
 			const workYear = parseInt(work.date?.slice(0, 4) ?? "");
 			if (isNaN(workYear)) continue;
@@ -204,7 +261,7 @@ export function MovieDetails({
 			backfilled.current.add(match.id);
 			onBackfillTmdbId(match.id, String(work.id));
 		}
-	}, [actorWorks, existingMovies, onBackfillTmdbId]);
+	}, [castPanel.works, existingMovies, onBackfillTmdbId]);
 
 	// for cross media
 	const selectedMovie =
@@ -286,27 +343,20 @@ export function MovieDetails({
 				handleSaveNote();
 				break;
 			case "clearSeriesMeta":
-				if (movie.seriesTitle) {
-					onUpdate(movie.id, {
-						seriesTitle: null,
-						placeInSeries: null,
-						prequel: null,
-						sequel: null,
-					});
-				}
+				if (movie.series) onUpdate(movie.id, { series: null });
 				break;
 			// =========other actions=============
 			case "seriesNav":
 				handleSeriesNav(action.payload);
 				break;
 			case "refresh":
-				handleRefresh();
+				reload.refresh();
 				break;
 			case "confirmRefresh":
-				handleConfirmRefresh();
+				reload.confirm();
 				break;
 			case "cancelRefresh":
-				handleCancelRefresh();
+				reload.cancel();
 				break;
 			case "cast":
 				handleCast();
@@ -329,134 +379,67 @@ export function MovieDetails({
 			case "directorClick":
 				handleDirectorClick(action.payload);
 				break;
-			case "directorPicker":
-				setDirectorPickerOpen(true);
-				break;
 		}
 	};
 
 	//
 	const handleLogoChange = (dir: "next" | "prev") => {
-		const total = isSelecting
-			? refreshLogos.length
-			: (logoUrls?.length ?? 0);
+		const total = art.logos.items?.length ?? 0;
 		if (total < 2) return;
 		if (isSelecting)
-			setRefreshLogoIndex((i) => stepLogoIndex(i, dir, total));
+			setArtIndex("logos", (i) => stepLogoIndex(i, dir, total));
 		else updateLogoIndex?.(stepLogoIndex(logoIndex ?? 0, dir, total));
 	};
 
 	//
 	const handleClearLogo = () => {
-		const current = isSelecting ? refreshLogoIndex : (logoIndex ?? 0);
+		const current = art.logos.index ?? 0;
 		const next =
 			current < 0 ? activeLogoIndex(current) : clearedFrom(current);
-		if (isSelecting) setRefreshLogoIndex(next);
+		if (isSelecting) setArtIndex("logos", () => next);
 		else updateLogoIndex?.(next);
 	};
 
 	// the cover itself follows the index -- see the effect below
 	const handlePosterChange = (dir: "next" | "prev") => {
-		const total = isSelecting
-			? refreshPosters.length
-			: (posterUrls?.length ?? 0);
+		const total = art.posters.items?.length ?? 0;
 		if (total < 2) return;
 		if (isSelecting)
-			setRefreshPosterIndex((i) => stepArtworkIndex(i, dir, total));
+			setArtIndex("posters", (i) => stepArtworkIndex(i, dir, total));
 		else
 			updatePosterIndex?.(stepArtworkIndex(posterIndex ?? 0, dir, total));
 	};
 
 	const handleBackdropChange = (dir: "next" | "prev") => {
-		const total = isSelecting
-			? refreshBackdrops.length
-			: (backdropUrls?.length ?? 0);
+		const total = art.backdrops.items?.length ?? 0;
 		if (total < 2) return;
 		if (isSelecting)
-			setRefreshBackdropIndex((i) => stepArtworkIndex(i, dir, total));
+			setArtIndex("backdrops", (i) => stepArtworkIndex(i, dir, total));
 		else
 			updateBackdropIndex?.(
 				stepArtworkIndex(backdropIndex ?? 0, dir, total),
 			);
 	};
 
-	// set color for poster
+	//
+	const stagedPoster = isSelecting
+		? art.posters.items?.[art.posters.index ?? 0]
+		: undefined;
 	useEffect(() => {
-		const url = refreshPosters[refreshPosterIndex];
-		if (!isSelecting || !url) return;
+		if (!stagedPoster) return;
 		let alive = true;
-		buildCover(url).then((cover) => {
-			if (alive && cover) setRefreshMeta((prev) => ({ ...prev, cover }));
+		buildCover(stagedPoster).then((cover) => {
+			if (alive && cover) patchMeta((prev) => ({ ...prev, cover }));
 		});
 		return () => {
 			alive = false;
 		};
-	}, [isSelecting, refreshPosters, refreshPosterIndex]);
-
-	// writes nothing until confirmRefresh
-	const handleRefresh = async () => {
-		if (!onRefresh || isRefreshing || isSelecting) return;
-		// legacy movies that doesn't have tmdbid
-		const hasTmdbId = !!movie.tmdbId && movie.tmdbId !== "-1";
-		if (!hasTmdbId && !movie.title) return;
-		setIsRefreshing(true);
-		try {
-			// no tmdb id to look up -- resolve one by title first
-			const reloaded = hasTmdbId
-				? await reloadMovie(movie.tmdbId as string)
-				: await searchForMovie(movie.title, movie.dateReleased, true);
-			if (!reloaded || "isDuplicate" in reloaded) return;
-			// tmdbId is identity, left untouched
-			const meta: Partial<MovieProps> = {
-				cover: await buildCover(reloaded.poster_url),
-				backdropUrl: reloaded.backdrop_url,
-			};
-			//
-			setRefreshLogos(reloaded.logos ?? []);
-			setRefreshLogoIndex(0);
-			setRefreshPosters(reloaded.posters ?? []);
-			setRefreshPosterIndex(0);
-			setRefreshBackdrops(reloaded.backdrops ?? []);
-			setRefreshBackdropIndex(0);
-			// legacy
-			if (!hasTmdbId) {
-				meta.tmdbId = reloaded.tmdb_id;
-				meta.director = reloaded.director;
-				meta.dateReleased = reloaded.released_date;
-			}
-			// reload can clear series
-			Object.assign(meta, mapSeriesToMovie(reloaded.series));
-			if (reloaded.title) meta.title = reloaded.title;
-			setRefreshMeta(meta);
-			setIsSelecting(true);
-		} finally {
-			setIsRefreshing(false);
-		}
-	};
-
-	const handleConfirmRefresh = async () => {
-		if (!onRefresh) return;
-		//
-		const meta = {
-			...refreshMeta,
-			logoUrl: refreshLogos[refreshLogoIndex] ?? null,
-			// cover already tracks the picked poster
-			...(refreshBackdrops.length
-				? { backdropUrl: refreshBackdrops[refreshBackdropIndex] }
-				: {}),
-		};
-		exitSelecting();
-		if (Object.keys(meta).length) await onRefresh(meta);
-	};
-
-	const handleCancelRefresh = () => {
-		exitSelecting();
-	};
+	}, [stagedPoster, patchMeta]);
 
 	// the picker only shows while adding or previewing a reload
 	const handlePickCoverColor = (color: string) => {
 		if (isSelecting) {
-			setRefreshMeta((prev) =>
+			patchMeta((prev) =>
 				prev.cover
 					? { ...prev, cover: { ...prev.cover, color } }
 					: prev,
@@ -467,94 +450,47 @@ export function MovieDetails({
 			onUpdate(movie.id, { cover: { ...movie.cover, color } });
 	};
 
-	const exitSelecting = () => {
-		setIsSelecting(false);
-		setRefreshMeta({});
-		setRefreshLogos([]);
-		setRefreshLogoIndex(0);
-		setRefreshPosters([]);
-		setRefreshPosterIndex(0);
-		setRefreshBackdrops([]);
-		setRefreshBackdropIndex(0);
-	};
+	const credits = () =>
+		fetchMovieCredits(
+			movie.tmdbId ?? "-1",
+			movie.imdbId,
+			movie.id,
+			authFetch,
+		);
 
-	const handleCast = async () => {
-		// reset on open instead of on close
-		setSelectedActor(null);
+	const handleCast = () => {
 		setIsDirectorView(false);
-		setCastOpen(true);
-		setCastLoading(true);
-		try {
-			const { cast: castList } = await fetchMovieCredits(
-				movie.tmdbId ?? "-1",
-				movie.imdbId,
-				movie.id,
-				authFetch,
-			);
-			setCast(castList);
-		} catch {
-			setCast([]);
-		} finally {
-			setCastLoading(false);
-		}
+		return castPanel.openCast(async () => (await credits()).cast);
 	};
 
-	const handleDirectorClick = async (name: string) => {
+	const handleDirectorClick = (name: string) => {
 		if (!name) return;
 		setClickedDirector(name);
 		setIsDirectorView(true);
-		setCastOpen(true);
-		setSelectedActor(null);
-		setActorWorks([]);
-		setActorLoading(true);
-		try {
-			const { cast: castList, directors } = await fetchMovieCredits(
-				movie.tmdbId ?? "-1",
-				movie.imdbId,
-				movie.id,
-				authFetch,
-			);
-			setCast(castList);
-			// match the name that was clicked -- a film can have several
+		return castPanel.openOnPerson(async () => {
+			const { cast, directors } = await credits();
+			// match the name that was clicked -- a movie can have several
 			const wanted = name.toLowerCase().trim();
-			const director =
+			const member =
 				directors.find((d) => d.name.toLowerCase().trim() === wanted) ??
-				directors[0];
-			if (!director) return;
-			setSelectedActor(director);
-			setActorWorks(
-				await fetchActorWorks(director.id, authFetch, "director"),
-			);
-		} catch {
-			setActorWorks([]);
-		} finally {
-			setActorLoading(false);
-		}
+				directors[0] ??
+				null;
+			return {
+				cast,
+				member,
+				works: member
+					? await fetchActorWorks(member.id, authFetch, "director")
+					: [],
+			};
+		});
 	};
 
-	const handleActorClick = async (member: CastMember) => {
+	const handleActorClick = (member: CastMember) => {
 		setIsDirectorView(false);
-		setSelectedActor(member);
-		setActorWorks([]);
-		setActorLoading(true);
-		try {
-			setActorWorks(await fetchActorWorks(member.id, authFetch));
-		} catch {
-			setActorWorks([]);
-		} finally {
-			setActorLoading(false);
-		}
+		return castPanel.openWorks(member, () =>
+			fetchActorWorks(member.id, authFetch),
+		);
 	};
-
-	const sortedWorks = useMemo(
-		() =>
-			[...actorWorks].sort((a, b) =>
-				filmSort === "recent"
-					? b.date.localeCompare(a.date)
-					: b.popularity - a.popularity,
-			),
-		[actorWorks, filmSort],
-	);
 
 	const handleStatusChange = (value: string) => {
 		const newStatus = value as "Completed" | "Want to Watch";
@@ -571,12 +507,9 @@ export function MovieDetails({
 
 	// switches modal to new movie in series
 	const handleSeriesNav = (seriesDir: string) => {
-		if (!showSequelPrequel) return;
-		const targetTitle =
-			seriesDir === "sequel" ? movie.sequel : movie.prequel;
-		if (targetTitle) {
-			showSequelPrequel(targetTitle);
-		}
+		const { prev, next } = seriesNeighbours(movie);
+		const target = seriesDir === "sequel" ? next : prev;
+		if (target) showSequelPrequel?.(target);
 	};
 
 	const handleSaveNote = () => {
@@ -594,9 +527,9 @@ export function MovieDetails({
 	const handleModalClose = () => {
 		// fold the deferred phi drop into the update this close flushes
 		commitScoreNudge();
-		// if (addMovie) return;
 		onClose();
 	};
+	useEscapeClose(handleModalClose);
 
 	// AddMovie.tsx -- goes back to search with year field
 	const handleNeedYear = () => {
@@ -604,15 +537,12 @@ export function MovieDetails({
 		onUpdate(movie.id, undefined, needYear);
 	};
 
-	const handleAddMovie = useCallback(() => {
-		if (!addMovie) return;
-		addMovie();
-	}, [addMovie]);
+	const { isSubmitting, submit: handleAddMovie } = useAddWait(addMovie);
 
 	// need to reset local note
 	useEffect(() => {
 		setLocalNote(movie.note || "");
-		exitSelecting();
+		reload.cancel();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [movie.id]);
 
@@ -635,7 +565,7 @@ export function MovieDetails({
 	if (!movie) return null;
 
 	// while previewing render new
-	const previewMovie = isSelecting ? { ...movie, ...refreshMeta } : movie;
+	const previewMovie = isSelecting ? { ...movie, ...reload.meta } : movie;
 
 	const displayLoading = isRefreshing
 		? {
@@ -657,17 +587,16 @@ export function MovieDetails({
 					isLoading={displayLoading}
 					isAdding={!!addMovie}
 					onAdd={handleAddMovie}
+					isSubmitting={isSubmitting}
 					onClose={handleModalClose}
 					isInList={isInList}
 					canRefresh={!!onRefresh}
-					logoUrls={isSelecting ? refreshLogos : logoUrls}
-					logoIndex={isSelecting ? refreshLogoIndex : logoIndex}
-					posterUrls={isSelecting ? refreshPosters : posterUrls}
-					posterIndex={isSelecting ? refreshPosterIndex : posterIndex}
-					backdropUrls={isSelecting ? refreshBackdrops : backdropUrls}
-					backdropIndex={
-						isSelecting ? refreshBackdropIndex : backdropIndex
-					}
+					logoUrls={art.logos.items}
+					logoIndex={art.logos.index}
+					posterUrls={art.posters.items}
+					posterIndex={art.posters.index}
+					backdropUrls={art.backdrops.items}
+					backdropIndex={art.backdrops.index}
 					onAction={
 						handleAction as (action: {
 							type: string;
@@ -687,16 +616,15 @@ export function MovieDetails({
 					isLoading={displayLoading}
 					isAdding={!!addMovie}
 					onAdd={handleAddMovie}
+					isSubmitting={isSubmitting}
 					onClose={handleModalClose}
 					isInList={isInList}
-					logoUrls={isSelecting ? refreshLogos : logoUrls}
-					logoIndex={isSelecting ? refreshLogoIndex : logoIndex}
-					posterUrls={isSelecting ? refreshPosters : posterUrls}
-					posterIndex={isSelecting ? refreshPosterIndex : posterIndex}
-					backdropUrls={isSelecting ? refreshBackdrops : backdropUrls}
-					backdropIndex={
-						isSelecting ? refreshBackdropIndex : backdropIndex
-					}
+					logoUrls={art.logos.items}
+					logoIndex={art.logos.index}
+					posterUrls={art.posters.items}
+					posterIndex={art.posters.index}
+					backdropUrls={art.backdrops.items}
+					backdropIndex={art.backdrops.index}
 					canRefresh={!!onRefresh}
 					onAction={
 						handleAction as (action: {
@@ -708,50 +636,41 @@ export function MovieDetails({
 				/>
 			</div>
 			<AnimatePresence>
-				{directorPickerOpen && (
-					<DirectorPicker
-						key="director-picker"
-						names={(movie.director ?? "")
-							.split(",")
-							.map((n) => n.trim())
-							.filter(Boolean)}
-						onClose={() => setDirectorPickerOpen(false)}
-						onPick={(name) => {
-							setDirectorPickerOpen(false);
-							handleDirectorClick(name);
-						}}
-					/>
-				)}
-			</AnimatePresence>
-			<AnimatePresence>
-				{castOpen && (
+				{castPanel.isOpen && (
 					<ActorItemsModal
 						key="cast"
 						mediaTitle={movie.title}
-						cast={cast}
-						castLoading={castLoading}
-						selectedActor={selectedActor}
-						sortedWorks={sortedWorks}
-						actorLoading={actorLoading}
-						filmSort={filmSort}
-						onClose={() => setCastOpen(false)}
+						cast={castPanel.cast}
+						castLoading={castPanel.castLoading}
+						selectedActor={castPanel.actor}
+						sortedWorks={castPanel.sortedWorks}
+						actorLoading={castPanel.worksLoading}
+						movieSort={castPanel.sort}
+						onClose={castPanel.close}
 						onActorClick={handleActorClick}
 						onActorBack={() => {
-							setSelectedActor(null);
+							castPanel.clearActor();
 							setIsDirectorView(false);
 						}}
-						onFilmSortChange={setFilmSort}
+						onMovieSortChange={castPanel.setSort}
 						onWorkClick={handleWorkClick}
 						addedStatusById={addedStatusById}
-						isDirectorView={isDirectorView}
-						directorName={clickedDirector ?? movie.director}
+						isPersonView={isDirectorView}
+						personName={clickedDirector ?? movie.director}
 					/>
 				)}
 			</AnimatePresence>
 			{pendingWork?.media_type === "movie" && (
 				<AddMovie
 					isOpen={true}
-					titleFromAbove={pendingWork.title}
+					targetFromAbove={{ title: pendingWork.title }}
+					// anime
+					onAnimeChain={(found) =>
+						setPendingWork({
+							title: found.showTitle ?? "",
+							media_type: "tv",
+						})
+					}
 					onClose={() => setPendingWork(null)}
 					existingMovies={existingMovies}
 					onAddMovie={async (m) => {
@@ -776,6 +695,7 @@ export function MovieDetails({
 					existingMovies={existingMovies}
 					existingShows={existingShows}
 					onShowUpdate={onShowUpdate}
+					onShowUpdatePart={onShowUpdatePart}
 					onAddWork={onAddWork}
 					onAddShow={onAddShow}
 				/>
@@ -786,6 +706,7 @@ export function MovieDetails({
 					show={selectedShow}
 					onClose={() => setSelectedWorkItem(null)}
 					onUpdate={onShowUpdate}
+					onUpdatePart={onShowUpdatePart}
 					existingShows={existingShows}
 					existingMovies={existingMovies}
 					onMovieUpdate={onUpdate}

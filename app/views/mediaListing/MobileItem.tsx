@@ -3,25 +3,27 @@ import { isResizable } from "@/utils/image-loader";
 import React, { ReactNode } from "react";
 import { BaseMediaProps, ColumnConfig, SeriesMediaProps } from "@/types/media";
 import { BackdropImageMobile } from "../../components/ui/BackdropMobile";
-import {
-	formatDateShort,
-	getStatusBg,
-	getStatusWaveColor,
-} from "@/utils/formattingUtils";
+import { formatDateShort } from "@/utils/formattingUtils";
+import { seriesNeighbours, seriesPlace, seriesTitleOf } from "@/utils/seriesRead";
+import { getStatusBg, getStatusWaveColor } from "@/utils/styleUtils";
 import { ShowProps } from "@/types/show";
 import { calcCurProgress } from "@/app/shows/utils/progressCalc";
+import {
+	episodeCountOf,
+	slotIndexOf,
+	slotPoster,
+	timelineOf,
+	FIRST_SLOT,
+} from "@/app/shows/utils/slotRef";
 import { GameProps } from "@/types/game";
 import { BookProps } from "@/types/book";
 import { MovieProps } from "@/types/movie";
 import { Leaf } from "lucide-react";
 import { getDisplayScore } from "@/lib/tierConfig";
-
-// the first mounted item that needs priority loading (cover/backdrop)
-const EAGER_ROWS = 6;
+import { useLogoPrime } from "../mediaDetails/shared/useLogoPrime";
 
 interface MobileItemProps<T extends BaseMediaProps> {
 	item: T;
-	index: number;
 	isNavOpen: boolean;
 	mediaType: string;
 	differentColumns: [ColumnConfig<T>, ColumnConfig<T>];
@@ -32,12 +34,14 @@ export const MobileItem = React.memo(function MobileItem<
 	T extends BaseMediaProps,
 >({
 	item,
-	index,
 	isNavOpen,
 	mediaType,
 	differentColumns,
 	onClick,
 }: MobileItemProps<T>) {
+	// press loads logo
+	const prime = useLogoPrime(item.logoUrl);
+
 	const seriesSection =
 		mediaType === "game"
 			? (() => {
@@ -54,18 +58,23 @@ export const MobileItem = React.memo(function MobileItem<
 					};
 				})()
 			: (() => {
-					const s = item as unknown as SeriesMediaProps;
+					const row = item as unknown as SeriesMediaProps;
+					const { prev, next } = seriesNeighbours(row);
 					return {
-						label: s.seriesTitle,
-						placement: s.placeInSeries,
-						prequel: s.prequel,
-						sequel: s.sequel,
+						label: seriesTitleOf(row),
+						placement: seriesPlace(row),
+						prequel: prev?.title,
+						sequel: next?.title,
 					};
 				})();
 
-	const coverSrc = item.cover?.url ?? item.posterUrl;
+	const show = item as unknown as ShowProps;
+	// franchise vs season poster
+	const coverSrc =
+		item.cover?.url ??
+		(mediaType === "show" ? slotPoster(show) : item.posterUrl);
 
-	// source rating stands in for the completed date until it is watched/read
+	// rating stand in until completed date
 	const externalRating =
 		mediaType === "movie" && item.status === "Want to Watch"
 			? (item as unknown as MovieProps).imdbRating
@@ -73,16 +82,13 @@ export const MobileItem = React.memo(function MobileItem<
 				? (item as unknown as BookProps).rating
 				: null;
 
-	// how far into the show the user is -- full bar when there's nothing to count
-	const show = item as unknown as ShowProps;
+	// progress
+	const slotAt = mediaType === "show" ? slotIndexOf(show) : FIRST_SLOT;
+	const slotLine = mediaType === "show" ? timelineOf(show) : [];
 	const showProgress =
 		mediaType === "show"
-			? show.seasons?.[show.curSeasonIndex ?? 0]?.episode_count
-				? calcCurProgress(
-						show.seasons,
-						show.curSeasonIndex ?? 0,
-						show.curEpisode ?? 0,
-					)
+			? episodeCountOf(slotLine[slotAt])
+				? calcCurProgress(slotLine, slotAt, show.curEpisode ?? 0)
 				: 100
 			: 0;
 
@@ -116,22 +122,24 @@ export const MobileItem = React.memo(function MobileItem<
 				isNavOpen ? "pointer-events-none" : ""
 			}`}
 			onClick={() => onClick(item)}
+			{...prime}
 		>
 			<div
-				className="w-30 overflow-hidden rounded-md shadow-sm shadow-black/40"
+				className={`relative w-30 overflow-hidden rounded-md shadow-sm shadow-black/40 bg-linear-to-br from-zinc-800 to-zinc-900`}
 				style={{ aspectRatio: mediaType === "game" ? "3/4" : "0.677" }}
 			>
 				{coverSrc ? (
-					<Image
-						src={coverSrc}
-						alt={item.title || "Untitled"}
-						width={240}
-						height={360}
-						sizes="120px"
-						unoptimized={!isResizable(coverSrc)}
-						priority={index < EAGER_ROWS}
-						className="object-fill w-full h-full rounded-md border border-zinc-700/40"
-					/>
+					<>
+						<Image
+							src={coverSrc}
+							alt={item.title || "Untitled"}
+							width={240}
+							height={360}
+							sizes="120px"
+							unoptimized={!isResizable(coverSrc)}
+							className="object-fill w-full h-full rounded-md border border-zinc-700/40"
+						/>
+					</>
 				) : (
 					<div
 						className="w-full h-full bg-linear-to-br from-zinc-700 to-zinc-800 rounded-md border border-zinc-600/30"
@@ -148,7 +156,6 @@ export const MobileItem = React.memo(function MobileItem<
 						src={item.backdropUrl}
 						width={540}
 						height={304}
-						priority={index < EAGER_ROWS}
 					/>
 				)}
 				{/* the whole stack rides the bottom of the row */}

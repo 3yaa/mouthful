@@ -1,4 +1,5 @@
 import { BookProps, BookAPIProps } from "@/types/book";
+import { SeriesProps } from "@/types/media";
 
 export function mapBookAPIDatatoBook(
 	dataAPI: BookAPIProps,
@@ -14,20 +15,9 @@ export function mapBookAPIDatatoBook(
 	};
 }
 
-export function mapBookAPISeriesData(
+export function pickBookSeries(
 	series: BookAPIProps["series"],
 	seriesI?: number,
-): Pick<
-	BookProps,
-	"seriesTitle" | "placeInSeries" | "prequel" | "sequel" | "total"
-> {
-	const seriesEntry = series?.[seriesI ?? 0];
-
-	return {
-		seriesTitle: seriesEntry ? seriesEntry.series_title : null,
-		placeInSeries: seriesEntry ? seriesEntry.position : null,
-		prequel: seriesEntry ? seriesEntry.prequel : null,
-		sequel: seriesEntry ? seriesEntry.sequel : null,
-		total: seriesEntry ? (seriesEntry.total ?? 0) : null,
-	};
+): SeriesProps | null {
+	return series?.[seriesI ?? 0] ?? null;
 }
