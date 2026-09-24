@@ -386,6 +386,15 @@ export function mainOrdinalAt(line: ShowSeasonProps[], index: SlotIndex) {
 
 // ─── what row shows and what it called
 
+//
+export function wearsRowPoster(
+	show: Pick<ShowProps, "anilistId" | "franchisePoster">,
+	picking = false,
+): boolean {
+	if (show.franchisePoster != null) return show.franchisePoster;
+	return picking || !isAnimeRow(show);
+}
+
 export function slotPoster(
 	show: Pick<
 		ShowProps,
@@ -397,7 +406,7 @@ export function slotPoster(
 		| "posterUrl"
 	>,
 ) {
-	if (show.franchisePoster) return show.posterUrl ?? null;
+	if (wearsRowPoster(show)) return show.posterUrl ?? null;
 	return slotOf(show)?.posterUrl ?? show.posterUrl ?? null;
 }
 

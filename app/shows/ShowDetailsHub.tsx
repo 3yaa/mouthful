@@ -23,6 +23,7 @@ import {
 	slotRefFor,
 	slotName,
 	timelineOf,
+	wearsRowPoster,
 	stepWatchIndex,
 	mainOrdinalIndex,
 	mainOrdinalAt,
@@ -717,7 +718,10 @@ export function ShowDetails({
 		const stored = isSelecting
 			? (reload.meta.franchisePoster ?? show.franchisePoster)
 			: show.franchisePoster;
-		const wearsRow = picking ? stored !== false : !!stored;
+		const wearsRow = wearsRowPoster(
+			{ anilistId: show.anilistId, franchisePoster: stored },
+			picking,
+		);
 		// reload writes nothing until applied
 		if (isSelecting)
 			patchMeta((prev) => ({ ...prev, franchisePoster: !wearsRow }));
@@ -1084,12 +1088,9 @@ export function ShowDetails({
 	const curSlot =
 		previewLine[Math.min(shownIndex, Math.max(0, previewLine.length - 1))];
 	const slotYear = Number(curSlot?.startDate?.slice(0, 4));
-	// ...unless the row keeps its own -- the default flips while picking
-	const posterPref = previewShow.franchisePoster;
-	const wearsRowPoster =
-		isSelecting || addShow ? posterPref !== false : !!posterPref;
+	const wearsRow = wearsRowPoster(previewShow, isSelecting || !!addShow);
 	const slotMeta: Partial<ShowProps> = {
-		...(curSlot?.posterUrl && !wearsRowPoster
+		...(curSlot?.posterUrl && !wearsRow
 			? { posterUrl: curSlot.posterUrl }
 			: {}),
 		...(slotYear ? { dateReleased: slotYear } : {}),

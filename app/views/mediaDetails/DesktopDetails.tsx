@@ -58,6 +58,7 @@ import {
 	franchiseRomajiOf,
 	isAnimeRow,
 	slotOf,
+	wearsRowPoster,
 } from "@/app/shows/utils/slotRef";
 import { formatVotes, getTier } from "@/app/shows/utils/episodeRatings";
 import { ActionBtn } from "../../components/ui/DetailsActionBtn";
@@ -242,8 +243,7 @@ export function DesktopDetails<T extends BaseMediaProps>({
 	const posterPos = (isBook ? coverIndex : posterIndex) ?? 0;
 	const isAnimeShow = mediaType === "show" && isAnimeRow(showRow);
 	//
-	const posterPref = showRow.franchisePoster;
-	const franchisePoster = isPicking ? posterPref !== false : !!posterPref;
+	const franchisePoster = wearsRowPoster(showRow, isPicking);
 	const hasSlotArt =
 		mediaType === "show" &&
 		(showRow.seasons ?? []).some((season) => !!season.posterUrl);
