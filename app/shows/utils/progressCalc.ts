@@ -31,9 +31,13 @@ export const franchiseEpisodes = (
 		if (i < at) completedEps += count;
 	}
 
-	// sitting on side doesnt add nothing of its own
+	// sitting on side doesnt add nothing of its own -- a film is all or nothing
 	const on = timeline[at];
-	if (on && !on.isSide && !isMovieSlot(on)) completedEps += curEp;
+	if (on && !on.isSide) {
+		if (!isMovieSlot(on)) completedEps += curEp;
+		else if (curEp >= Math.max(1, episodeCountOf(on)))
+			completedEps += movieWeight(on, perEpisode);
+	}
 
 	return { watched: completedEps, total: totalEps };
 };

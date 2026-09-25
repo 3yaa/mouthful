@@ -26,6 +26,8 @@ import {
 	wearsRowPoster,
 	stepWatchIndex,
 	mainOrdinalIndex,
+	lastMainIndex,
+	nextEpisodicIndex,
 	mainOrdinalAt,
 	mainCount,
 	episodeCountOf,
@@ -847,8 +849,7 @@ export function ShowDetails({
 		if (newStatus === "Completed") {
 			updatesViaStatus.dateCompleted = new Date();
 			if (seasonCount) {
-				// the last main part
-				const last = mainOrdinalIndex(slotLine, mainCount(slotLine));
+				const last = lastMainIndex(slotLine);
 				if (last !== -1) {
 					updatesViaStatus.curEpisode = episodeCountOf(
 						slotLine[last],
@@ -946,12 +947,12 @@ export function ShowDetails({
 				setInputValues({ ...inputValues, episode: row.curEpisode });
 				return;
 			}
-			// past part you are on goes into next
+			// past part you are on goes into the next one on the main line
 			let at = realIndex;
 			let ep = typed;
 			let max = episodeCountOf(slotLine[at]);
 			while (ep > max) {
-				const next = stepWatchIndex(slotLine, at, "right");
+				const next = nextEpisodicIndex(slotLine, at);
 				// end of road
 				if (next === -1 || max <= 0) {
 					ep = Math.max(max, 0);

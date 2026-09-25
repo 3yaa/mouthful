@@ -353,6 +353,16 @@ export function stepWatchIndex(
 	return pos(at >= 0 && at < line.length ? at : -1);
 }
 
+export function nextEpisodicIndex(
+	line: ShowSeasonProps[],
+	from: SlotIndex,
+): SlotIndex {
+	for (let at = from + 1; at < line.length; at++) {
+		if (!line[at].isSide && !isMovieSlot(line[at])) return pos(at);
+	}
+	return pos(-1);
+}
+
 // ─── numbered parts
 
 const isNumberedPart = (slot?: ShowSeasonProps) =>
@@ -367,6 +377,13 @@ export function mainOrdinalIndex(
 	for (let at = 0; at < line.length; at++) {
 		if (!isNumberedPart(line[at])) continue;
 		if (++seen === ordinal) return pos(at);
+	}
+	return pos(-1);
+}
+
+export function lastMainIndex(line: ShowSeasonProps[]): SlotIndex {
+	for (let at = line.length - 1; at >= 0; at--) {
+		if (!line[at].isSide) return pos(at);
 	}
 	return pos(-1);
 }
@@ -388,10 +405,10 @@ export function mainOrdinalAt(line: ShowSeasonProps[], index: SlotIndex) {
 
 //
 export function wearsRowPoster(
-	show: Pick<ShowProps, "anilistId" | "franchisePoster">,
+	show: Pick<ShowProps, "anilistId" | "franchisePoster" | "status">,
 ): boolean {
 	if (show.franchisePoster != null) return show.franchisePoster;
-	return !isAnimeRow(show);
+	return !isAnimeRow(show) || show.status === "Completed";
 }
 
 export function slotPoster(
@@ -403,6 +420,7 @@ export function slotPoster(
 		| "parts"
 		| "franchisePoster"
 		| "posterUrl"
+		| "status"
 	>,
 ) {
 	if (wearsRowPoster(show)) return show.posterUrl ?? null;

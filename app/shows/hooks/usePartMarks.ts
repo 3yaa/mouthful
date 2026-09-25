@@ -45,7 +45,8 @@ export function usePartMarks({
 
 	const canMark = !addShow && !!onUpdatePart && !!onPartBattle;
 	const canShowFranchise = canMark && isAnimeRow(show);
-	const [franchiseView, setFranchiseView] = useState(false);
+	const startsWhole = show.status === "Completed";
+	const [franchiseView, setFranchiseView] = useState(startsWhole);
 
 	// null means "the row", and every score/note write branches on it
 	const partId =
@@ -63,8 +64,8 @@ export function usePartMarks({
 
 	// the franchise view belongs to the row it was opened on
 	useEffect(() => {
-		setFranchiseView(false);
-	}, [show.id]);
+		setFranchiseView(startsWhole);
+	}, [show.id, startsWhole]);
 
 	// where a mark is written from the card rather than by the battler
 	const write = (anilistId: number, patch: PartPatch) =>
