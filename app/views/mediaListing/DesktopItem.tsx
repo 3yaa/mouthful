@@ -281,7 +281,7 @@ export const DesktopItem = React.memo(function DesktopItem<
 
 			{/* ISLAND - BACKDROP */}
 			<div className="listing-art-window h-full">
-				<div className="h-full origin-left will-change-transform transition-transform duration-420 ease-leave live:translate-x-[20%] live:duration-800 live:ease-arrive">
+				<div className="h-full origin-left will-change-transform transition-transform duration-420 ease-leave live:translate-x-[20%] live:duration-800 live:ease-arrive live:delay-200">
 					{item.backdropUrl ? (
 						<BackdropDesktop src={item.backdropUrl} />
 					) : mediaType === "book" && bookItem.cover ? (

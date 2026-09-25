@@ -43,7 +43,7 @@ export const BackdropDesktop = ({
 		/>
 		<span
 			aria-hidden
-			className="absolute inset-0 bg-black/28 transition-opacity duration-420 ease-leave live:opacity-0 live:duration-800 live:ease-arrive"
+			className="absolute inset-0 bg-black/28 transition-opacity duration-420 ease-leave live:opacity-0 live:duration-800 live:ease-arrive live:delay-200"
 		/>
 	</div>
 );

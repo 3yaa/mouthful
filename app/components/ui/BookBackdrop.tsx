@@ -39,7 +39,7 @@ const Grain = () => (
 );
 
 const Rule = ({ c }: { c: string }) => (
-	<div className="flex items-center gap-1.5 w-2/5 opacity-60 live:opacity-85 transition-opacity duration-420 ease-leave live:duration-800 live:ease-arrive">
+	<div className="flex items-center gap-1.5 w-2/5 opacity-60 live:opacity-85 transition-opacity duration-420 ease-leave live:duration-800 live:ease-arrive live:delay-200">
 		<div
 			className="h-px flex-1"
 			style={{ background: `linear-gradient(90deg, transparent, ${c})` }}
@@ -81,7 +81,7 @@ export const BookBackdropDesktop = ({
 			<div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-8">
 				<Rule c={mix(55)} />
 				<span
-					className="font-serif font-bold uppercase text-center tracking-tight leading-[0.9] text-transparent opacity-[0.24] live:opacity-[0.36] transition-opacity duration-420 ease-leave live:duration-800 live:ease-arrive"
+					className="font-serif font-bold uppercase text-center tracking-tight leading-[0.9] text-transparent opacity-[0.24] live:opacity-[0.36] transition-opacity duration-420 ease-leave live:duration-800 live:ease-arrive live:delay-200"
 					style={{
 						fontSize: "clamp(1.35rem, 2.6vw, 2.5rem)",
 						backgroundImage: `linear-gradient(175deg, ${mix(58, "#ffffff")} 0%, ${mix(88)} 48%, ${mix(40, INK)} 100%)`,
