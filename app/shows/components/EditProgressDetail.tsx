@@ -302,7 +302,7 @@ export function EditProgress({
 						{isBrowsing ? "Viewing" : "Progress"}
 					</label>
 					{/* SIDE */}
-					{onSide && (
+					{onSide && !franchise && (
 						<span
 							className="rounded-full border border-zinc-700/70 px-1.5 text-[0.6rem] leading-4 font-medium uppercase tracking-wider text-zinc-500"
 							title="Side content -- not part of the main line"

@@ -468,7 +468,7 @@ export function DesktopDetails<T extends BaseMediaProps>({
 					{externalRating.toFixed(1)}
 				</span>
 			</span>
-		) : item.status === "Completed" ? (
+		) : item.status === "Completed" && item.dateCompleted ? (
 			<span
 				className="shrink-0 flex items-center gap-1.5 tabular-nums"
 				title="Date Completed"

@@ -16,18 +16,15 @@ import {
 import {
 	activeCutsOf,
 	isAnimeRow,
-	clampToLine,
-	findSlotIndex,
 	slotIndexAt,
-	slotIndexOf,
 	slotRefFor,
 	slotName,
-	timelineOf,
 	wearsRowPoster,
 	stepWatchIndex,
 	mainOrdinalIndex,
-	lastMainIndex,
+	lastSlotIndex,
 	nextEpisodicIndex,
+	cursorOnRebuilt,
 	mainOrdinalAt,
 	mainCount,
 	episodeCountOf,
@@ -244,14 +241,7 @@ export function ShowDetails({
 					seasons,
 					anilistId: meta.anilistId ?? show.anilistId,
 				};
-				const nextLine = timelineOf(nextShow);
-				const si = slotIndexOf(nextShow);
-				let ep = show.curEpisode;
-				const maxEp = episodeCountOf(nextLine[si]);
-				if (ep > maxEp) ep = maxEp;
-				// a rebuilt anime chain can need a rewritten reference even when the position is unchanged
-				Object.assign(meta, slotRefFor(nextShow, si));
-				if (ep !== show.curEpisode) meta.curEpisode = ep;
+				Object.assign(meta, cursorOnRebuilt(show, nextShow));
 			}
 			return {
 				meta,
@@ -483,6 +473,7 @@ export function ShowDetails({
 				break;
 			// =========season/episode navigation=============
 			case "changeSeason":
+				marks.exitFranchise();
 				handleSeasonChange(action.payload);
 				break;
 			case "changeEpisode":
@@ -490,6 +481,7 @@ export function ShowDetails({
 				break;
 			// =========s/ep input editing=============
 			case "clickSeasonInput":
+				marks.exitFranchise();
 				handleInputClick("season");
 				break;
 			case "clickEpisodeInput":
@@ -508,11 +500,13 @@ export function ShowDetails({
 				handleInputSubmit("episode");
 				break;
 			case "changeEpisodeNum":
+				marks.exitFranchise();
 				writeRow(show.id, {
 					curEpisode: action.payload,
 				});
 				break;
 			case "changeSeasonNum":
+				marks.exitFranchise();
 				cursor.moveTo(action.payload);
 				break;
 			case "cast":
@@ -665,19 +659,16 @@ export function ShowDetails({
 					};
 					// resolved against the chain it is about to be written against -- same as reload
 					if (next.seasons?.length) {
-						const nextShow = {
-							...show,
-							...prev,
-							seasons: next.seasons,
-							anilistId: next.anilistId,
-						};
-						const nextLine = timelineOf(nextShow);
-						const at = slotIndexOf(nextShow);
-						let ep = next.curEpisode ?? show.curEpisode;
-						const maxEp = episodeCountOf(nextLine[at]);
-						if (ep > maxEp) ep = maxEp;
-						Object.assign(next, slotRefFor(nextShow, at));
-						next.curEpisode = ep;
+						// from wherever the preview has moved to since
+						const from = { ...show, ...prev };
+						Object.assign(
+							next,
+							cursorOnRebuilt(from, {
+								...from,
+								seasons: next.seasons,
+								anilistId: next.anilistId,
+							}),
+						);
 					}
 					return next;
 				});
@@ -703,25 +694,14 @@ export function ShowDetails({
 			//
 			const seasons = patch.seasons;
 			if (seasons?.length) {
-				const nextShow = {
-					...show,
-					seasons,
-					anilistId: patch.anilistId ?? show.anilistId,
-				};
-				const nextLine = timelineOf(nextShow);
-				const survived = findSlotIndex(nextShow);
-				if (survived !== -1) {
-					const at = survived;
-					Object.assign(patch, slotRefFor(nextShow, at));
-					const maxEp = episodeCountOf(nextLine[at]);
-					if (maxEp && (show.curEpisode ?? 0) > maxEp)
-						patch.curEpisode = maxEp;
-				} else {
-					// part you were on is the one that just left
-					const at = clampToLine(nextLine, realIndex);
-					Object.assign(patch, slotRefFor(nextShow, at));
-					patch.curEpisode = 0;
-				}
+				Object.assign(
+					patch,
+					cursorOnRebuilt(show, {
+						...show,
+						seasons,
+						anilistId: patch.anilistId ?? show.anilistId,
+					}),
+				);
 			}
 			if (onRefresh) await onRefresh(patch);
 			else onUpdate(show.id, patch);
@@ -849,7 +829,7 @@ export function ShowDetails({
 		if (newStatus === "Completed") {
 			updatesViaStatus.dateCompleted = new Date();
 			if (seasonCount) {
-				const last = lastMainIndex(slotLine);
+				const last = lastSlotIndex(slotLine);
 				if (last !== -1) {
 					updatesViaStatus.curEpisode = episodeCountOf(
 						slotLine[last],
@@ -859,6 +839,14 @@ export function ShowDetails({
 			}
 		} else if (show.dateCompleted) {
 			updatesViaStatus.dateCompleted = null;
+		}
+		// finishing or reopening hands the poster back to that status's default
+		const flips =
+			(newStatus === "Completed") !== (row.status === "Completed");
+		if (flips && row.franchisePoster != null) {
+			updatesViaStatus.franchisePoster = null;
+			if (isSelecting)
+				patchMeta((prev) => ({ ...prev, franchisePoster: undefined }));
 		}
 		if (updatesViaStatus.curSeasonIndex !== undefined) cursor.clear();
 		writeRow(show.id, updatesViaStatus);
@@ -927,8 +915,7 @@ export function ShowDetails({
 				setEditingMode({ ...editingMode, season: false });
 				// the season you are on is not a move -- it would zero the episode
 				if (at === realIndex) return;
-				// landing on a part means none of it is watched yet
-				cursor.moveTo(at, 0);
+				cursor.plant(at);
 			} else {
 				setInputValues({
 					...inputValues,
@@ -1009,6 +996,12 @@ export function ShowDetails({
 		if (seasonIndex === -1) return;
 		// look, do not move
 		cursor.browse(seasonIndex);
+	};
+
+	// planted from the order
+	const handleWatchSlot = (index: SlotIndex) => {
+		marks.exitFranchise();
+		cursor.watchSlot(index);
 	};
 
 	// set the browsed part aside from the card, the way its row in the order would
@@ -1179,7 +1172,7 @@ export function ShowDetails({
 												payload: index,
 											})
 										}
-										onWatchSlot={cursor.watchSlot}
+										onWatchSlot={handleWatchSlot}
 										viewIndex={
 											isBrowsing ? shownIndex : null
 										}
@@ -1256,7 +1249,7 @@ export function ShowDetails({
 								payload: index,
 							})
 						}
-						onWatchSlot={cursor.watchSlot}
+						onWatchSlot={handleWatchSlot}
 						viewIndex={isBrowsing ? shownIndex : null}
 						onPickCut={handlePickCut}
 						canPickCut={!!addShow || isSelecting}

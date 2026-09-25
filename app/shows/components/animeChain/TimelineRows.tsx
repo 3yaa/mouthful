@@ -51,7 +51,7 @@ export interface Rail {
 	curIndex: SlotIndex;
 	linked: SlotIndex;
 	viewIndex?: SlotIndex | null;
-	isDone: boolean;
+	hereDone: boolean;
 	stateOf: (index: SlotIndex) => SlotState;
 	hereColor: string;
 	railColor: string;
@@ -196,7 +196,7 @@ export function SlotRow({
 		show,
 		line,
 		curIndex,
-		isDone,
+		hereDone,
 		stateOf,
 		hereColor,
 		railColor,
@@ -281,13 +281,14 @@ export function SlotRow({
 						className="pointer-events-none absolute -left-3 z-1 w-px bg-zinc-800"
 						style={{ top: runTop, ...runEnd }}
 					/>
-					{(isDone || index <= curIndex) && (
+					{index <= curIndex && (
 						<span
 							aria-hidden
 							className="pointer-events-none absolute -left-3 z-1 w-px"
 							style={{
 								top: runTop,
-								...(isDone || index < curIndex
+								...(index < curIndex ||
+								(hereDone && index === curIndex)
 									? runEnd
 									: { height: runToBead }),
 								background: mix(hereColor, 62),

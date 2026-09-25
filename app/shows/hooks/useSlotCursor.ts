@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { ShowProps, SlotIndex } from "@/types/show";
 import {
+	landingEpisode,
 	slotIndexOf,
 	slotRefFor,
 	timelineOf,
@@ -30,8 +31,8 @@ export function useSlotCursor({ show, onUpdate }: UseSlotCursorOptions) {
 			: realIndex;
 	// the arrows browse on every row
 	const isBrowsing = shownIndex !== realIndex;
-	const viewedComplete =
-		isBrowsing && (show.status === "Completed" || shownIndex < realIndex);
+	// behind the anchor is seen
+	const viewedComplete = isBrowsing && shownIndex < realIndex;
 
 	// belongs to the show you opened it on
 	useEffect(() => {
@@ -52,16 +53,20 @@ export function useSlotCursor({ show, onUpdate }: UseSlotCursorOptions) {
 		});
 	};
 
+	// anchor on a part, from its start -- or its end on a finished row
+	const plant = (index: SlotIndex) =>
+		moveTo(index, landingEpisode(show, line[index]));
+
 	// rail version
 	const watchSlot = (index: SlotIndex) => {
 		if (index < 0 || index >= count) return;
-		moveTo(index, 0);
+		plant(index);
 	};
 
 	// continue from here
 	const commitView = () => {
 		if (!isBrowsing || !show.seasons) return;
-		moveTo(shownIndex, 0);
+		plant(shownIndex);
 	};
 
 	return {
@@ -74,6 +79,7 @@ export function useSlotCursor({ show, onUpdate }: UseSlotCursorOptions) {
 		browse,
 		clear,
 		moveTo,
+		plant,
 		watchSlot,
 		commitView,
 	};

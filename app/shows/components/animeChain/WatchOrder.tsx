@@ -22,6 +22,7 @@ import {
 	movieExtrasOf,
 	orderMoviesOf,
 	hiddenExtrasOf,
+	hereIsDone,
 	slotIndexAt,
 	slotIndexOf,
 	sourceOf,
@@ -180,15 +181,15 @@ function mainLinePips(show: ShowProps): Pip[] {
 
 function Pips({ show }: { show: ShowProps }) {
 	const curIndex = slotIndexOf(show);
-	const isDone = show.status === "Completed";
+	const hereDone = hereIsDone(show);
 	const accent = getStatusAccent(show.status);
 
 	return (
 		<div className="flex items-center gap-1">
 			{mainLinePips(show).map((pip) => {
 				// a stop is behind you once you are on it
-				const current = !isDone && pip.at === curIndex;
-				const lit = isDone || pip.at <= curIndex;
+				const current = !hereDone && pip.at === curIndex;
+				const lit = pip.at <= curIndex;
 				return (
 					<span
 						key={pip.key}
@@ -234,7 +235,7 @@ function ChainRows({
 	const line = timelineOf(show);
 	const romaji = franchiseRomajiOf(show);
 	const curIndex = slotIndexOf(show);
-	const isDone = show.status === "Completed";
+	const hereDone = hereIsDone(show);
 	const hereColor = getStatusAccent(show.status);
 	const railColor = railColorOf(show, line);
 	const weights = line.map(weigherOf(line));
@@ -301,7 +302,8 @@ function ChainRows({
 	);
 
 	const stateOf = (index: SlotIndex): SlotState => {
-		if (isDone || index < curIndex) return "watched";
+		if (index < curIndex || (hereDone && index === curIndex))
+			return "watched";
 		return index === curIndex ? "current" : "ahead";
 	};
 
@@ -368,7 +370,7 @@ function ChainRows({
 		curIndex,
 		linked,
 		viewIndex,
-		isDone,
+		hereDone,
 		stateOf,
 		hereColor,
 		railColor,

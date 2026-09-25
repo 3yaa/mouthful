@@ -84,10 +84,11 @@ export function animeTitleLabel(
 			seen += norm(rest[i]);
 			cut = i + 1;
 		}
-		if (seen === wanted) {
-			rest = rest.slice(cut);
-			break;
-		}
+		// mid-word is not the name
+		if (seen !== wanted || /[\p{L}\p{N}]/u.test(rest[cut] ?? "")) continue;
+		// the name's own "!!" or closing bracket goes with it
+		rest = rest.slice(cut).replace(/^[!?！？.…。”’」』】)\]]+/u, "");
+		break;
 	}
 
 	// anilist's disambiguation tags, not part of any name

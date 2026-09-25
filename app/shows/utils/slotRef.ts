@@ -232,8 +232,33 @@ const asSlot = (item: AnimeSubNodeProps): ShowSeasonProps => ({
 	variants: item.variants,
 });
 
-const byRelease = (a: ShowSeasonProps, z: ShowSeasonProps) =>
-	(a.startDate ?? "9999").localeCompare(z.startDate ?? "9999");
+const byRelease = (
+	a: Pick<ShowSeasonProps, "startDate">,
+	z: Pick<ShowSeasonProps, "startDate">,
+) => (a.startDate ?? "9999").localeCompare(z.startDate ?? "9999");
+
+// by release
+function inOrder(items: AnimeSubNodeProps[]): ShowSeasonProps[] {
+	const sorted = [...items].sort(byRelease);
+	const movies = new Set(
+		sorted.filter((item) => item.kind === "film").map((m) => m.anilistId),
+	);
+	const extras = new Map<number, AnimeSubNodeProps[]>();
+	const rest: AnimeSubNodeProps[] = [];
+	for (const item of sorted) {
+		const under = item.underMovie;
+		if (under == null || !movies.has(under)) {
+			rest.push(item);
+			continue;
+		}
+		const list = extras.get(under);
+		if (list) list.push(item);
+		else extras.set(under, [item]);
+	}
+	return rest.flatMap((item) =>
+		[item, ...(extras.get(item.anilistId) ?? [])].map(asSlot),
+	);
+}
 
 // watch order as one sequence -- derived on every read
 export function timelineOf(show: WatchShow): ShowSeasonProps[] {
@@ -251,34 +276,33 @@ export function timelineOf(show: WatchShow): ShowSeasonProps[] {
 	//
 	if (!sides.length) return slots;
 
-	const after = new Map<number, ShowSeasonProps[]>();
+	const after = new Map<number, AnimeSubNodeProps[]>();
 	// only a movie's own extra carries one
-	const before = new Map<number, ShowSeasonProps[]>();
-	const loose: ShowSeasonProps[] = [];
+	const before = new Map<number, AnimeSubNodeProps[]>();
+	const loose: AnimeSubNodeProps[] = [];
 
 	for (const side of sides) {
 		const at = parentIndex(slots, side);
-		const slot = asSlot(side);
 		if (at === -1) {
 			// an unannounced date | parent the last rebuild renumbered away
-			loose.push(slot);
+			loose.push(side);
 			continue;
 		}
 		const bucket = side.placement === "before" ? before : after;
 		const list = bucket.get(at);
-		if (list) list.push(slot);
-		else bucket.set(at, [slot]);
+		if (list) list.push(side);
+		else bucket.set(at, [side]);
 	}
 
 	const out: ShowSeasonProps[] = [];
 	slots.forEach((slot, at) => {
 		const leading = before.get(at);
-		if (leading) out.push(...leading.sort(byRelease));
+		if (leading) out.push(...inOrder(leading));
 		out.push(slot);
 		const hanging = after.get(at);
-		if (hanging) out.push(...hanging.sort(byRelease));
+		if (hanging) out.push(...inOrder(hanging));
 	});
-	return out.concat(loose.sort(byRelease));
+	return out.concat(inOrder(loose));
 }
 
 // ─── slot and where it sit
@@ -331,6 +355,50 @@ export function slotIndexOf(show: ProgressShow): SlotIndex {
 export const slotOf = (show: ProgressShow): ShowSeasonProps | undefined =>
 	timelineOf(show)[slotIndexOf(show)];
 
+// the anchored part counts as seen
+export function hereIsDone(
+	show: ProgressShow & Pick<ShowProps, "curEpisode" | "status">,
+): boolean {
+	if (show.status !== "Completed") return false;
+	const here = slotOf(show);
+	return !!here && (show.curEpisode ?? 0) >= episodeCountOf(here);
+}
+
+// where a planted part starts -- a finished row seen all of it
+export const landingEpisode = (
+	show: Pick<ShowProps, "status">,
+	slot?: ShowSeasonProps,
+) => (show.status === "Completed" ? episodeCountOf(slot) : 0);
+
+type RebuiltShow = ProgressShow & Pick<ShowProps, "curEpisode" | "status">;
+
+// a lost anchor keeps its place, or goes to the end once completed
+export function cursorOnRebuilt(
+	from: RebuiltShow,
+	next: RebuiltShow,
+): Partial<ShowProps> {
+	const line = timelineOf(next);
+	if (!line.length) return {};
+	const found = findSlotIndex(next);
+	const done = from.status === "Completed";
+	const end = lastSlotIndex(line);
+	const at =
+		found !== -1
+			? found
+			: done && end !== -1
+				? end
+				: clampToLine(line, slotIndexOf(from));
+	const max = episodeCountOf(line[at]);
+	// an airing part reports no episodes yet
+	const kept = max
+		? Math.min(from.curEpisode ?? 0, max)
+		: (from.curEpisode ?? 0);
+	return {
+		...slotRefFor(next, at),
+		curEpisode: found !== -1 ? kept : done ? max : 0,
+	};
+}
+
 // emits whichever value the row is keyed on -- so can keep thinking in positions
 export function slotRefFor(
 	show: Pick<ShowProps, "anilistId" | "seasons" | "parts">,
@@ -381,12 +449,9 @@ export function mainOrdinalIndex(
 	return pos(-1);
 }
 
-export function lastMainIndex(line: ShowSeasonProps[]): SlotIndex {
-	for (let at = line.length - 1; at >= 0; at--) {
-		if (!line[at].isSide) return pos(at);
-	}
-	return pos(-1);
-}
+// the very end of the order
+export const lastSlotIndex = (line: ShowSeasonProps[]): SlotIndex =>
+	pos(line.length - 1);
 
 // what a typed season number counts
 export const mainCount = (line: ShowSeasonProps[]) =>
