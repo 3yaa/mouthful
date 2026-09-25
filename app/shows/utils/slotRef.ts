@@ -501,6 +501,24 @@ export function slotBadge(line: ShowSeasonProps[], index: SlotIndex): string {
 	return `S${number}`;
 }
 
+// minutes a film runs -- 0 when the source has no duration
+export const runtimeOf = (slot?: ShowSeasonProps) =>
+	(slot?.episode_count || 1) * (slot?.duration || 0);
+
+export function progressLabel(
+	line: ShowSeasonProps[],
+	index: SlotIndex,
+	curEpisode?: number | null,
+): string {
+	const slot = line[index];
+	const badge = slotBadge(line, index);
+	if (isMovieSlot(slot)) {
+		const minutes = runtimeOf(slot);
+		return minutes ? `${badge} · ${minutes} min` : badge;
+	}
+	return `${badge} · E${curEpisode ?? "-"}/${episodeCountOf(slot)}`;
+}
+
 // the arc name wins where the source names one
 export function slotName(
 	show: Pick<ShowProps, "title" | "seasons" | "anilistId">,

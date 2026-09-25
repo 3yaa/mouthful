@@ -3,7 +3,7 @@ import { getStatusBg, getStatusWaveColor } from "@/utils/styleUtils";
 import { calcCurProgress } from "../utils/progressCalc";
 import {
 	episodeCountOf,
-	slotBadge,
+	progressLabel,
 	slotIndexOf,
 	timelineOf,
 } from "../utils/slotRef";
@@ -13,7 +13,7 @@ export function ShowProgressCount({ show }: { show: ShowProps }) {
 	const at = slotIndexOf(show);
 	return (
 		<span className="ml-auto shrink-0 text-[0.6875rem] font-medium tracking-wide tabular-nums text-zinc-400">
-			{`${slotBadge(line, at)} · E${show.curEpisode ?? "-"}/${episodeCountOf(line[at])}`}
+			{progressLabel(line, at, show.curEpisode)}
 		</span>
 	);
 }

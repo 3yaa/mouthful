@@ -5,6 +5,7 @@ import {
 	episodeCountOf,
 	isAnimeRow,
 	isMovieSlot,
+	runtimeOf,
 	mainCount,
 	mainOrdinalAt,
 	slotIndexOf,
@@ -101,8 +102,7 @@ export function EditProgress({
 	//
 	const onSide = !!curSlot?.isSide;
 	const onMovie = isMovieSlot(curSlot);
-	const movieRuntime =
-		(curSlot?.episode_count || 1) * (curSlot?.duration || 0);
+	const movieRuntime = runtimeOf(curSlot);
 	//
 	const isAnime = isAnimeRow(item);
 	// only an anilist row has an order

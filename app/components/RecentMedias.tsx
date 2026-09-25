@@ -9,7 +9,7 @@ import { ShowProps } from "@/types/show";
 import { calcCurProgress } from "@/app/shows/utils/progressCalc";
 import {
 	episodeCountOf,
-	slotBadge,
+	progressLabel,
 	slotIndexOf,
 	timelineOf,
 } from "@/app/shows/utils/slotRef";
@@ -113,7 +113,7 @@ function showProgressOf(item: BaseMediaProps) {
 		progress: totalEps
 			? calcCurProgress(line, at, show.curEpisode ?? 0)
 			: 100,
-		label: `${slotBadge(line, at)} · E${show.curEpisode ?? "-"}/${totalEps}`,
+		label: progressLabel(line, at, show.curEpisode),
 	};
 }
 
