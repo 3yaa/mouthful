@@ -11,7 +11,7 @@ import {
 	SeriesTargetProps,
 } from "@/types/media";
 import { GameProps } from "@/types/game";
-import { formatDateShort } from "@/utils/formattingUtils";
+import { formatDateShort, splitCredits } from "@/utils/formattingUtils";
 import { hasSeries, seriesTitleOf } from "@/utils/seriesRead";
 import {
 	coverWave,
@@ -31,6 +31,7 @@ import {
 	RotateCcw,
 	RefreshCw,
 	Images,
+	BarChart2,
 	Image as ImageIcon,
 	Check,
 	List,
@@ -243,7 +244,7 @@ export function DesktopDetails<T extends BaseMediaProps>({
 	const posterPos = (isBook ? coverIndex : posterIndex) ?? 0;
 	const isAnimeShow = mediaType === "show" && isAnimeRow(showRow);
 	//
-	const franchisePoster = wearsRowPoster(showRow, isPicking);
+	const franchisePoster = wearsRowPoster(showRow);
 	const hasSlotArt =
 		mediaType === "show" &&
 		(showRow.seasons ?? []).some((season) => !!season.posterUrl);
@@ -252,6 +253,15 @@ export function DesktopDetails<T extends BaseMediaProps>({
 
 	//
 	const opensRatings = mediaType === "show" && !isPicking;
+	const ratingsBtn =
+		mediaType === "show" && isPicking ? (
+			<ActionBtn
+				icon={BarChart2}
+				tone="green"
+				onClick={() => onAction({ type: "openRatings" })}
+				title="Episode ratings"
+			/>
+		) : null;
 	// season title
 	const slotTitle =
 		mediaType === "show" ? (slotOf(showRow)?.title ?? null) : null;
@@ -404,10 +414,7 @@ export function DesktopDetails<T extends BaseMediaProps>({
 	// find creator
 	const creditNames =
 		(mediaType === "movie" || mediaType === "show") && !isPicking
-			? String(differentColumns[0].getValue(item) ?? "")
-					.split(",")
-					.map((n) => n.trim())
-					.filter(Boolean)
+			? splitCredits(differentColumns[0].getValue(item))
 			: [];
 	//
 	const creditOpens: "director" | "studio" | "creator" | null =
@@ -615,8 +622,9 @@ export function DesktopDetails<T extends BaseMediaProps>({
 					{trailingMeta}
 				</>
 			) : (
-				<span className="shrink-0 flex items-center gap-3">
+				<span className="shrink-0 flex items-center gap-2">
 					{releaseMeta}
+					{trailingMeta && authorSectorDivider}
 					{trailingMeta}
 				</span>
 			)}
@@ -656,6 +664,8 @@ export function DesktopDetails<T extends BaseMediaProps>({
 							{/* ACTION BUTTONS */}
 							{isSelecting ? (
 								<div className={`${ACTION_ROW} gap-1.5`}>
+									{/* EPISODE RATINGS */}
+									{ratingsBtn}
 									{seriesNav}
 									{/* CYCLE LOGOS | TEXT TITLE */}
 									{logoPicker}
@@ -687,6 +697,8 @@ export function DesktopDetails<T extends BaseMediaProps>({
 								</div>
 							) : isAdding ? (
 								<div className={`${ACTION_ROW} gap-1.5`}>
+									{/* EPISODE RATINGS */}
+									{ratingsBtn}
 									{/* CYCLE LOGOS | TEXT TITLE */}
 									{logoPicker}
 									{/* COVER COLORS */}

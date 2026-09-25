@@ -40,10 +40,12 @@ import {
 	X,
 	Wallpaper,
 	Loader2,
+	Images,
+	Image as ImageIcon,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Loading } from "@/app/components/ui/Loading";
-import { formatDateShort } from "@/utils/formattingUtils";
+import { formatDateShort, splitCredits } from "@/utils/formattingUtils";
 import { hasSeries, seriesTitleOf } from "@/utils/seriesRead";
 import {
 	coverWave,
@@ -77,6 +79,7 @@ import {
 	slotName,
 	timelineOf,
 	franchiseRomajiOf,
+	wearsRowPoster,
 } from "@/app/shows/utils/slotRef";
 import { canNudgeMu, getDisplayScore, getTierFromMu } from "@/lib/tierConfig";
 import { BookProps } from "@/types/book";
@@ -271,10 +274,7 @@ export function MobileDetails<T extends BaseMediaProps>({
 	//
 	const creditNames =
 		(mediaType === "movie" || mediaType === "show") && !isPicking
-			? String(differentColumns[0].getValue(item) ?? "")
-					.split(",")
-					.map((n) => n.trim())
-					.filter(Boolean)
+			? splitCredits(differentColumns[0].getValue(item))
 			: [];
 	const creditOpens: "director" | "studio" | "creator" | null =
 		!creditNames.length
@@ -333,7 +333,10 @@ export function MobileDetails<T extends BaseMediaProps>({
 	//
 	const backdropCount = backdropUrls?.length ?? 0;
 	const viewingBackdrop = isPicking && backdropCount > 0 && showBackdrop;
-	const canCyclePoster = isPicking && !viewingBackdrop && posterCount > 1;
+	// a part's own poster has nothing to cycle
+	const wearsRow = mediaType !== "show" || wearsRowPoster(show);
+	const canCyclePoster =
+		isPicking && !viewingBackdrop && posterCount > 1 && wearsRow;
 	const canCycleBackdrop = viewingBackdrop && backdropCount > 1;
 	const backdropSrc = viewingBackdrop
 		? backdropUrls?.[backdropIndex ?? 0]
@@ -403,8 +406,26 @@ export function MobileDetails<T extends BaseMediaProps>({
 
 	const hasSeriesMeta = hasSeries(s);
 
+	//
+	const hasSlotArt =
+		mediaType === "show" &&
+		(show.seasons ?? []).some((season) => !!season.posterUrl);
+	const posterSource: Control[] =
+		isPicking && hasSlotArt
+			? [
+					{
+						key: "togglePosterSource",
+						icon: wearsRow ? ImageIcon : Images,
+						tone: "blue",
+						label: wearsRow ? "Part poster" : "Show poster",
+						action: "togglePosterSource",
+					},
+				]
+			: [];
+
 	const controls: Control[] = isAdding
 		? [
+				...posterSource,
 				{
 					key: "add",
 					icon: Plus,
@@ -422,6 +443,7 @@ export function MobileDetails<T extends BaseMediaProps>({
 			]
 		: isSelecting
 			? [
+					...posterSource,
 					{
 						key: "confirmRefresh",
 						icon: Check,

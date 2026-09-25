@@ -11,6 +11,13 @@ export const formatDateShort = (value?: string | Date | null): string => {
 	});
 };
 
+// credits are stored as , jointed
+export const splitCredits = (value: unknown): string[] =>
+	String(value ?? "")
+		.split(",")
+		.map((name) => name.trim())
+		.filter(Boolean);
+
 // anime release year
 const AIR_SEASONS = ["Winter", "Spring", "Summer", "Fall"];
 export const airSeasonLabel = (startDate?: string | null) => {

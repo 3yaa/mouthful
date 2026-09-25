@@ -3,8 +3,13 @@ import { isResizable } from "@/utils/image-loader";
 import React, { ReactNode } from "react";
 import { BaseMediaProps, ColumnConfig, SeriesMediaProps } from "@/types/media";
 import { BackdropImageMobile } from "../../components/ui/BackdropMobile";
-import { formatDateShort } from "@/utils/formattingUtils";
-import { seriesNeighbours, seriesPlace, seriesTitleOf } from "@/utils/seriesRead";
+import { formatDateShort, splitCredits } from "@/utils/formattingUtils";
+import { CreditNames } from "../mediaDetails/shared/CreditNames";
+import {
+	seriesNeighbours,
+	seriesPlace,
+	seriesTitleOf,
+} from "@/utils/seriesRead";
 import { getStatusBg, getStatusWaveColor } from "@/utils/styleUtils";
 import { ShowProps } from "@/types/show";
 import { calcCurProgress } from "@/app/shows/utils/progressCalc";
@@ -93,6 +98,7 @@ export const MobileItem = React.memo(function MobileItem<
 			: 0;
 
 	const metaDot = <span className="text-zinc-600 shrink-0">·</span>;
+	const credits = splitCredits(differentColumns[0].getValue(item));
 
 	// RATING | COMPLETED DATE
 	const trailingMeta =
@@ -174,10 +180,16 @@ export const MobileItem = React.memo(function MobileItem<
 					</span>
 					{/* AUTHOR · RELEASED · COMPLETED/RATING */}
 					<div className="flex items-center gap-x-1.5 pr-14 text-[0.7rem] text-zinc-500 font-semibold min-w-0">
-						<span className="truncate min-w-0">
-							{differentColumns[0].getValue(item) || "-"}
-						</span>
-						{metaDot}
+						{credits.length > 0 && (
+							<>
+								<CreditNames
+									names={credits}
+									limit={1}
+									width="max-w-36"
+								/>
+								{metaDot}
+							</>
+						)}
 						<span className="shrink-0 tabular-nums">
 							{differentColumns[1].getValue(item) || "-"}
 						</span>

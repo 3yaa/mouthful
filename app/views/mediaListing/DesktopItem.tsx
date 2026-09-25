@@ -3,7 +3,8 @@ import Image from "next/image";
 import { isResizable } from "@/utils/image-loader";
 import { BaseMediaProps, ColumnConfig, SeriesMediaProps } from "@/types/media";
 import { GameProps } from "@/types/game";
-import { formatDateShort } from "@/utils/formattingUtils";
+import { formatDateShort, splitCredits } from "@/utils/formattingUtils";
+import { CreditNames } from "../mediaDetails/shared/CreditNames";
 import { seriesPlace, seriesTitleOf } from "@/utils/seriesRead";
 import {
 	getStatusBg,
@@ -79,6 +80,7 @@ export const DesktopItem = React.memo(function DesktopItem<
 
 	// fetch logo on hover
 	const prime = useLogoPrime(item.logoUrl);
+	const credits = splitCredits(differentColumns[0].getValue(item));
 
 	return (
 		<div
@@ -193,10 +195,16 @@ export const DesktopItem = React.memo(function DesktopItem<
 
 					<div className="flex items-center gap-x-1.5 live:translate-y-1.25 ml-px text-[0.8125rem] text-zinc-500 font-semibold min-w-0 transition-transform duration-300 ease-out">
 						{/* AUTHOR */}
-						<span className="truncate">
-							{differentColumns[0].getValue(item)}
-						</span>
-						<span className="text-zinc-600 shrink-0">·</span>
+						{credits.length > 0 && (
+							<>
+								<CreditNames
+									names={credits}
+									limit={1}
+									width="max-w-48"
+								/>
+								<span className="text-zinc-600 shrink-0">·</span>
+							</>
+						)}
 						{/* RELEASE DATE */}
 						<span className="shrink-0 tabular-nums">
 							{differentColumns[1].getValue(item)}

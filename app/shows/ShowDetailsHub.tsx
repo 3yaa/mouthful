@@ -220,41 +220,6 @@ export function ShowDetails({
 	backdropIndex,
 	updateBackdropIndex,
 }: ShowDetailsProps) {
-	// the timeline, and the two positions on it: where you are | where your looking
-	const cursor = useSlotCursor({ show, onUpdate });
-	const {
-		line: slotLine,
-		count: seasonCount,
-		realIndex,
-		shownIndex,
-		isBrowsing,
-		viewedComplete,
-	} = cursor;
-	// what the card says about one entry rather than about the row
-	const marks = usePartMarks({
-		show,
-		cursor,
-		onUpdate,
-		onUpdatePart,
-		onPartBattle,
-		addShow: !!addShow,
-	});
-	// null means the card is talking about the row
-	const { partId } = marks;
-	// notes
-	const [localNote, setLocalNote] = useState(marks.note);
-	// season/episode boxes -- open | typed
-	const [editingMode, setEditingMode] = useState({
-		season: false,
-		episode: false,
-	});
-	const [inputValues, setInputValues] = useState<{
-		season: number | "";
-		episode: number | "";
-	}>({
-		season: realIndex + 1,
-		episode: show.curEpisode,
-	});
 	//
 	const reload = useReloadPreview<ShowProps, ShowArt, CutMoves>({
 		onRefresh,
@@ -326,6 +291,54 @@ export function ShowDetails({
 		},
 	});
 	const { isRefreshing, isSelecting, patchMeta } = reload;
+	// a reload preview owns the position until applied
+	const row = isSelecting ? { ...show, ...reload.meta } : show;
+	const writeRow: typeof onUpdate = (showId, updates, takeAction) => {
+		if (!isSelecting || !updates || takeAction)
+			return onUpdate(showId, updates, takeAction);
+		const { curSeasonIndex, curEpisode, ...rest } = updates;
+		const held: Partial<ShowProps> = {
+			...(curSeasonIndex !== undefined ? { curSeasonIndex } : {}),
+			...(curEpisode !== undefined ? { curEpisode } : {}),
+		};
+		if (Object.keys(held).length) patchMeta((m) => ({ ...m, ...held }));
+		if (Object.keys(rest).length) onUpdate(showId, rest);
+	};
+	// the timeline, and the two positions on it
+	const cursor = useSlotCursor({ show: row, onUpdate: writeRow });
+	const {
+		line: slotLine,
+		count: seasonCount,
+		realIndex,
+		shownIndex,
+		isBrowsing,
+		viewedComplete,
+	} = cursor;
+	// what the card says about one entry
+	const marks = usePartMarks({
+		show: row,
+		cursor,
+		onUpdate: writeRow,
+		onUpdatePart,
+		onPartBattle,
+		addShow: !!addShow,
+	});
+	// null means the card is talking about the row
+	const { partId } = marks;
+	// notes
+	const [localNote, setLocalNote] = useState(marks.note);
+	// season/episode boxes -- open | typed
+	const [editingMode, setEditingMode] = useState({
+		season: false,
+		episode: false,
+	});
+	const [inputValues, setInputValues] = useState<{
+		season: number | "";
+		episode: number | "";
+	}>({
+		season: realIndex + 1,
+		episode: row.curEpisode,
+	});
 	const setArtIndex = reload.setListIndex;
 	const art = isSelecting
 		? {
@@ -341,7 +354,7 @@ export function ShowDetails({
 	const [previewCuts, setPreviewCuts] = useState<number[]>([]);
 	// companion panels
 	// only an anilist row has an order worth listing
-	const hasChain = isAnimeRow(show) && seasonCount > 0;
+	const hasChain = isAnimeRow(row) && seasonCount > 0;
 	const isWideCard = useWideCard();
 	const [ratingsOpen, setRatingsOpen] = useState(false);
 	const [chainOpen, setChainOpen] = useState(false);
@@ -493,7 +506,7 @@ export function ShowDetails({
 				handleInputSubmit("episode");
 				break;
 			case "changeEpisodeNum":
-				onUpdate(show.id, {
+				writeRow(show.id, {
 					curEpisode: action.payload,
 				});
 				break;
@@ -652,6 +665,7 @@ export function ShowDetails({
 					if (next.seasons?.length) {
 						const nextShow = {
 							...show,
+							...prev,
 							seasons: next.seasons,
 							anilistId: next.anilistId,
 						};
@@ -714,14 +728,7 @@ export function ShowDetails({
 
 	// which poster part wears
 	const handleTogglePosterSource = () => {
-		const picking = isSelecting || !!addShow;
-		const stored = isSelecting
-			? (reload.meta.franchisePoster ?? show.franchisePoster)
-			: show.franchisePoster;
-		const wearsRow = wearsRowPoster(
-			{ anilistId: show.anilistId, franchisePoster: stored },
-			picking,
-		);
+		const wearsRow = wearsRowPoster(row);
 		// reload writes nothing until applied
 		if (isSelecting)
 			patchMeta((prev) => ({ ...prev, franchisePoster: !wearsRow }));
@@ -846,14 +853,14 @@ export function ShowDetails({
 					updatesViaStatus.curEpisode = episodeCountOf(
 						slotLine[last],
 					);
-					Object.assign(updatesViaStatus, slotRefFor(show, last));
+					Object.assign(updatesViaStatus, slotRefFor(row, last));
 				}
 			}
 		} else if (show.dateCompleted) {
 			updatesViaStatus.dateCompleted = null;
 		}
 		if (updatesViaStatus.curSeasonIndex !== undefined) cursor.clear();
-		onUpdate(show.id, updatesViaStatus);
+		writeRow(show.id, updatesViaStatus);
 	};
 
 	const handleSaveNote = () => {
@@ -896,7 +903,7 @@ export function ShowDetails({
 		//
 		setInputValues({
 			season: mainOrdinalAt(slotLine, realIndex),
-			episode: show.curEpisode,
+			episode: row.curEpisode,
 		});
 	};
 
@@ -917,6 +924,8 @@ export function ShowDetails({
 			//
 			if (seasonNum >= 1 && at !== -1) {
 				setEditingMode({ ...editingMode, season: false });
+				// the season you are on is not a move -- it would zero the episode
+				if (at === realIndex) return;
 				// landing on a part means none of it is watched yet
 				cursor.moveTo(at, 0);
 			} else {
@@ -930,11 +939,11 @@ export function ShowDetails({
 			// empty input
 			const typed =
 				inputValues.episode === ""
-					? show.curEpisode
+					? row.curEpisode
 					: inputValues.episode;
 			setEditingMode({ ...editingMode, episode: false });
 			if (!Number.isFinite(typed) || typed < 0) {
-				setInputValues({ ...inputValues, episode: show.curEpisode });
+				setInputValues({ ...inputValues, episode: row.curEpisode });
 				return;
 			}
 			// past part you are on goes into next
@@ -1012,7 +1021,7 @@ export function ShowDetails({
 		if (!seasonCount || isBrowsing) return;
 		//
 		let seasonIndex = realIndex;
-		let curEp = show.curEpisode;
+		let curEp = row.curEpisode;
 		const total = episodeCountOf(slotLine[seasonIndex]);
 		//
 		if (dir === "left") {
@@ -1059,10 +1068,10 @@ export function ShowDetails({
 	useEffect(() => {
 		setInputValues({
 			season: mainOrdinalAt(slotLine, shownIndex),
-			episode: show.curEpisode,
+			episode: row.curEpisode,
 		});
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [show.curSeasonIndex, show.curEpisode, show.seasons, shownIndex]);
+	}, [row.curSeasonIndex, row.curEpisode, row.seasons, shownIndex]);
 
 	// need to reset local note -- since changing show doesn't remount
 	useEffect(() => {
@@ -1079,16 +1088,11 @@ export function ShowDetails({
 
 	if (!show) return null;
 
-	// while previewing render new
-	const previewShow = isSelecting ? { ...show, ...reload.meta } : show;
-
-	// display only -- the slot's poster | studio | year beat the row's; writes go through `show`
-	const viewRef = isBrowsing ? slotRefFor(previewShow, shownIndex) : {};
-	const previewLine = isSelecting ? timelineOf(previewShow) : slotLine;
-	const curSlot =
-		previewLine[Math.min(shownIndex, Math.max(0, previewLine.length - 1))];
+	// display only -- the slot's poster | studio | year beat the row's
+	const viewRef = isBrowsing ? slotRefFor(row, shownIndex) : {};
+	const curSlot = slotLine[shownIndex];
 	const slotYear = Number(curSlot?.startDate?.slice(0, 4));
-	const wearsRow = wearsRowPoster(previewShow, isSelecting || !!addShow);
+	const wearsRow = wearsRowPoster(row);
 	const slotMeta: Partial<ShowProps> = {
 		...(curSlot?.posterUrl && !wearsRow
 			? { posterUrl: curSlot.posterUrl }
@@ -1099,8 +1103,8 @@ export function ShowDetails({
 	// unchanged rows keep their identity
 	const displayShow =
 		Object.keys(slotMeta).length || isBrowsing
-			? { ...previewShow, ...viewRef, ...slotMeta }
-			: previewShow;
+			? { ...row, ...viewRef, ...slotMeta }
+			: row;
 
 	const displayLoading = isRefreshing
 		? {
@@ -1166,7 +1170,7 @@ export function ShowDetails({
 								{isWideCard && chainOpen && hasChain && (
 									<AnimeChainRail
 										key="rail"
-										show={previewShow}
+										show={row}
 										onClose={() => setChainOpen(false)}
 										onPickSlot={(index) =>
 											handleAction({
@@ -1243,7 +1247,7 @@ export function ShowDetails({
 				{!isWideCard && chainOpen && hasChain && (
 					<AnimeChainModal
 						key="chain"
-						show={previewShow}
+						show={row}
 						onClose={() => setChainOpen(false)}
 						onPickSlot={(index) =>
 							handleAction({

@@ -5,12 +5,13 @@ import { ModalBackdrop, ModalPanel } from "@/app/components/ui/ModalMotion";
 
 interface CreditNamesProps {
 	names: string[];
-	// only when theres somewhere to go -- also what makes +n open the full list
+	// only when theres somewhere to go -- also what makes the ... open the full list
 	onPick?: (name: string) => void;
 	// heading over that list -- "Directors", "Studios"
 	label?: string;
 	pickTitle?: string;
 	width?: string;
+	limit?: number;
 }
 
 export function CreditNames({
@@ -19,12 +20,14 @@ export function CreditNames({
 	label,
 	pickTitle,
 	width = "max-w-60",
+	limit,
 }: CreditNamesProps) {
 	const [picking, setPicking] = useState(false);
 	const containerRef = useRef<HTMLSpanElement>(null);
 	const probeRef = useRef<HTMLSpanElement>(null);
 	const dotsRef = useRef<HTMLElement | null>(null);
 	const [shownCount, setShownCount] = useState(names.length);
+	const [cutName, setCutName] = useState<string | null>(null);
 
 	//
 	const key = names.join("|");
@@ -35,24 +38,49 @@ export function CreditNames({
 		if (!container || !probe) return;
 
 		const measure = () => {
+			// the room at max-w, not the current content
+			const cap = parseFloat(getComputedStyle(container).maxWidth);
+			if (Number.isFinite(cap)) container.style.width = `${cap}px`;
 			const full = container.clientWidth;
+			container.style.width = "";
+			const max = Math.min(limit ?? names.length, names.length);
 			// everything fits -- no dots, no dropping
 			probe.textContent = names.join(", ");
-			if (probe.scrollWidth <= full) {
+			if (
+				names.length < 2 ||
+				(max === names.length && probe.scrollWidth <= full)
+			) {
 				setShownCount(names.length);
+				setCutName(null);
 				return;
 			}
 			// the ...
-			const reserved = (dotsRef.current?.offsetWidth ?? 22) + 6;
+			const reserved = (dotsRef.current?.offsetWidth ?? 12) + 4;
 			const available = full - reserved;
 			// floored at one
-			let count = Math.max(1, names.length - 1);
+			let count = Math.min(max, names.length - 1);
 			while (count > 1) {
 				probe.textContent = names.slice(0, count).join(", ");
 				if (probe.scrollWidth <= available) break;
 				count--;
 			}
 			setShownCount(count);
+			// even one whole name is too wide
+			const [lead] = names;
+			probe.textContent = lead;
+			if (count > 1 || probe.scrollWidth <= available) {
+				setCutName(null);
+				return;
+			}
+			let lo = 1;
+			let hi = lead.length - 1;
+			while (lo < hi) {
+				const mid = Math.ceil((lo + hi) / 2);
+				probe.textContent = lead.slice(0, mid).trimEnd();
+				if (probe.scrollWidth <= available) lo = mid;
+				else hi = mid - 1;
+			}
+			setCutName(lead.slice(0, lo).trimEnd());
 		};
 
 		measure();
@@ -61,7 +89,7 @@ export function CreditNames({
 		return () => observer.disconnect();
 		// `key` stands in for `names`
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [key]);
+	}, [key, limit]);
 
 	const shown = names.slice(0, shownCount);
 	const hidden = names.slice(shownCount);
@@ -71,7 +99,7 @@ export function CreditNames({
 		<>
 			<span
 				ref={containerRef}
-				className={`relative inline-flex items-center gap-1 min-w-0 ${width}`}
+				className={`relative inline-flex items-center min-w-0 ${cutName ? "" : "gap-1"} ${width}`}
 			>
 				<span
 					ref={probeRef}
@@ -86,12 +114,14 @@ export function CreditNames({
 								<span
 									className="hover:text-zinc-200 hover:underline hover:underline-offset-4 hover:cursor-pointer transition-colors duration-200"
 									onClick={() => onPick(name)}
-									title={pickTitle}
+									title={cutName ? name : pickTitle}
 								>
-									{name}
+									{cutName ?? name}
 								</span>
 							) : (
-								name
+								<span title={cutName ? name : undefined}>
+									{cutName ?? name}
+								</span>
 							)}
 						</span>
 					))}
@@ -103,17 +133,18 @@ export function CreditNames({
 							type="button"
 							onClick={() => setPicking(true)}
 							title={`${overflow} more - see all`}
-							className="shrink-0 leading-none text-[0.8em] font-semibold tabular-nums text-zinc-500 hover:text-zinc-200 cursor-pointer transition-colors duration-200"
+							aria-label={`${overflow} more - see all`}
+							className="shrink-0 leading-none font-semibold text-zinc-500 hover:text-zinc-200 cursor-pointer transition-colors duration-200"
 						>
-							+{overflow}
+							…
 						</button>
 					) : (
 						<span
 							ref={dotsRef as React.Ref<HTMLSpanElement>}
 							title={hidden.join(", ")}
-							className="shrink-0 leading-none text-[0.8em] font-semibold tabular-nums text-zinc-500"
+							className="shrink-0 leading-none font-semibold text-zinc-500"
 						>
-							+{overflow}
+							…
 						</span>
 					))}
 			</span>
@@ -136,7 +167,7 @@ export function CreditNames({
 	);
 }
 
-// the full list behind a +n -- only CreditNames opens it
+// the full list behind the ... -- only open here
 function CreditPicker({
 	names,
 	label,
