@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Book, BookOpen, Film, Tv, Gamepad2, ChevronRight } from "lucide-react";
 import dynamic from "next/dynamic";
 import { BaseMediaProps } from "@/types/media";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useAuthFetch } from "../auth/hooks/useAuthFetch";
 import { StatsBar } from "../components/StatsBar";
 import { RecentItems } from "../components/RecentMedias";
@@ -24,10 +24,15 @@ const sections = [
 ];
 type Section = (typeof sections)[number];
 
-const COLUMNS = [["movies"], ["shows"], ["books"], ["manga", "games"]].map(
+const COLUMNS = [["movies"], ["shows"], ["manga"], ["books", "games"]].map(
 	(keys) =>
 		keys.map((key) => sections.find((section) => section.key === key)!),
 );
+
+// the island shadow, cast off the games L as one shape rather than two boxes
+const ISLAND_DROP =
+	"drop-shadow(0 2px 3px rgba(0,0,0,0.4)) drop-shadow(0 8px 10px rgba(0,0,0,0.35)) drop-shadow(0 16px 20px rgba(0,0,0,0.2))";
+const ISLAND_LIP = "shadow-[inset_0_1px_0_rgba(255,255,255,0.07)]";
 
 function StatsSkeleton() {
 	return (
@@ -97,6 +102,47 @@ export default function LandingPage() {
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
 
+	// how far the games foot hangs under the row
+	const gridRef = useRef<HTMLDivElement>(null);
+	const footRef = useRef<HTMLDivElement>(null);
+	const [overhang, setOverhang] = useState(0);
+	useLayoutEffect(() => {
+		const grid = gridRef.current;
+		const foot = footRef.current;
+		if (!grid || !foot) return;
+		const measure = () => {
+			// hidden below lg -- a hidden foot reads as a zero rect
+			const below =
+				foot.getBoundingClientRect().bottom -
+				grid.getBoundingClientRect().bottom;
+			setOverhang(foot.offsetParent ? Math.max(0, below) : 0);
+		};
+		measure();
+		const observer = new ResizeObserver(measure);
+		observer.observe(grid);
+		observer.observe(foot);
+		return () => observer.disconnect();
+	}, []);
+
+	const libraryButton = (section: Section) => (
+		<Link
+			href={section.href}
+			onNavigate={() => flash(listingOf(section.href))}
+			className="group/btn flex items-center justify-between rounded-xl bg-zinc-800/55 px-4 py-4 shadow-island transition-[background-color,box-shadow,transform] duration-200 ease-out hover:bg-zinc-700/50 hover:cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-400 active:translate-y-px active:bg-zinc-800/70 active:shadow-[inset_0_2px_5px_rgba(0,0,0,0.5)] sm:py-5"
+		>
+			<span className="flex items-center gap-3">
+				<section.icon
+					className="h-6 w-6 text-zinc-400 transition-colors duration-200 group-hover/btn:text-zinc-200 sm:h-7 sm:w-7"
+					strokeWidth={1.5}
+				/>
+				<span className="text-base font-medium text-zinc-300 transition-colors duration-200 group-hover/btn:text-zinc-100 sm:text-lg">
+					{section.name}
+				</span>
+			</span>
+			<ChevronRight className="h-5 w-5 text-zinc-600 transition-all duration-200 group-hover/btn:translate-x-0.5 group-hover/btn:text-zinc-400" />
+		</Link>
+	);
+
 	// a card per library
 	const renderLibrary = (section: Section, rows: number) => {
 		const raw = stats?.[section.key];
@@ -116,22 +162,7 @@ export default function LandingPage() {
 				className="flex flex-col gap-4 rounded-2xl bg-[#121212] p-4 shadow-island sm:p-5"
 			>
 				{/* ── button ── */}
-				<Link
-					href={section.href}
-					onNavigate={() => flash(listingOf(section.href))}
-					className="group/btn flex items-center justify-between rounded-xl bg-zinc-800/55 px-4 py-4 shadow-island transition-[background-color,box-shadow,transform] duration-200 ease-out hover:bg-zinc-700/50 hover:cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-400 active:translate-y-px active:bg-zinc-800/70 active:shadow-[inset_0_2px_5px_rgba(0,0,0,0.5)] sm:py-5"
-				>
-					<span className="flex items-center gap-3">
-						<section.icon
-							className="h-6 w-6 text-zinc-400 transition-colors duration-200 group-hover/btn:text-zinc-200 sm:h-7 sm:w-7"
-							strokeWidth={1.5}
-						/>
-						<span className="text-base font-medium text-zinc-300 transition-colors duration-200 group-hover/btn:text-zinc-100 sm:text-lg">
-							{section.name}
-						</span>
-					</span>
-					<ChevronRight className="h-5 w-5 text-zinc-600 transition-all duration-200 group-hover/btn:translate-x-0.5 group-hover/btn:text-zinc-400" />
-				</Link>
+				{libraryButton(section)}
 
 				{/* ── library ── */}
 				<div>
@@ -159,6 +190,59 @@ export default function LandingPage() {
 		);
 	};
 
+	// games as a reverse L -- its button tucks under books, its two games run under manga and books
+	const renderGamesL = (section: Section) => {
+		const recent = recentMedias?.[section.key]?.slice(0, 2);
+		return (
+			<div
+				aria-label={section.name}
+				className="relative -mb-6 hidden flex-1 lg:block"
+				style={{ filter: ISLAND_DROP }}
+			>
+				{/* ── foot, under manga and books ── */}
+				<div
+					ref={footRef}
+					className={`absolute top-full right-0 w-[calc(200%+1.5rem)] rounded-2xl rounded-tr-none bg-[#121212] p-5 ${ISLAND_LIP}`}
+				>
+					<div className="grid grid-cols-2 gap-x-2">
+						{[0, 1].map((i) =>
+							recent
+								? recent[i] && (
+										<RecentItems
+											key={i}
+											items={[recent[i]]}
+											mediaType={section.key}
+											href={section.href}
+											onNavigate={() =>
+												flash(listingOf(section.href))
+											}
+										/>
+									)
+								: isLoading && (
+										<RecentSkeleton key={i} rows={1} />
+									),
+						)}
+					</div>
+				</div>
+				{/* ── upright, just the button -- a pixel over the foot hides the seam ── */}
+				<div
+					className={`absolute inset-x-0 top-0 -bottom-px rounded-t-2xl bg-[#121212] p-5 ${ISLAND_LIP}`}
+				>
+					{libraryButton(section)}
+				</div>
+				{/* ── the inside corner ── */}
+				<div
+					aria-hidden
+					className="absolute right-full bottom-0 size-4"
+					style={{
+						background:
+							"radial-gradient(circle at top left, transparent 1rem, #121212 calc(1rem + 0.5px))",
+					}}
+				/>
+			</div>
+		);
+	};
+
 	return (
 		<main className="relative flex min-h-screen w-full flex-col items-center justify-center overflow-hidden bg-black text-white">
 			{/* hollow nit nit */}
@@ -179,16 +263,23 @@ export default function LandingPage() {
 				/>
 			</div>
 
-			<div className="relative z-10 my-auto flex w-full flex-col items-center">
+			{/* room for the foot, even on both sides so the centre never moves */}
+			<div
+				className="relative z-10 my-auto flex w-full flex-col items-center"
+				style={{ paddingBlock: overhang }}
+			>
 				{/* HEADER */}
-				<header className="mt-8 shrink-0 text-center sm:mt-10">
+				<header className="mt-8 shrink-0 text-center lg:mt-0">
 					<h1 className="font-display text-xl leading-none font-semibold tracking-[0.28em] text-zinc-100 select-none sm:text-4xl sm:tracking-[0.22em]">
 						MOUTHFUL
 					</h1>
 				</header>
 
 				{/* THE LIBRARIES */}
-				<div className="mt-6 grid w-full max-w-425 grid-cols-1 items-start gap-5 px-4 sm:mt-10 sm:grid-cols-2 sm:gap-6 sm:px-6 lg:grid-cols-4">
+				<div
+					ref={gridRef}
+					className="mt-6 grid w-full max-w-425 grid-cols-1 items-start gap-5 px-4 sm:mt-10 sm:grid-cols-2 sm:gap-6 sm:px-6 lg:grid-cols-4 lg:items-stretch"
+				>
 					{COLUMNS.map((column) =>
 						column.length === 1 ? (
 							renderLibrary(column[0], 4)
@@ -199,9 +290,12 @@ export default function LandingPage() {
 									.join("+")}
 								className="flex flex-col gap-5 sm:gap-6"
 							>
-								{column.map((section) =>
-									renderLibrary(section, 2),
-								)}
+								{renderLibrary(column[0], 3)}
+								{/* a plain card until the columns sit side by side */}
+								<div className="lg:hidden">
+									{renderLibrary(column[1], 2)}
+								</div>
+								{renderGamesL(column[1])}
 							</div>
 						),
 					)}
