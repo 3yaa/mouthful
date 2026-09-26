@@ -99,7 +99,7 @@ export function CreditNames({
 		<>
 			<span
 				ref={containerRef}
-				className={`relative inline-flex items-center min-w-0 ${cutName ? "" : "gap-1"} ${width}`}
+				className={`relative inline-flex items-center min-w-0 ${cutName ? "" : "gap-px"} ${width}`}
 			>
 				<span
 					ref={probeRef}

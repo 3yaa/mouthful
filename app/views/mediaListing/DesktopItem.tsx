@@ -202,7 +202,9 @@ export const DesktopItem = React.memo(function DesktopItem<
 									limit={1}
 									width="max-w-48"
 								/>
-								<span className="text-zinc-600 shrink-0">·</span>
+								<span className="text-zinc-600 shrink-0">
+									·
+								</span>
 							</>
 						)}
 						{/* RELEASE DATE */}
