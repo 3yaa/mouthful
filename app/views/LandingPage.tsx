@@ -102,25 +102,25 @@ export default function LandingPage() {
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
 
-	// how far the games foot hangs under the row
+	// how far the games L hangs under the row -- its tail is the lowest edge
 	const gridRef = useRef<HTMLDivElement>(null);
-	const footRef = useRef<HTMLDivElement>(null);
+	const tailRef = useRef<HTMLDivElement>(null);
 	const [overhang, setOverhang] = useState(0);
 	useLayoutEffect(() => {
 		const grid = gridRef.current;
-		const foot = footRef.current;
-		if (!grid || !foot) return;
+		const tail = tailRef.current;
+		if (!grid || !tail) return;
 		const measure = () => {
-			// hidden below lg -- a hidden foot reads as a zero rect
+			// hidden below lg -- a hidden tail reads as a zero rect
 			const below =
-				foot.getBoundingClientRect().bottom -
+				tail.getBoundingClientRect().bottom -
 				grid.getBoundingClientRect().bottom;
-			setOverhang(foot.offsetParent ? Math.max(0, below) : 0);
+			setOverhang(tail.offsetParent ? Math.max(0, below) : 0);
 		};
 		measure();
 		const observer = new ResizeObserver(measure);
 		observer.observe(grid);
-		observer.observe(foot);
+		observer.observe(tail);
 		return () => observer.disconnect();
 	}, []);
 
@@ -143,8 +143,8 @@ export default function LandingPage() {
 		</Link>
 	);
 
-	// a card per library
-	const renderLibrary = (section: Section, rows: number) => {
+	// total, average and the status split
+	const libraryStats = (section: Section) => {
 		const raw = stats?.[section.key];
 		const rawEntries = raw ? Object.entries(raw) : [];
 		const avgScoreEntry = rawEntries.find(([k]) => k === "avgScore");
@@ -153,6 +153,19 @@ export default function LandingPage() {
 			? Object.fromEntries(rawEntries.filter(([k]) => k !== "avgScore"))
 			: undefined;
 		const hasStats = mediaStats && Object.keys(mediaStats).length > 0;
+		return (
+			<div>
+				{hasStats ? (
+					<StatsBar data={mediaStats} avgScore={avgScore} />
+				) : (
+					isLoading && <StatsSkeleton />
+				)}
+			</div>
+		);
+	};
+
+	// a card per library
+	const renderLibrary = (section: Section, rows: number) => {
 		const recent = recentMedias?.[section.key]?.slice(0, rows);
 
 		return (
@@ -165,13 +178,7 @@ export default function LandingPage() {
 				{libraryButton(section)}
 
 				{/* ── library ── */}
-				<div>
-					{hasStats ? (
-						<StatsBar data={mediaStats} avgScore={avgScore} />
-					) : (
-						isLoading && <StatsSkeleton />
-					)}
-				</div>
+				{libraryStats(section)}
 
 				{/* ── what was touched last (sm+ only) ── */}
 				<div className="-mt-1 hidden sm:block">
@@ -190,7 +197,7 @@ export default function LandingPage() {
 		);
 	};
 
-	// games as a reverse L -- its button tucks under books, its two games run under manga and books
+	// games as a reverse L -- the button tucks under books, two games run under manga and books, stats hang under the right one
 	const renderGamesL = (section: Section) => {
 		const recent = recentMedias?.[section.key]?.slice(0, 2);
 		return (
@@ -199,10 +206,15 @@ export default function LandingPage() {
 				className="relative -mb-6 hidden flex-1 lg:block"
 				style={{ filter: ISLAND_DROP }}
 			>
+				{/* ── upright, just the button -- a pixel over the foot hides the seam ── */}
+				<div
+					className={`absolute inset-x-0 top-0 -bottom-px z-10 rounded-t-2xl bg-[#121212] p-5 ${ISLAND_LIP}`}
+				>
+					{libraryButton(section)}
+				</div>
 				{/* ── foot, under manga and books ── */}
 				<div
-					ref={footRef}
-					className={`absolute top-full right-0 w-[calc(200%+1.5rem)] rounded-2xl rounded-tr-none bg-[#121212] p-5 ${ISLAND_LIP}`}
+					className={`absolute top-full right-0 w-[calc(200%+1.5rem)] rounded-2xl rounded-r-none bg-[#121212] p-5 ${ISLAND_LIP}`}
 				>
 					<div className="grid grid-cols-2 gap-x-2">
 						{[0, 1].map((i) =>
@@ -223,22 +235,44 @@ export default function LandingPage() {
 									),
 						)}
 					</div>
+					{/* ── tail, the stats under the right game ── */}
+					<div
+						ref={tailRef}
+						className="absolute top-full right-0 w-[calc(50%-0.75rem)] rounded-b-2xl bg-[#121212] px-5 pb-5"
+					>
+						<div className="-mt-2">{libraryStats(section)}</div>
+						{/* ── the lower inside corner ── */}
+						<div
+							aria-hidden
+							className="absolute top-0 right-full size-4"
+							style={{
+								background:
+									"radial-gradient(circle at bottom left, transparent calc(1rem - 0.5px), #121212 calc(1rem + 0.5px))",
+							}}
+						/>
+					</div>
 				</div>
-				{/* ── upright, just the button -- a pixel over the foot hides the seam ── */}
-				<div
-					className={`absolute inset-x-0 top-0 -bottom-px rounded-t-2xl bg-[#121212] p-5 ${ISLAND_LIP}`}
-				>
-					{libraryButton(section)}
-				</div>
-				{/* ── the inside corner ── */}
+				{/* ── the upper inside corner -- a pixel into the foot so its lip bends round instead of running under ── */}
 				<div
 					aria-hidden
-					className="absolute right-full bottom-0 size-4"
+					className="absolute right-full -bottom-px z-10 h-4.25 w-4"
 					style={{
 						background:
-							"radial-gradient(circle at top left, transparent 1rem, #121212 calc(1rem + 0.5px))",
+							"radial-gradient(circle at top left, transparent calc(1rem - 0.5px), #121212 calc(1rem + 0.5px))",
 					}}
-				/>
+				>
+					<div
+						className="absolute inset-0"
+						style={{
+							background:
+								"radial-gradient(circle at top left, transparent calc(1rem - 0.5px), rgba(255,255,255,0.07) calc(1rem + 0.5px), rgba(255,255,255,0.07) calc(1rem + 1px), transparent calc(1rem + 1.5px))",
+							maskImage:
+								"linear-gradient(to top, black, transparent)",
+							WebkitMaskImage:
+								"linear-gradient(to top, black, transparent)",
+						}}
+					/>
+				</div>
 			</div>
 		);
 	};
