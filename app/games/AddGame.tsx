@@ -2,7 +2,12 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { ModalBackdrop } from "@/app/components/ui/ModalMotion";
 import { AnimatePresence } from "framer-motion";
-import { Gamepad2, Loader2 } from "lucide-react";
+import { Gamepad2 } from "lucide-react";
+import {
+	SearchCard,
+	SearchFields,
+	SearchReason,
+} from "@/app/components/ui/SearchCard";
 //
 import { GameProps, IGDBInitProps, IGDBProps } from "@/types/game";
 //
@@ -345,35 +350,16 @@ export function AddGame({
 			{/* maybe not allow user to close modal as new game coming? */}
 			<div className="fixed inset-0" onClick={onClose} />
 			{!titleFromAbove ? (
-				<div className="bg-linear-to-b from-zinc-950/80 to-zinc-900/50 backdrop-blur-xl border border-zinc-800/50 rounded-2xl p-6 w-full max-w-xl mx-4 relative">
-					<h2 className="text-xl font-semibold mb-4 text-zinc-300/90 flex justify-center items-center gap-2">
-						<Gamepad2 className="w-5 h-5 text-zinc-300/90" />
-						Search for New Game
-					</h2>
-					<div className="flex gap-3">
-						<div className="relative w-full">
-							<input
-								type="text"
-								ref={titleToSearch}
-								placeholder="Search for game..."
-								onKeyDown={handleKeyPress}
-								onInput={eraseErrMsg}
-								disabled={isGameSearching}
-								className="w-full bg-zinc-800/50 border border-zinc-800/50 rounded-xl px-4 py-3 pr-11 text-zinc-300 font-medium placeholder-zinc-400 focus:border-zinc-800 focus:ring-1 focus:ring-zinc-900/50 outline-none transition-all duration-200 shadow-lg shadow-black/20"
-							/>
-							{isGameSearching && (
-								<Loader2 className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-zinc-500" />
-							)}
-						</div>
-					</div>
-					<div className="flex justify-between mx-2">
-						{failedReason && !isGameSearching && (
-							<div className="mt-3 text-zinc-400 text-sm font-medium">
-								{failedReason}
-							</div>
-						)}
-					</div>
-				</div>
+				<SearchCard icon={Gamepad2} label="Search for New Game">
+					<SearchFields
+						titleRef={titleToSearch}
+						placeholder="Search for game..."
+						onKeyDown={handleKeyPress}
+						onInput={eraseErrMsg}
+						searching={isGameSearching}
+					/>
+					<SearchReason text={isGameSearching ? "" : failedReason} />
+				</SearchCard>
 			) : (
 				<input
 					type="text"

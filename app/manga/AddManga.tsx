@@ -1,7 +1,12 @@
 "use client";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { ModalBackdrop } from "@/app/components/ui/ModalMotion";
-import { Loader2, BookOpen } from "lucide-react";
+import { BookOpen } from "lucide-react";
+import {
+	SearchCard,
+	SearchFields,
+	SearchReason,
+} from "@/app/components/ui/SearchCard";
 //
 import { MangaProps, MangaSearchResult } from "@/types/manga";
 import { SeriesTargetProps } from "@/types/media";
@@ -103,15 +108,13 @@ export function AddManga({
 			}
 			//
 			const response = await searchForManga(titleSearching, knownId);
-			// error
-			if (!response) return null;
 			// dup logic --- NEEDS TO BE ABOVE EMPTY LOGIC CAUSE RESPONSE IS EMPTY
-			if ("isDuplicate" in response) {
+			if (response && "isDuplicate" in response) {
 				handleDuplicate(response);
 				return;
 			}
 			// empty
-			if (!response.anilist_id || !response.title) {
+			if (!response?.anilist_id || !response.title) {
 				setFailedReason("Could Not Find Manga.");
 				setActiveModal(null);
 				return;
@@ -226,35 +229,16 @@ export function AddManga({
 		<ModalBackdrop className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-10">
 			<div className="fixed inset-0" onClick={onClose} />
 			{!targetFromAbove || !!failedReason ? (
-				<div className="bg-linear-to-b from-zinc-950/80 to-zinc-900/50 backdrop-blur-xl border border-zinc-800/50 rounded-2xl p-6 w-full max-w-xl mx-4 relative">
-					<h2 className="text-xl font-semibold mb-4 text-zinc-300/90 flex justify-center items-center gap-2">
-						<BookOpen className="w-5 h-5 text-zinc-300/90" />
-						Search for New Manga
-					</h2>
-					<div className="flex gap-3">
-						<div className="relative w-full">
-							<input
-								type="text"
-								ref={titleToSearch}
-								placeholder="Search for manga..."
-								onKeyDown={handleKeyPress}
-								onInput={eraseErrMsg}
-								disabled={isMangaSearching}
-								className="w-full bg-zinc-800/50 border border-zinc-800/50 rounded-xl px-4 py-3 pr-11 text-zinc-300 font-medium placeholder-zinc-400 focus:border-zinc-800 focus:ring-1 focus:ring-zinc-900/50 outline-none transition-all duration-200 shadow-lg shadow-black/20"
-							/>
-							{isMangaSearching && (
-								<Loader2 className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-zinc-500" />
-							)}
-						</div>
-					</div>
-					<div className="flex justify-between mx-2">
-						{failedReason && !isMangaSearching && (
-							<div className="mt-3 text-zinc-400 text-sm font-medium">
-								{failedReason}
-							</div>
-						)}
-					</div>
-				</div>
+				<SearchCard icon={BookOpen} label="Search for New Manga">
+					<SearchFields
+						titleRef={titleToSearch}
+						placeholder="Search for manga..."
+						onKeyDown={handleKeyPress}
+						onInput={eraseErrMsg}
+						searching={isMangaSearching}
+					/>
+					<SearchReason text={isMangaSearching ? "" : failedReason} />
+				</SearchCard>
 			) : (
 				<input
 					type="text"

@@ -1,19 +1,14 @@
 "use client";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { ModalBackdrop } from "@/app/components/ui/ModalMotion";
-import { Tv, Brush, Loader2 } from "lucide-react";
+import { Tv } from "lucide-react";
+import { SearchCard, SearchFields } from "@/app/components/ui/SearchCard";
 import { ShowProps } from "@/types/show";
 import { FIRST_SLOT, slotRefFor } from "./utils/slotRef";
 import { mapNewShow, mapShowMeta } from "@/app/shows/utils/showMapping";
 import { ShowDetails, type ShowDetailsProps } from "./ShowDetailsHub";
 import { useShowSearch } from "@/hooks/external/useShowSearch";
 import { findOnlyNamed, isRealTmdbId } from "@/utils/mediaMatch";
-
-const DETECT_MODES = [
-	{ key: "anime", label: "Anime", Icon: Brush },
-	{ key: "show", label: "Show", Icon: Tv },
-] as const;
-type DetectMode = (typeof DETECT_MODES)[number]["key"];
 
 // used in AddShow -- for movie items
 type CrossMedia = Pick<
@@ -40,7 +35,7 @@ export function AddShow({
 	...crossMedia
 }: AddShowProps) {
 	const [needYear, setNeedYear] = useState(false);
-	const [detectMode, setDetectMode] = useState<DetectMode | null>(null);
+	const [anime, setAnime] = useState(false);
 	const [activeModal, setActiveModal] = useState<"showDetails" | null>(null);
 	//
 	const titleToSearch = useRef<HTMLInputElement>(null);
@@ -60,7 +55,7 @@ export function AddShow({
 
 	const reset = useCallback(() => {
 		setNeedYear(false);
-		setDetectMode(null);
+		setAnime(false);
 		//
 		setActiveModal(null);
 		setNewShow({});
@@ -107,7 +102,7 @@ export function AddShow({
 		const showBare = await searchForShow(
 			titleSearching,
 			yearSearching,
-			detectMode ?? undefined,
+			needYear ? (anime ? "anime" : "show") : undefined,
 		);
 		if (showBare && "isDuplicate" in showBare) {
 			return {
@@ -134,7 +129,7 @@ export function AddShow({
 		setBackdropUrls(showBare.backdrops ?? []);
 		setBackdropIndex(0);
 		return { tmdbId: showBare.tmdbId };
-	}, [searchForShow, detectMode, existingShows, titleFromAbove, needYear]);
+	}, [searchForShow, anime, existingShows, titleFromAbove, needYear]);
 
 	// read poster color
 	useEffect(() => {
@@ -214,7 +209,7 @@ export function AddShow({
 	const toggleAdvanced = () => {
 		const open = !needYear;
 		setNeedYear(open);
-		if (!open) setDetectMode(null);
+		if (!open) setAnime(false);
 		const hasTitle = !!titleToSearch.current?.value.trim();
 		setTimeout(() => {
 			(open && hasTitle ? yearToSearch : titleToSearch).current?.focus();
@@ -223,6 +218,7 @@ export function AddShow({
 
 	const handleKeyPress = (e: React.KeyboardEvent) => {
 		if (e.key !== "Enter") return;
+		e.preventDefault();
 		e.stopPropagation();
 		// nothing to search yet
 		if (!titleToSearch.current?.value.trim()) {
@@ -265,74 +261,30 @@ export function AddShow({
 		<ModalBackdrop className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-30">
 			<div className="fixed inset-0" onClick={onClose} />
 			{!titleFromAbove || needYear ? (
-				<div className="bg-linear-to-b from-zinc-950/80 to-zinc-900/50 backdrop-blur-xl border border-zinc-800/50 rounded-2xl p-6 w-full max-w-xl mx-4 relative">
-					<h2 className="mb-4 flex justify-center">
-						<button
-							type="button"
-							onClick={toggleAdvanced}
-							disabled={isShowSearching}
-							aria-expanded={needYear}
-							className="flex items-center gap-2 rounded-lg text-xl font-semibold text-zinc-300/90 transition-colors duration-200 ease-out hover:cursor-pointer hover:text-zinc-100 disabled:cursor-default focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-zinc-400"
-						>
-							<Tv className="w-5 h-5" />
-							Search for New Show
-						</button>
-					</h2>
-					<div className="flex gap-3">
-						<div className="relative w-full">
-							<input
-								type="text"
-								ref={titleToSearch}
-								placeholder="Search for show..."
-								onKeyDown={handleKeyPress}
-								disabled={isShowSearching}
-								className="w-full rounded-lg px-4 py-3 pr-11 neu-raised focus:neu-pressed text-zinc-300/85 font-medium placeholder-zinc-500 outline-none transition-all duration-300 ease-out"
-							/>
-							{isShowSearching && (
-								<Loader2 className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-zinc-500" />
-							)}
-						</div>
-						{needYear && (
-							<div className="">
-								<input
-									type="number"
-									ref={yearToSearch}
-									placeholder="Release Year"
-									onKeyDown={handleKeyPress}
-									disabled={isShowSearching}
-									className="w-full rounded-lg px-4 py-3 neu-raised focus:neu-pressed text-zinc-300/85 font-medium placeholder-zinc-500 outline-none transition-all duration-300 ease-out"
-								/>
-							</div>
-						)}
-					</div>
-					{needYear && (
-						<div className="mt-3 flex gap-3">
-							{DETECT_MODES.map(({ key, label, Icon }) => {
-								// neither pressed is auto-detect
-								const picked = detectMode === key;
-								return (
-									<button
-										key={key}
-										type="button"
-										onClick={() =>
-											setDetectMode(picked ? null : key)
-										}
-										disabled={isShowSearching}
-										aria-pressed={picked}
-										className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-bold tracking-wide transition-all duration-300 ease-out hover:cursor-pointer disabled:cursor-default disabled:opacity-45 ${
-											picked
-												? "neu-pressed text-zinc-200"
-												: "neu-raised hover:neu-raised-hi active:scale-[0.99] text-zinc-400 hover:text-zinc-300"
-										}`}
-									>
-										<Icon className="h-4 w-4" />
-										{label}
-									</button>
-								);
-							})}
-						</div>
-					)}
-				</div>
+				<SearchCard
+					icon={Tv}
+					label="Search for New Show"
+					onLabelClick={toggleAdvanced}
+					expanded={needYear}
+					disabled={isShowSearching}
+				>
+					<SearchFields
+						titleRef={titleToSearch}
+						placeholder="Search for show..."
+						onKeyDown={handleKeyPress}
+						searching={isShowSearching}
+						advanced={{
+							open: needYear,
+							yearRef: yearToSearch,
+							toggle: {
+								label: "Anime",
+								on: anime,
+								onChange: () => setAnime((on) => !on),
+								hint: "Search it as anime - off searches it as a regular show",
+							},
+						}}
+					/>
+				</SearchCard>
 			) : (
 				<input
 					type="text"

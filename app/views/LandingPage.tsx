@@ -29,15 +29,11 @@ const COLUMNS = [["movies"], ["shows"], ["books"], ["games", "manga"]].map(
 		keys.map((key) => sections.find((section) => section.key === key)!),
 );
 
-// the island shadow, cast off the L as one shape rather than two boxes
 const ISLAND_DROP =
 	"drop-shadow(0 2px 3px rgba(0,0,0,0.4)) drop-shadow(0 8px 10px rgba(0,0,0,0.35)) drop-shadow(0 16px 20px rgba(0,0,0,0.2))";
 const ISLAND_LIP = "shadow-[inset_0_1px_0_rgba(255,255,255,0.07)]";
-// the footer's own bottom padding -- the L's tail stops short of the window edge by the same
 const FOOTER_EDGE = 16;
-// the L's recent row runs under all four columns, one item each
 const L_SPAN = 4;
-// nudges the whole block off dead centre, in rem -- negative is up, positive is down
 const SHIFT = 0;
 
 function StatsSkeleton() {
@@ -108,7 +104,7 @@ export default function LandingPage() {
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
 
-	// the L hangs under the row -- room is only added when the window can't hold it, so a tall one never scrolls
+	// the L hangs under the row
 	const groupRef = useRef<HTMLDivElement>(null);
 	const gridRef = useRef<HTMLDivElement>(null);
 	const tailRef = useRef<HTMLDivElement>(null);
@@ -123,7 +119,6 @@ export default function LandingPage() {
 		if (!group || !grid || !tail || !footer) return;
 		const measure = () => {
 			let next = 0;
-			// hidden below lg -- a hidden tail has no offsetParent
 			if (tail.offsetParent) {
 				const hang =
 					tail.getBoundingClientRect().bottom -
@@ -135,11 +130,10 @@ export default function LandingPage() {
 					parseFloat(
 						getComputedStyle(document.documentElement).fontSize,
 					);
-				// centred, the row ends at the same place whatever the padding -- the tail can hang beside the footer
+				// centred
 				const lands = (room + body) / 2 + hang + shift;
 				const top = (room - body) / 2 + shift;
 				if (lands > window.innerHeight - FOOTER_EDGE || top < 0)
-					// too short: tip into scrolling, the header and the tail both kept on the page
 					next = Math.ceil(
 						Math.max(
 							(room - body) / 2,
@@ -210,7 +204,7 @@ export default function LandingPage() {
 			<section
 				key={section.name}
 				aria-label={section.name}
-				className="flex flex-col gap-4 rounded-2xl bg-[#121212] p-4 shadow-island sm:p-5"
+				className="flex flex-col gap-4 rounded-2xl bg-[#121212] p-4 shadow-island"
 			>
 				{/* ── button ── */}
 				{libraryButton(section)}
@@ -235,37 +229,35 @@ export default function LandingPage() {
 		);
 	};
 
-	// a reverse L -- the button tucks under the card above, its recent row runs back under every column, stats hang under the last
+	// a reverse L
 	const renderLibraryL = (section: Section) => {
 		const recent = recentMedias?.[section.key]?.slice(0, L_SPAN);
 		return (
 			<div
 				aria-label={section.name}
-				className="relative -mb-6 hidden flex-1 lg:block"
+				className="relative -mb-5 hidden flex-1 lg:block"
 				style={{ filter: ISLAND_DROP }}
 			>
 				{/* ── upright, just the button -- a pixel over the foot hides the seam ── */}
 				<div
-					className={`absolute inset-x-0 top-0 -bottom-px z-10 rounded-t-2xl bg-[#121212] p-5 ${ISLAND_LIP}`}
+					className={`absolute inset-x-0 top-0 -bottom-px z-10 rounded-t-2xl bg-[#121212] p-4 ${ISLAND_LIP}`}
 				>
 					{libraryButton(section)}
 				</div>
 				{/* ── foot ── */}
 				<div
-					className={`absolute top-full right-0 w-[calc(400%+4.5rem)] rounded-2xl rounded-r-none bg-[#121212] p-5 ${ISLAND_LIP}`}
+					className={`absolute top-full right-0 w-[calc(400%+3.75rem)] rounded-2xl rounded-r-none bg-[#121212] p-4 ${ISLAND_LIP}`}
 				>
-					{/* the card gap plus both cards' padding, so each item sits under its column's own list */}
-					<div className="grid grid-cols-4 gap-x-16">
+					<div className="grid grid-cols-4 gap-x-13">
 						{Array.from({ length: L_SPAN }, (_, i) => {
 							const item = recent?.[i];
 							if (recent ? !item : !isLoading) return null;
 							return (
 								<div key={i} className="relative">
-									{/* ── a hairline down the middle of the gap, level with the seam between cards ── */}
 									{i > 0 && (
 										<span
 											aria-hidden
-											className="absolute inset-y-0 -left-8 w-px bg-linear-to-b from-transparent via-zinc-700/75 to-transparent"
+											className="absolute inset-y-0 -left-6.5 w-px bg-linear-to-b from-transparent via-zinc-700/75 to-transparent"
 										/>
 									)}
 									{item ? (
@@ -287,7 +279,7 @@ export default function LandingPage() {
 					{/* ── tail, the stats under the last item -- one column wide ── */}
 					<div
 						ref={tailRef}
-						className="absolute top-full right-0 w-[calc(25%-1.125rem)] rounded-b-2xl bg-[#121212] px-5 pb-5"
+						className="absolute top-full right-0 w-[calc(25%-0.9375rem)] rounded-b-2xl bg-[#121212] px-4 pb-4"
 					>
 						<div className="-mt-2">{libraryStats(section)}</div>
 						{/* ── the lower inside corner ── */}
@@ -301,7 +293,6 @@ export default function LandingPage() {
 						/>
 					</div>
 				</div>
-				{/* ── the upper inside corner -- a pixel into the foot so its lip bends round instead of running under ── */}
 				<div
 					aria-hidden
 					className="absolute right-full -bottom-px z-10 h-4.25 w-4"
@@ -362,7 +353,7 @@ export default function LandingPage() {
 				{/* THE LIBRARIES */}
 				<div
 					ref={gridRef}
-					className="mt-6 grid w-full max-w-425 grid-cols-1 items-start gap-5 px-4 sm:mt-10 sm:grid-cols-2 sm:gap-6 sm:px-6 lg:grid-cols-4 lg:items-stretch"
+					className="mt-6 grid w-full max-w-425 grid-cols-1 items-start gap-5 px-4 sm:mt-10 sm:grid-cols-2 sm:px-6 lg:grid-cols-4 lg:items-stretch"
 				>
 					{COLUMNS.map((column) =>
 						column.length === 1 ? (
@@ -372,10 +363,9 @@ export default function LandingPage() {
 								key={column
 									.map((section) => section.key)
 									.join("+")}
-								className="flex flex-col gap-5 sm:gap-6"
+								className="flex flex-col gap-5"
 							>
 								{renderLibrary(column[0], 3)}
-								{/* a plain card until the columns sit side by side */}
 								<div className="lg:hidden">
 									{renderLibrary(column[1], 2)}
 								</div>

@@ -1,9 +1,12 @@
 "use client";
 import { useState, useRef, useEffect, useCallback } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import type { Transition } from "framer-motion";
 import { ModalBackdrop } from "@/app/components/ui/ModalMotion";
-import { Clapperboard, Loader2 } from "lucide-react";
+import {
+	SearchCard,
+	SearchFields,
+	SearchReason,
+} from "@/app/components/ui/SearchCard";
+import { Clapperboard } from "lucide-react";
 import { MovieProps } from "@/types/movie";
 import { ShowProps } from "@/types/show";
 import { SeriesTargetProps } from "@/types/media";
@@ -12,13 +15,6 @@ import { MovieDetails } from "./MovieDetailsHub";
 import { useMovieSearch } from "@/hooks/external/useMovieSearch";
 import { buildCover } from "@/utils/coverColor";
 import { findOnlyNamed, isRealTmdbId } from "@/utils/mediaMatch";
-
-// same curve as the watch-order drawer
-const REVEAL: Transition = {
-	duration: 0.34,
-	ease: [0.16, 1, 0.3, 1],
-	opacity: { duration: 0.2 },
-};
 
 interface AddMovieProps {
 	isOpen: boolean;
@@ -77,7 +73,6 @@ export function AddMovie({
 	const { searchForMovie, isMovieSearching } = useMovieSearch();
 	// just your normal movie
 	const [movieOnly, setMovieOnly] = useState(false);
-	const reduced = useReducedMotion();
 
 	const reset = useCallback(() => {
 		setFailedReason("");
@@ -342,134 +337,39 @@ export function AddMovie({
 
 	if (!isOpen) return null;
 
-	const shownReason = isMovieSearching ? "" : failedReason;
-	const yearShut = reduced
-		? { opacity: 0 }
-		: { width: 0, marginLeft: 0, opacity: 0 };
-	const yearOpen = reduced
-		? { opacity: 1 }
-		: { width: "11rem", marginLeft: "0.75rem", opacity: 1 };
-	const rowShut = reduced ? { opacity: 0 } : { height: 0, opacity: 0 };
-	const rowOpen = reduced ? { opacity: 1 } : { height: "auto", opacity: 1 };
-
 	return (
 		<ModalBackdrop className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-30">
 			<div className="fixed inset-0" onClick={onClose} />
 			{!targetFromAbove || needYear || isDupTitle ? (
-				<div className="bg-linear-to-b from-zinc-950/80 to-zinc-900/50 backdrop-blur-xl border border-zinc-800/50 rounded-2xl p-6 w-full max-w-xl mx-4 relative">
-					<h2 className="mb-4 flex justify-center">
-						<button
-							type="button"
-							onClick={toggleAdvanced}
-							disabled={isMovieSearching}
-							aria-expanded={needYear}
-							className="flex items-center gap-2 rounded-lg text-xl font-semibold text-zinc-300/90 transition-colors duration-200 ease-out hover:cursor-pointer hover:text-zinc-100 disabled:cursor-default focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-zinc-400"
-						>
-							<Clapperboard className="w-5 h-5" />
-							Search for New Movie
-						</button>
-					</h2>
-					<div className="flex">
-						<div className="relative min-w-0 flex-1">
-							<input
-								type="text"
-								ref={titleToSearch}
-								placeholder="Search for movie..."
-								onKeyDown={handleKeyPress}
-								onInput={eraseErrMsg}
-								disabled={isMovieSearching}
-								className={`w-full bg-zinc-800/50 border border-zinc-800/50 rounded-xl px-4 py-3 text-zinc-300 font-medium placeholder-zinc-400 focus:border-zinc-800 focus:ring-1 focus:ring-zinc-900/50 outline-none transition-all duration-200 shadow-lg shadow-black/20 ${
-									!needYear
-										? "pr-11"
-										: isMovieSearching
-											? "pr-37.75"
-											: "pr-31.75"
-								}`}
-							/>
-							{isMovieSearching && (
-								<Loader2
-									className={`pointer-events-none absolute top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-zinc-500 ${
-										needYear ? "right-31.25" : "right-4"
-									}`}
-								/>
-							)}
-						</div>
-						<AnimatePresence initial={false}>
-							{needYear && (
-								<motion.div
-									key="year"
-									initial={yearShut}
-									animate={yearOpen}
-									exit={yearShut}
-									transition={REVEAL}
-									className="order-2 ml-3 w-44 shrink-0 overflow-clip"
-								>
-									<input
-										type="number"
-										ref={yearToSearch}
-										placeholder="Release Year"
-										onKeyDown={handleKeyPress}
-										onInput={eraseErrMsg}
-										disabled={isMovieSearching}
-										className="w-full bg-zinc-800/50 border border-zinc-800/50 rounded-xl px-4 py-3 text-zinc-300 font-medium placeholder-zinc-400 focus:border-zinc-800 focus:ring-1 focus:ring-zinc-900/50 outline-none transition-all duration-200"
-									/>
-								</motion.div>
-							)}
-						</AnimatePresence>
-						<AnimatePresence initial={false}>
-							{needYear && (
-								<motion.button
-									key="only"
-									type="button"
-									role="switch"
-									aria-checked={movieOnly}
-									initial={{ opacity: 0, x: 6 }}
-									animate={{ opacity: 1, x: 0 }}
-									exit={{ opacity: 0, x: 6 }}
-									transition={REVEAL}
-									onMouseDown={(e) => e.preventDefault()}
-									onClick={() => {
-										eraseErrMsg();
-										setMovieOnly((only) => !only);
-									}}
-									onKeyDown={handleKeyPress}
-									disabled={isMovieSearching}
-									title="Log it as a movie even when it sits on an anime chain"
-									className={`relative order-1 mr-2.75 -ml-28.75 flex w-26 shrink-0 items-center justify-center gap-1.5 self-center rounded-lg py-1.5 text-xs font-semibold tracking-wide outline-none transition-colors duration-200 ease-out hover:cursor-pointer focus-visible:text-zinc-200 disabled:cursor-default disabled:opacity-50 ${
-										movieOnly
-											? "neu-carved-in text-blue-300"
-											: "neu-carved hover:neu-carved-hi text-zinc-500 hover:text-zinc-300"
-									}`}
-								>
-									<span
-										className={`h-1.5 w-1.5 rounded-full transition-colors duration-200 ${
-											movieOnly
-												? "bg-blue-300"
-												: "bg-zinc-600"
-										}`}
-									/>
-									Only movie
-								</motion.button>
-							)}
-						</AnimatePresence>
-					</div>
-					<AnimatePresence initial={false}>
-						{shownReason && (
-							<motion.div
-								key="reason"
-								initial={rowShut}
-								animate={rowOpen}
-								exit={rowShut}
-								transition={REVEAL}
-								className="overflow-clip"
-							>
-								<p className="pt-3 pl-4.25 text-sm font-medium text-zinc-400">
-									{shownReason}
-								</p>
-							</motion.div>
-						)}
-					</AnimatePresence>
-				</div>
+				<SearchCard
+					icon={Clapperboard}
+					label="Search for New Movie"
+					onLabelClick={toggleAdvanced}
+					expanded={needYear}
+					disabled={isMovieSearching}
+				>
+					<SearchFields
+						titleRef={titleToSearch}
+						placeholder="Search for movie..."
+						onKeyDown={handleKeyPress}
+						onInput={eraseErrMsg}
+						searching={isMovieSearching}
+						advanced={{
+							open: needYear,
+							yearRef: yearToSearch,
+							toggle: {
+								label: "Only movie",
+								on: movieOnly,
+								onChange: () => {
+									eraseErrMsg();
+									setMovieOnly((only) => !only);
+								},
+								hint: "Log it as a movie even when it sits on an anime chain",
+							},
+						}}
+					/>
+					<SearchReason text={isMovieSearching ? "" : failedReason} />
+				</SearchCard>
 			) : (
 				<input
 					type="text"
