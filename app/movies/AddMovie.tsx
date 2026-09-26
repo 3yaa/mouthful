@@ -286,8 +286,6 @@ export function AddMovie({
 
 	const handleKeyPress = (e: React.KeyboardEvent) => {
 		if (e.key !== "Enter") return;
-		// on the switch, Enter searches instead of flipping it back
-		e.preventDefault();
 		e.stopPropagation();
 		// nothing to search yet -- enter opens the row instead
 		if (!titleToSearch.current?.value.trim()) {

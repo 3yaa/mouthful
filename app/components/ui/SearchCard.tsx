@@ -219,7 +219,9 @@ export function SearchFields({
 								// keeps the caret in the field
 								onMouseDown={(e) => e.preventDefault()}
 								onClick={advanced.toggle.onChange}
-								onKeyDown={onKeyDown}
+								onKeyDown={(e) => {
+									if (e.key === "Enter") e.stopPropagation();
+								}}
 								disabled={searching}
 								title={advanced.toggle.hint}
 								className={`${TOGGLE_BOX} group/tog absolute top-1/2 right-2 -translate-y-1/2 outline-none transition-[background,box-shadow] duration-200 ease-out enabled:hover:cursor-pointer enabled:hover:neu-carved-hi focus-visible:neu-carved-hi`}

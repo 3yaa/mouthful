@@ -102,7 +102,7 @@ export function AddShow({
 		const showBare = await searchForShow(
 			titleSearching,
 			yearSearching,
-			needYear ? (anime ? "anime" : "show") : undefined,
+			needYear && anime ? "anime" : undefined,
 		);
 		if (showBare && "isDuplicate" in showBare) {
 			return {
@@ -218,7 +218,6 @@ export function AddShow({
 
 	const handleKeyPress = (e: React.KeyboardEvent) => {
 		if (e.key !== "Enter") return;
-		e.preventDefault();
 		e.stopPropagation();
 		// nothing to search yet
 		if (!titleToSearch.current?.value.trim()) {
@@ -280,7 +279,7 @@ export function AddShow({
 								label: "Anime",
 								on: anime,
 								onChange: () => setAnime((on) => !on),
-								hint: "Search it as anime - off searches it as a regular show",
+								hint: "Search it as anime - off lets the search detect it",
 							},
 						}}
 					/>
