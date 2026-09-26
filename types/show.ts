@@ -51,7 +51,7 @@ export interface ShowEnrichmentProps {
 export interface ShowSeasonProps extends Partial<AnimeNodeProps> {
 	// tmdb season numbred | anilist slots anilistid-ed
 	season_number?: number;
-	episode_count: number;
+	episode_count: number | null;
 	// --- anime slots only ---
 	number?: string | null; // season number, ie: 3 or 3-2
 	position?: number; // spine position, 1-based

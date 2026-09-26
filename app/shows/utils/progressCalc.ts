@@ -1,5 +1,5 @@
 import { ShowSeasonProps, SlotIndex } from "@/types/show";
-import { episodeCountOf, isMovieSlot } from "./slotRef";
+import { episodeCountOf, isMovieSlot, isOpenEnded } from "./slotRef";
 
 const movieWeight = (slot: ShowSeasonProps, perEpisode: number): number => {
 	const runtime = slot.duration ?? 0;
@@ -11,7 +11,7 @@ export const franchiseEpisodes = (
 	timeline: ShowSeasonProps[],
 	at: SlotIndex,
 	curEp: number,
-): { watched: number; total: number } => {
+): { watched: number; total: number; open: boolean } => {
 	// 1 episode length for the whole bar
 	const perEpisode =
 		timeline.find(
@@ -20,9 +20,11 @@ export const franchiseEpisodes = (
 
 	let completedEps = 0;
 	let totalEps = 0;
+	let open = false;
 
 	for (let i = 0; i < timeline.length; i++) {
 		if (timeline[i].isSide) continue;
+		if (isOpenEnded(timeline[i])) open = true;
 		// movie counted
 		const count = isMovieSlot(timeline[i])
 			? movieWeight(timeline[i], perEpisode)
@@ -39,7 +41,7 @@ export const franchiseEpisodes = (
 			completedEps += movieWeight(on, perEpisode);
 	}
 
-	return { watched: completedEps, total: totalEps };
+	return { watched: completedEps, total: totalEps, open };
 };
 
 export const calcCurProgress = (
@@ -50,9 +52,9 @@ export const calcCurProgress = (
 	if (at === 0 && curEp === 0) return 100;
 	if (at === 0 && curEp === 1) return 1;
 
-	const { watched, total } = franchiseEpisodes(timeline, at, curEp);
+	const { watched, total, open } = franchiseEpisodes(timeline, at, curEp);
 	// an airing series has no known total -- a NaN width collapses the bar
-	if (!total) return 100;
+	if (!total || open) return 100;
 
 	return (watched / total) * 100;
 };

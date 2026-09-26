@@ -28,6 +28,7 @@ import {
 	mainOrdinalAt,
 	mainCount,
 	episodeCountOf,
+	isOpenEnded,
 } from "@/app/shows/utils/slotRef";
 import { markOf } from "@/app/shows/utils/animePartMarks";
 import { useStudioCatalog } from "./hooks/useStudioCatalog";
@@ -831,9 +832,12 @@ export function ShowDetails({
 			if (seasonCount) {
 				const last = lastSlotIndex(slotLine);
 				if (last !== -1) {
-					updatesViaStatus.curEpisode = episodeCountOf(
-						slotLine[last],
-					);
+					// no last episode to jump to
+					updatesViaStatus.curEpisode = isOpenEnded(slotLine[last])
+						? realIndex === last
+							? row.curEpisode
+							: 0
+						: episodeCountOf(slotLine[last]);
 					Object.assign(updatesViaStatus, slotRefFor(row, last));
 				}
 			}
@@ -938,7 +942,7 @@ export function ShowDetails({
 			let at = realIndex;
 			let ep = typed;
 			let max = episodeCountOf(slotLine[at]);
-			while (ep > max) {
+			while (ep > max && !isOpenEnded(slotLine[at])) {
 				const next = nextEpisodicIndex(slotLine, at);
 				// end of road
 				if (next === -1 || max <= 0) {
@@ -1028,7 +1032,7 @@ export function ShowDetails({
 				curEp = episodeCountOf(slotLine[prev]);
 			}
 		} else if (dir === "right") {
-			if (curEp < total) {
+			if (curEp < total || isOpenEnded(slotLine[seasonIndex])) {
 				curEp += 1;
 			} else {
 				const next = stepWatchIndex(slotLine, seasonIndex, "right");

@@ -215,7 +215,7 @@ export function parentIndex(
 // isSide about whether the story runs through it
 const asSlot = (item: AnimeSubNodeProps): ShowSeasonProps => ({
 	// side sit under main -- null is what the ui reads
-	episode_count: item.episode_count ?? 0,
+	episode_count: item.episode_count,
 	anilistId: item.anilistId,
 	title: item.title,
 	number: null,
@@ -311,6 +311,12 @@ export const isMovieSlot = (slot?: ShowSeasonProps) => slot?.kind === "film";
 
 export const episodeCountOf = (slot?: ShowSeasonProps): number =>
 	slot?.episode_count ?? 0;
+
+export const isOpenEnded = (slot?: ShowSeasonProps) =>
+	!!slot && !isMovieSlot(slot) && slot.episode_count == null;
+
+export const episodeTotalLabel = (slot?: ShowSeasonProps) =>
+	isOpenEnded(slot) ? "???" : episodeCountOf(slot);
 
 // parent where walk starts -- side that aired first come between
 export function movieIndex(
@@ -516,7 +522,7 @@ export function progressLabel(
 		const minutes = runtimeOf(slot);
 		return minutes ? `${badge} · ${minutes} min` : badge;
 	}
-	return `${badge} · E${curEpisode ?? "-"}/${episodeCountOf(slot)}`;
+	return `${badge} · E${curEpisode ?? "-"}/${episodeTotalLabel(slot)}`;
 }
 
 // the arc name wins where the source names one

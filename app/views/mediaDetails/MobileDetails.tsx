@@ -1183,7 +1183,9 @@ export function MobileDetails<T extends BaseMediaProps>({
 									{franchise ? (
 										<span>
 											Episode: {franchise.watched}/
-											{franchise.total}
+											{franchise.open
+												? "???"
+												: franchise.total}
 										</span>
 									) : isMovieSlot(slotLine[slotAt]) ? (
 										<span>
@@ -1259,7 +1261,9 @@ export function MobileDetails<T extends BaseMediaProps>({
 								<div className="mt-1 flex items-center justify-between text-zinc-400 text-sm font-bold mb-0.5">
 									<span
 										role={
-											isEditingChapter ? undefined : "button"
+											isEditingChapter
+												? undefined
+												: "button"
 										}
 										onClick={() =>
 											onAction({

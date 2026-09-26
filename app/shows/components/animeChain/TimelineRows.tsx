@@ -12,6 +12,7 @@ import {
 } from "@/types/show";
 import {
 	episodeCountOf,
+	episodeTotalLabel,
 	isMovieSlot,
 	slotName,
 } from "@/app/shows/utils/slotRef";
@@ -233,7 +234,7 @@ export function SlotRow({
 	const sizeLabel =
 		episodeCountOf(slot) === 1 && slot.duration
 			? `${slot.duration} min`
-			: `${episodeCountOf(slot)} ep`;
+			: `${episodeTotalLabel(slot)} ep`;
 	const before = moviesBeforeSlot.get(index) ?? [];
 	const after = moviesBySlot.get(index) ?? [];
 	const previous = line[index - 1];

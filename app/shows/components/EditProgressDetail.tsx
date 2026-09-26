@@ -3,6 +3,8 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ShowProps } from "@/types/show";
 import {
 	episodeCountOf,
+	episodeTotalLabel,
+	isOpenEnded,
 	isAnimeRow,
 	isMovieSlot,
 	runtimeOf,
@@ -46,7 +48,7 @@ export function ProgressInput({
 }: {
 	value: number | "";
 	min: number;
-	max: number;
+	max?: number;
 	onChange: (raw: string) => void;
 	onSubmit: () => void;
 	onCancel: () => void;
@@ -57,8 +59,10 @@ export function ProgressInput({
 			value={value}
 			onChange={(e) => onChange(e.target.value)}
 			onKeyDown={(e) => {
+				if (e.key !== "Enter" && e.key !== "Escape") return;
+				e.stopPropagation();
 				if (e.key === "Enter") onSubmit();
-				else if (e.key === "Escape") onCancel();
+				else onCancel();
 			}}
 			onClick={(e) => e.stopPropagation()}
 			onBlur={onSubmit}
@@ -99,6 +103,8 @@ export function EditProgress({
 	const curEpisode = item.curEpisode ?? 0;
 	const curSlot = slotLine[slotAt];
 	const maxEpisodes = episodeCountOf(curSlot);
+	const openEnded = isOpenEnded(curSlot);
+	const totalLabel = episodeTotalLabel(curSlot);
 	//
 	const onSide = !!curSlot?.isSide;
 	const onMovie = isMovieSlot(curSlot);
@@ -457,7 +463,12 @@ export function EditProgress({
 									>
 										{franchise.watched}
 									</span>
-									<span>/{franchise.total}</span>
+									<span>
+										/
+										{franchise.open
+											? "???"
+											: franchise.total}
+									</span>
 								</>
 							) : onMovie ? (
 								<span className="font-medium text-zinc-300/80">
@@ -469,7 +480,11 @@ export function EditProgress({
 										<ProgressInput
 											value={inputValues.episode}
 											min={0}
-											max={maxEpisodes || 1}
+											max={
+												openEnded
+													? undefined
+													: maxEpisodes || 1
+											}
 											onChange={(payload) =>
 												onAction({
 													type: "changeEpisodeInput",
@@ -490,7 +505,7 @@ export function EditProgress({
 									) : isBrowsing ? (
 										viewedComplete ? (
 											<span className="underline text-zinc-500">
-												{maxEpisodes}
+												{totalLabel}
 											</span>
 										) : (
 											<X
@@ -505,7 +520,7 @@ export function EditProgress({
 											{curEpisode}
 										</span>
 									)}
-									<span>/{maxEpisodes}</span>
+									<span>/{totalLabel}</span>
 								</>
 							)}
 						</span>
@@ -539,7 +554,8 @@ export function EditProgress({
 										}
 										disabled={
 											isBrowsing ||
-											(curEpisode === maxEpisodes &&
+											(!openEnded &&
+												curEpisode === maxEpisodes &&
 												watchNext === -1)
 										}
 									>

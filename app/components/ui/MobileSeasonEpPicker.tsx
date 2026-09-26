@@ -3,10 +3,12 @@ import { slotSubtitle, titleCase } from "@/app/shows/utils/animeTitles";
 import { FIRST_SLOT, slotIndexAt } from "@/app/shows/utils/slotRef";
 import { SlotIndex } from "@/types/show";
 
+const OPEN_ENDED_HEADROOM = 100;
+
 interface Season {
 	// tmdb seasons only
 	season_number?: number;
-	episode_count: number;
+	episode_count: number | null;
 	// anilist slots only
 	title?: string | null;
 	number?: string | null;
@@ -118,10 +120,10 @@ export function MobileProgressPicker({
 	});
 
 	const selected = seasons[selectedSeasonIndex];
-	const episodeOptions = Array.from(
-		{ length: selected?.episode_count ?? 0 },
-		(_, i) => i,
-	);
+	const lastEpisode =
+		selected?.episode_count ??
+		Math.max(curEpisode ?? 0, selectedEpisode) + OPEN_ENDED_HEADROOM;
+	const episodeOptions = Array.from({ length: lastEpisode + 1 }, (_, i) => i);
 
 	return (
 		<>
