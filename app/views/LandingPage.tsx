@@ -24,15 +24,21 @@ const sections = [
 ];
 type Section = (typeof sections)[number];
 
-const COLUMNS = [["movies"], ["shows"], ["manga"], ["books", "games"]].map(
+const COLUMNS = [["movies"], ["shows"], ["books"], ["games", "manga"]].map(
 	(keys) =>
 		keys.map((key) => sections.find((section) => section.key === key)!),
 );
 
-// the island shadow, cast off the games L as one shape rather than two boxes
+// the island shadow, cast off the L as one shape rather than two boxes
 const ISLAND_DROP =
 	"drop-shadow(0 2px 3px rgba(0,0,0,0.4)) drop-shadow(0 8px 10px rgba(0,0,0,0.35)) drop-shadow(0 16px 20px rgba(0,0,0,0.2))";
 const ISLAND_LIP = "shadow-[inset_0_1px_0_rgba(255,255,255,0.07)]";
+// the footer's own bottom padding -- the L's tail stops short of the window edge by the same
+const FOOTER_EDGE = 16;
+// the L's recent row runs under all four columns, one item each
+const L_SPAN = 4;
+// nudges the whole block off dead centre, in rem -- negative is up, positive is down
+const SHIFT = 0;
 
 function StatsSkeleton() {
 	return (
@@ -102,26 +108,58 @@ export default function LandingPage() {
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
 
-	// how far the games L hangs under the row -- its tail is the lowest edge
+	// the L hangs under the row -- room is only added when the window can't hold it, so a tall one never scrolls
+	const groupRef = useRef<HTMLDivElement>(null);
 	const gridRef = useRef<HTMLDivElement>(null);
 	const tailRef = useRef<HTMLDivElement>(null);
-	const [overhang, setOverhang] = useState(0);
+	const footerRef = useRef<HTMLElement>(null);
+	const reserveRef = useRef(0);
+	const [reserve, setReserve] = useState(0);
 	useLayoutEffect(() => {
+		const group = groupRef.current;
 		const grid = gridRef.current;
 		const tail = tailRef.current;
-		if (!grid || !tail) return;
+		const footer = footerRef.current;
+		if (!group || !grid || !tail || !footer) return;
 		const measure = () => {
-			// hidden below lg -- a hidden tail reads as a zero rect
-			const below =
-				tail.getBoundingClientRect().bottom -
-				grid.getBoundingClientRect().bottom;
-			setOverhang(tail.offsetParent ? Math.max(0, below) : 0);
+			let next = 0;
+			// hidden below lg -- a hidden tail has no offsetParent
+			if (tail.offsetParent) {
+				const hang =
+					tail.getBoundingClientRect().bottom -
+					grid.getBoundingClientRect().bottom;
+				const body = group.offsetHeight - 2 * reserveRef.current;
+				const room = window.innerHeight - footer.offsetHeight;
+				const shift =
+					SHIFT *
+					parseFloat(
+						getComputedStyle(document.documentElement).fontSize,
+					);
+				// centred, the row ends at the same place whatever the padding -- the tail can hang beside the footer
+				const lands = (room + body) / 2 + hang + shift;
+				const top = (room - body) / 2 + shift;
+				if (lands > window.innerHeight - FOOTER_EDGE || top < 0)
+					// too short: tip into scrolling, the header and the tail both kept on the page
+					next = Math.ceil(
+						Math.max(
+							(room - body) / 2,
+							hang + shift - footer.offsetHeight + FOOTER_EDGE,
+							-shift,
+						),
+					);
+			}
+			reserveRef.current = next;
+			setReserve(next);
 		};
 		measure();
 		const observer = new ResizeObserver(measure);
 		observer.observe(grid);
 		observer.observe(tail);
-		return () => observer.disconnect();
+		window.addEventListener("resize", measure);
+		return () => {
+			observer.disconnect();
+			window.removeEventListener("resize", measure);
+		};
 	}, []);
 
 	const libraryButton = (section: Section) => (
@@ -197,9 +235,9 @@ export default function LandingPage() {
 		);
 	};
 
-	// games as a reverse L -- the button tucks under books, two games run under manga and books, stats hang under the right one
-	const renderGamesL = (section: Section) => {
-		const recent = recentMedias?.[section.key]?.slice(0, 2);
+	// a reverse L -- the button tucks under the card above, its recent row runs back under every column, stats hang under the last
+	const renderLibraryL = (section: Section) => {
+		const recent = recentMedias?.[section.key]?.slice(0, L_SPAN);
 		return (
 			<div
 				aria-label={section.name}
@@ -212,33 +250,44 @@ export default function LandingPage() {
 				>
 					{libraryButton(section)}
 				</div>
-				{/* ── foot, under manga and books ── */}
+				{/* ── foot ── */}
 				<div
-					className={`absolute top-full right-0 w-[calc(200%+1.5rem)] rounded-2xl rounded-r-none bg-[#121212] p-5 ${ISLAND_LIP}`}
+					className={`absolute top-full right-0 w-[calc(400%+4.5rem)] rounded-2xl rounded-r-none bg-[#121212] p-5 ${ISLAND_LIP}`}
 				>
-					<div className="grid grid-cols-2 gap-x-2">
-						{[0, 1].map((i) =>
-							recent
-								? recent[i] && (
+					{/* the card gap plus both cards' padding, so each item sits under its column's own list */}
+					<div className="grid grid-cols-4 gap-x-16">
+						{Array.from({ length: L_SPAN }, (_, i) => {
+							const item = recent?.[i];
+							if (recent ? !item : !isLoading) return null;
+							return (
+								<div key={i} className="relative">
+									{/* ── a hairline down the middle of the gap, level with the seam between cards ── */}
+									{i > 0 && (
+										<span
+											aria-hidden
+											className="absolute inset-y-0 -left-8 w-px bg-linear-to-b from-transparent via-zinc-700/75 to-transparent"
+										/>
+									)}
+									{item ? (
 										<RecentItems
-											key={i}
-											items={[recent[i]]}
+											items={[item]}
 											mediaType={section.key}
 											href={section.href}
 											onNavigate={() =>
 												flash(listingOf(section.href))
 											}
 										/>
-									)
-								: isLoading && (
-										<RecentSkeleton key={i} rows={1} />
-									),
-						)}
+									) : (
+										<RecentSkeleton rows={1} />
+									)}
+								</div>
+							);
+						})}
 					</div>
-					{/* ── tail, the stats under the right game ── */}
+					{/* ── tail, the stats under the last item -- one column wide ── */}
 					<div
 						ref={tailRef}
-						className="absolute top-full right-0 w-[calc(50%-0.75rem)] rounded-b-2xl bg-[#121212] px-5 pb-5"
+						className="absolute top-full right-0 w-[calc(25%-1.125rem)] rounded-b-2xl bg-[#121212] px-5 pb-5"
 					>
 						<div className="-mt-2">{libraryStats(section)}</div>
 						{/* ── the lower inside corner ── */}
@@ -297,10 +346,11 @@ export default function LandingPage() {
 				/>
 			</div>
 
-			{/* room for the foot, even on both sides so the centre never moves */}
+			{/* even on both sides, so the centre never moves */}
 			<div
+				ref={groupRef}
 				className="relative z-10 my-auto flex w-full flex-col items-center"
-				style={{ paddingBlock: overhang }}
+				style={{ paddingBlock: reserve, translate: `0 ${SHIFT}rem` }}
 			>
 				{/* HEADER */}
 				<header className="mt-8 shrink-0 text-center lg:mt-0">
@@ -329,7 +379,7 @@ export default function LandingPage() {
 								<div className="lg:hidden">
 									{renderLibrary(column[1], 2)}
 								</div>
-								{renderGamesL(column[1])}
+								{renderLibraryL(column[1])}
 							</div>
 						),
 					)}
@@ -337,7 +387,10 @@ export default function LandingPage() {
 			</div>
 
 			{/* FOOTER */}
-			<footer className="relative z-10 shrink-0 pt-10 pb-4 text-sm tracking-wide text-zinc-600">
+			<footer
+				ref={footerRef}
+				className="relative z-10 shrink-0 pt-10 pb-4 text-sm tracking-wide text-zinc-600"
+			>
 				© {new Date().getFullYear()} Mouthful
 			</footer>
 		</main>
