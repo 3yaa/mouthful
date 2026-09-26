@@ -14,6 +14,10 @@ const statusConfig = {
 		textStyle: "text-rose-dusk-lit/90",
 		bgStyle: "to-rose-dusk/12",
 	},
+	Reading: {
+		textStyle: "text-rose-dusk-lit/90",
+		bgStyle: "to-rose-dusk/12",
+	},
 	Playing: {
 		textStyle: "text-blue-500/80",
 		bgStyle: "to-blue-500/10",
@@ -53,6 +57,13 @@ export const movieStatusOptions = createStatusOptions([
 export const showStatusOptions = createStatusOptions([
 	"Watching",
 	"Want to Watch",
+	"Completed",
+	"Dropped",
+]);
+
+export const mangaStatusOptions = createStatusOptions([
+	"Reading",
+	"Want to Read",
 	"Completed",
 	"Dropped",
 ]);

@@ -1,7 +1,12 @@
 import React, { ReactNode } from "react";
 import Image from "next/image";
 import { isResizable } from "@/utils/image-loader";
-import { BaseMediaProps, ColumnConfig, SeriesMediaProps } from "@/types/media";
+import {
+	BaseMediaProps,
+	ColumnConfig,
+	SeriesMediaProps,
+	isPrintMedia,
+} from "@/types/media";
 import { GameProps } from "@/types/game";
 import { formatDateShort, splitCredits } from "@/utils/formattingUtils";
 import { CreditNames } from "../mediaDetails/shared/CreditNames";
@@ -19,9 +24,14 @@ import {
 	ShowProgressBarDesktop,
 	ShowProgressCount,
 } from "@/app/shows/components/showProgressListing";
+import {
+	MangaProgressBarDesktop,
+	MangaProgressCount,
+} from "@/app/manga/components/mangaProgressListing";
 import { slotPoster } from "@/app/shows/utils/slotRef";
 import { ShowProps } from "@/types/show";
 import { BookProps } from "@/types/book";
+import { MangaProps } from "@/types/manga";
 import { MovieProps } from "@/types/movie";
 import { Leaf } from "lucide-react";
 import { useLogoPrime } from "../mediaDetails/shared/useLogoPrime";
@@ -70,7 +80,8 @@ export const DesktopItem = React.memo(function DesktopItem<
 				: null
 			: seriesTitleOf(series);
 	const place = seriesPlace(series);
-	const bookItem = item as unknown as BookProps;
+	const isPrint = isPrintMedia(mediaType);
+	const printItem = item as unknown as BookProps | MangaProps;
 	const movieItem = item as unknown as MovieProps;
 	const showItem = item as unknown as ShowProps;
 	// franchise or season poster
@@ -103,7 +114,7 @@ export const DesktopItem = React.memo(function DesktopItem<
 			{/* ISLAND - COVER */}
 			{coverSrc ? (
 				<div className="w-20 aspect-2/3 relative shrink-0 overflow-hidden rounded-md shadow-sm shadow-black/40 bg-linear-to-br from-zinc-800 to-zinc-900">
-					{mediaType === "game" || mediaType === "book" ? (
+					{mediaType === "game" || isPrint ? (
 						<Image
 							src={coverSrc}
 							alt={item.title || "Untitled"}
@@ -199,8 +210,14 @@ export const DesktopItem = React.memo(function DesktopItem<
 							<>
 								<CreditNames
 									names={credits}
-									limit={1}
-									width="max-w-48"
+									limit={
+										mediaType === "manga" ? undefined : 1
+									}
+									width={
+										mediaType === "manga"
+											? "max-w-72"
+											: "max-w-48"
+									}
 								/>
 								<span className="text-zinc-600 shrink-0">
 									·
@@ -226,13 +243,19 @@ export const DesktopItem = React.memo(function DesktopItem<
 								show={item as unknown as ShowProps}
 							/>
 						)}
+						{mediaType === "manga" &&
+							item.status !== "Want to Read" && (
+								<MangaProgressCount
+									manga={item as unknown as MangaProps}
+								/>
+							)}
 						{/* RATING */}
 						{((mediaType === "movie" &&
 							item.status === "Want to Watch" &&
 							movieItem.imdbRating != null) ||
-							(mediaType === "book" &&
+							(isPrint &&
 								item.status === "Want to Read" &&
-								bookItem.rating != null)) && (
+								printItem.rating != null)) && (
 							<span className="flex items-center gap-1 shrink-0 ml-auto">
 								<Leaf
 									className="w-2.25 h-2.25 text-emerald-300/65 fill-emerald-300/15"
@@ -241,7 +264,7 @@ export const DesktopItem = React.memo(function DesktopItem<
 								<span className="text-[0.75rem] tabular-nums text-zinc-400">
 									{(mediaType === "movie"
 										? movieItem.imdbRating
-										: bookItem.rating
+										: printItem.rating
 									)?.toFixed(1)}
 								</span>
 							</span>
@@ -254,6 +277,10 @@ export const DesktopItem = React.memo(function DesktopItem<
 					{mediaType === "show" ? (
 						<ShowProgressBarDesktop
 							show={item as unknown as ShowProps}
+						/>
+					) : mediaType === "manga" ? (
+						<MangaProgressBarDesktop
+							manga={item as unknown as MangaProps}
 						/>
 					) : (
 						<div
@@ -286,9 +313,9 @@ export const DesktopItem = React.memo(function DesktopItem<
 				<div className="h-full origin-left will-change-transform transition-transform duration-420 ease-leave live:translate-x-[20%] live:duration-800 live:ease-arrive live:delay-200">
 					{item.backdropUrl ? (
 						<BackdropDesktop src={item.backdropUrl} />
-					) : mediaType === "book" && bookItem.cover ? (
+					) : isPrint && printItem.cover ? (
 						<BookBackdropDesktop
-							color={bookItem.cover.color}
+							color={printItem.cover.color}
 							title={item.title}
 						/>
 					) : (

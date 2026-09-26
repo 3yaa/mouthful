@@ -9,6 +9,7 @@ import {
 	MediaCoverProps,
 	SeriesMediaProps,
 	SeriesTargetProps,
+	isPrintMedia,
 } from "@/types/media";
 import { GameProps } from "@/types/game";
 import { formatDateShort, splitCredits } from "@/utils/formattingUtils";
@@ -73,6 +74,7 @@ import { MediaTitle, SERIES_TEXT, TITLE_TEXT } from "./shared/MediaTitle";
 import { LOGO_SPEC } from "./shared/logoMetrics";
 import { useArtworkPrime } from "@/hooks/useArtworkPrime";
 import { EditProgress } from "@/app/shows/components/EditProgressDetail";
+import { EditChapter } from "@/app/manga/components/EditChapter";
 import {
 	canNudgeMu,
 	getDisplayScore,
@@ -82,6 +84,7 @@ import {
 import { ShowProps } from "@/types/show";
 import { MovieProps } from "@/types/movie";
 import { BookProps } from "@/types/book";
+import { MangaProps } from "@/types/manga";
 import {
 	ConfirmPrompt,
 	type ConfirmTone,
@@ -130,6 +133,9 @@ interface DesktopDetailsProps<T extends BaseMediaProps> {
 	// book
 	coverUrls?: MediaCoverProps[];
 	coverIndex?: number;
+	// manga
+	isEditingChapter?: boolean;
+	chapterInput?: number | "";
 	// show
 	isBrowsing?: boolean;
 	noteSubject?: string;
@@ -174,6 +180,8 @@ export function DesktopDetails<T extends BaseMediaProps>({
 	logoIndex,
 	editingMode,
 	inputValues,
+	isEditingChapter,
+	chapterInput,
 	differentColumns,
 }: DesktopDetailsProps<T>) {
 	const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -183,11 +191,11 @@ export function DesktopDetails<T extends BaseMediaProps>({
 			e.currentTarget.blur(); // remove focus
 		}
 	};
-	const isBook = mediaType === "book";
+	const isPrint = isPrintMedia(mediaType);
 	const series = item as unknown as SeriesMediaProps;
 	const gameItem = item as unknown as GameProps;
 	const movieItem = item as unknown as MovieProps;
-	const bookItem = item as unknown as BookProps;
+	const printItem = item as unknown as BookProps | MangaProps;
 	const showRow = item as unknown as ShowProps;
 	const isPicking = isAdding || !!isSelecting;
 
@@ -196,20 +204,20 @@ export function DesktopDetails<T extends BaseMediaProps>({
 			urls: posterUrls,
 			index: posterIndex,
 			spec: POSTER_SPEC,
-			enabled: isPicking && !isBook,
+			enabled: isPicking && !isPrint,
 			palette: true,
 		},
 		{
 			urls: coverUrls?.map((cover) => cover.url),
 			index: coverIndex,
 			spec: POSTER_SPEC,
-			enabled: isPicking && isBook,
+			enabled: isPicking && isPrint,
 		},
 		{
 			urls: backdropUrls,
 			index: backdropIndex,
 			spec: BACKDROP_SPEC,
-			enabled: isPicking && !isBook,
+			enabled: isPicking && !isPrint,
 		},
 		{
 			urls: logoUrls,
@@ -236,12 +244,12 @@ export function DesktopDetails<T extends BaseMediaProps>({
 
 	// POSTER STUFF
 	const activeCover =
-		(isBook && isPicking ? coverUrls?.[coverIndex ?? 0] : undefined) ??
+		(isPrint && isPicking ? coverUrls?.[coverIndex ?? 0] : undefined) ??
 		item.cover ??
 		undefined;
 	//
-	const posterCount = (isBook ? coverUrls?.length : posterUrls?.length) ?? 0;
-	const posterPos = (isBook ? coverIndex : posterIndex) ?? 0;
+	const posterCount = (isPrint ? coverUrls?.length : posterUrls?.length) ?? 0;
+	const posterPos = (isPrint ? coverIndex : posterIndex) ?? 0;
 	const isAnimeShow = mediaType === "show" && isAnimeRow(showRow);
 	//
 	const franchisePoster = wearsRowPoster(showRow);
@@ -389,11 +397,11 @@ export function DesktopDetails<T extends BaseMediaProps>({
 			/>
 		);
 
-	// MORE STUFF -- books only
-	const moreResults = isBook ? (
+	// MORE STUFF -- books and manga
+	const moreResults = isPrint ? (
 		<button
 			className="p-1.5 px-2.5 rounded-lg bg-zinc-800/50 hover:bg-blue-600/20 hover:cursor-pointer transition-all group"
-			onClick={() => onAction({ type: "moreBooks" })}
+			onClick={() => onAction({ type: "moreResults" })}
 			title={"Other results"}
 		>
 			<List className="w-5 h-5 text-gray-400 group-hover:text-blue-400 transition-colors" />
@@ -413,21 +421,25 @@ export function DesktopDetails<T extends BaseMediaProps>({
 
 	// find creator
 	const creditNames =
-		(mediaType === "movie" || mediaType === "show") && !isPicking
+		((mediaType === "movie" || mediaType === "show") && !isPicking) ||
+		mediaType === "manga"
 			? splitCredits(differentColumns[0].getValue(item))
 			: [];
-	//
-	const creditOpens: "director" | "studio" | "creator" | null =
+	const creditOpens: "director" | "studio" | "creator" | "author" | null =
 		!creditNames.length
 			? null
-			: mediaType === "movie"
-				? "director"
-				: isAnimeShow
-					? "studio"
-					: "creator";
+			: mediaType === "manga"
+				? isPicking
+					? null
+					: "author"
+				: mediaType === "movie"
+					? "director"
+					: isAnimeShow
+						? "studio"
+						: "creator";
 
 	// ---
-	const hasBackdrop = isBook ? !!coverColor : !!imageBackdropUrl;
+	const hasBackdrop = isPrint ? !!coverColor : !!imageBackdropUrl;
 	// ---
 	const showLogoTitle = !!displayLogoUrl;
 	// ---
@@ -449,8 +461,8 @@ export function DesktopDetails<T extends BaseMediaProps>({
 	const externalRating =
 		mediaType === "movie" && item.status === "Want to Watch"
 			? movieItem.imdbRating
-			: isBook && item.status === "Want to Read"
-				? bookItem.rating
+			: isPrint && item.status === "Want to Read"
+				? printItem.rating
 				: null;
 
 	// COMPLETED DATE | RATING
@@ -473,7 +485,7 @@ export function DesktopDetails<T extends BaseMediaProps>({
 				className="shrink-0 flex items-center gap-1.5 tabular-nums"
 				title="Date Completed"
 			>
-				{isBook && (
+				{isPrint && (
 					<BookCheck
 						className="w-3.5 h-3.5 shrink-0 text-zinc-400/70"
 						strokeWidth={1.75}
@@ -494,7 +506,7 @@ export function DesktopDetails<T extends BaseMediaProps>({
 			className="shrink-0 flex items-center gap-1.5 tabular-nums"
 			title="Date Published"
 		>
-			{isBook && (
+			{isPrint && (
 				<Hourglass
 					className="w-3.5 h-3.5 shrink-0 text-zinc-400/70"
 					strokeWidth={1.75}
@@ -508,7 +520,7 @@ export function DesktopDetails<T extends BaseMediaProps>({
 	const metaRow = (
 		<div
 			className={`select-none flex items-center gap-3 text-[0.92rem] font-medium leading-6 text-zinc-200/70 ${
-				isBook
+				isPrint
 					? "justify-center w-[94%] mx-auto -mb-0.5"
 					: "justify-between w-full mt-1.25 mb-0.75"
 			}`}
@@ -545,7 +557,7 @@ export function DesktopDetails<T extends BaseMediaProps>({
 					/>
 				) : (
 					<>
-						{isBook && (
+						{isPrint && (
 							<Feather
 								className="w-3.5 h-3.5 shrink-0 text-zinc-400/70 rotate-280"
 								strokeWidth={1.75}
@@ -584,6 +596,19 @@ export function DesktopDetails<T extends BaseMediaProps>({
 									})
 								}
 							/>
+						) : creditOpens === "author" ? (
+							<CreditNames
+								names={creditNames}
+								width="max-w-72"
+								label="Authors"
+								pickTitle="See their manga"
+								onPick={(name) =>
+									onAction({
+										type: "authorClick",
+										payload: name,
+									})
+								}
+							/>
 						) : creditOpens === "creator" ? (
 							<CreditNames
 								names={creditNames}
@@ -598,7 +623,10 @@ export function DesktopDetails<T extends BaseMediaProps>({
 								}
 							/>
 						) : creditNames.length > 1 ? (
-							<CreditNames names={creditNames} width="max-w-32" />
+							<CreditNames
+								names={creditNames}
+								width={isPrint ? "max-w-72" : "max-w-32"}
+							/>
 						) : (
 							<span
 								className="truncate min-w-0"
@@ -614,7 +642,7 @@ export function DesktopDetails<T extends BaseMediaProps>({
 				)}
 			</span>
 			{/* RIGHT -- RELEASE YEAR | RATING/COMPLETE DATE */}
-			{isBook ? (
+			{isPrint ? (
 				<>
 					{authorSectorDivider}
 					{releaseMeta}
@@ -647,7 +675,7 @@ export function DesktopDetails<T extends BaseMediaProps>({
 				{sidePanel}
 				{/* BACKGROUND BORDER GRADIENT */}
 				<ModalPanel
-					className={`rounded-[1.375rem] p-1.5 py-2 ${isBook ? "lg:min-w-225 lg:max-w-225" : "lg:min-w-230 lg:max-w-230"}`}
+					className={`rounded-[1.375rem] p-1.5 py-2 ${isPrint ? "lg:min-w-225 lg:max-w-225" : "lg:min-w-230 lg:max-w-230"}`}
 					style={{ background: statusBezel(item.status) }}
 				>
 					{/* ACTUAL DETAIL CARD */}
@@ -716,7 +744,7 @@ export function DesktopDetails<T extends BaseMediaProps>({
 										title={"Add " + mediaType}
 									/>
 									{/* NEED YEAR */}
-									{!isBook && (
+									{!isPrint && (
 										<ActionBtn
 											icon={ChevronsUp}
 											tone="blue"
@@ -813,7 +841,9 @@ export function DesktopDetails<T extends BaseMediaProps>({
 								{/* LEFT SIDE -- PIC */}
 								<div
 									className={`relative w-69 shrink-0 bg-[#141414] p-3.5 rounded-xl shadow-island select-none transition-all duration-300 ${
-										isBook ? "" : "pb-0"
+										isPrint
+											? "flex flex-col justify-center"
+											: "pb-0"
 									}`}
 								>
 									{/* art takes the click*/}
@@ -839,7 +869,7 @@ export function DesktopDetails<T extends BaseMediaProps>({
 													: ""
 										}
 									>
-										{!isBook ? (
+										{!isPrint ? (
 											coverSrc ? (
 												<Image
 													src={coverSrc}
@@ -857,7 +887,7 @@ export function DesktopDetails<T extends BaseMediaProps>({
 											)
 										) : (
 											<BookCoverConfig
-												coverUrl={bookItem.cover?.url}
+												coverUrl={printItem.cover?.url}
 												title={item.title}
 												coverUrls={coverUrls}
 												coverIndex={coverIndex}
@@ -869,19 +899,19 @@ export function DesktopDetails<T extends BaseMediaProps>({
 												sizes="(min-width: 2200px) 500px, 250px"
 											/>
 										)}
+										{/* gradient overlay -- rides with the art when a tall card centres it */}
+										<div
+											className="absolute inset-0 pointer-events-none"
+											style={{
+												background:
+													"linear-gradient(to bottom, transparent 0%, rgba(24,24,27,0) 50%, rgba(24,24,27,0.3) 100%)",
+											}}
+										/>
 									</div>
-									{/* gradient overlay */}
-									<div
-										className="absolute inset-0 left-3.5 top-3.5 max-w-62 max-h-93 rounded-lg pointer-events-none"
-										style={{
-											background:
-												"linear-gradient(to bottom, transparent 0%, rgba(24,24,27,0) 50%, rgba(24,24,27,0.3) 100%)",
-										}}
-									/>
 									{/* inner vignette */}
 									<div className="absolute -inset-1 pointer-events-none rounded-xl shadow-[inset_0_0_12px_rgba(0,0,0,0.4)]" />
 									{/* AUTHOR/STUDIO/DIRECTOR/DATES */}
-									{!isBook && metaRow}
+									{!isPrint && metaRow}
 								</div>
 
 								{/* RIGHT SIDE -- DETAILS */}
@@ -896,7 +926,7 @@ export function DesktopDetails<T extends BaseMediaProps>({
 											</div>
 										)}
 									{/* BACKDROP */}
-									{isBook
+									{isPrint
 										? coverColor && (
 												<BookBackdropDetails
 													color={coverColor}
@@ -935,14 +965,17 @@ export function DesktopDetails<T extends BaseMediaProps>({
 												: seriesLabel
 													? "justify-end mb-4"
 													: "justify-end mb-3"
+										} ${
+											// the progress row costs the header its headroom -- a long title grows the card rather than slide under the actions
+											mediaType === "manga" ? "pt-10" : ""
 										}`}
 									>
 										{/* HEADER -- sat over backdrop */}
 										<div
-											className={`relative flex flex-col items-center w-fit max-w-[94%] mx-auto ${isBook ? "-mb-1" : `${showLogoTitle ? "mb-0.5" : "-mb-1"}`}`}
+											className={`relative flex flex-col items-center w-fit max-w-[94%] mx-auto ${isPrint ? "-mb-1" : `${showLogoTitle ? "mb-0.5" : "-mb-1"}`}`}
 										>
 											{/* washblur */}
-											{hasBackdrop && !isBook && (
+											{hasBackdrop && !isPrint && (
 												<div
 													className="absolute -left-5 -right-10 -top-5 -bottom-2 -z-1 pointer-events-none  backdrop-blur-[3px]"
 													style={{
@@ -963,7 +996,7 @@ export function DesktopDetails<T extends BaseMediaProps>({
 											{seriesLabel && (
 												<span
 													className={
-														!isBook
+														!isPrint
 															? SERIES_TEXT.lgScreen
 															: SERIES_TEXT.lg
 													}
@@ -980,15 +1013,15 @@ export function DesktopDetails<T extends BaseMediaProps>({
 												size="lg"
 												className="mx-auto mb-1.5 max-w-full"
 												textClass={
-													!isBook
+													!isPrint
 														? TITLE_TEXT.lgScreen
 														: TITLE_TEXT.lg
 												}
 												underlineColor={underlineColor}
-												isBook={isBook}
+												isBook={isPrint}
 											/>
 										</div>
-										{isBook && metaRow}
+										{isPrint && metaRow}
 										{/* STATUS AND SCORE */}
 										<div className="flex justify-start gap-4 mb-2.5 w-[94%] mx-auto">
 											{/* STAUTS */}
@@ -1170,6 +1203,15 @@ export function DesktopDetails<T extends BaseMediaProps>({
 													onAction={onAction}
 												/>
 											)}
+										{/* MANGA PROGRESS (chapter) */}
+										{mediaType === "manga" && (
+											<EditChapter
+												item={printItem as MangaProps}
+												isEditing={!!isEditingChapter}
+												inputValue={chapterInput ?? 0}
+												onAction={onAction}
+											/>
+										)}
 										{/* NOTES */}
 										<div className="space-y-1.5 mb-2 w-[94%] mx-auto">
 											<label className={FIELD_LABEL}>

@@ -31,11 +31,22 @@ const TITLE_RELIEF = "drop-shadow-[0_2px_8px_rgba(0,0,0,0.55)]";
 const TITLE_BASE = `font-display uppercase ${TITLE_FILL} ${TITLE_RELIEF} text-balance break-words font-bold`;
 //
 
+// --title-scale comes from the title's length -- see titleScale
 export const TITLE_TEXT = {
-	lg: `${TITLE_BASE} text-center max-w-full text-[2.4rem] leading-[1.1] [background-size:100%_1.1em] tracking-[0.03em]`,
-	lgScreen: `${TITLE_BASE} text-center max-w-full text-[2rem] leading-[1.2] [background-size:100%_1.2em] tracking-[0.08em] [text-indent:0.16em]`,
-	sm: `${TITLE_BASE} text-center max-w-full text-[1.7rem] leading-[1.12] [background-size:100%_1.12em] font-medium tracking-[0.06em] [text-indent:0.06em] min-w-0`,
+	lg: `${TITLE_BASE} text-center max-w-full text-[length:calc(2.4rem*var(--title-scale,1))] leading-[1.1] [background-size:100%_1.1em] tracking-[0.03em]`,
+	lgScreen: `${TITLE_BASE} text-center max-w-full text-[length:calc(2rem*var(--title-scale,1))] leading-[1.2] [background-size:100%_1.2em] tracking-[0.08em] [text-indent:0.16em]`,
+	sm: `${TITLE_BASE} text-center max-w-full text-[length:calc(1.7rem*var(--title-scale,1))] leading-[1.12] [background-size:100%_1.12em] font-medium tracking-[0.06em] [text-indent:0.06em] min-w-0`,
 };
+
+// about a line's worth of capitals at the base size
+const TITLE_FIT = 22;
+const MIN_TITLE_SCALE = 0.68;
+
+const titleScale = (title: string) =>
+	Math.max(
+		MIN_TITLE_SCALE,
+		Math.min(1, Math.sqrt(TITLE_FIT / Math.max(title.length, 1))),
+	);
 
 //
 const SERIES_HALO =
@@ -180,7 +191,9 @@ export function MediaTitle({
 	// clicking either puts it into clipboard
 	const copyName = useCallback(() => {
 		navigator.clipboard
-			?.writeText(copyTitle ?? [title, subtitle].filter(Boolean).join(" "))
+			?.writeText(
+				copyTitle ?? [title, subtitle].filter(Boolean).join(" "),
+			)
 			.catch(() => {});
 	}, [copyTitle, title, subtitle]);
 
@@ -214,6 +227,11 @@ export function MediaTitle({
 					ref={textRef}
 					onClick={copyName}
 					className={`${textClass} cursor-pointer select-none`}
+					style={
+						{
+							"--title-scale": titleScale(title || "Untitled"),
+						} as React.CSSProperties
+					}
 				>
 					{titleParts(title || "Untitled").map((part, i) => (
 						<Fragment key={i}>

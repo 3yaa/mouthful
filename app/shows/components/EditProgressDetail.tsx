@@ -32,11 +32,11 @@ const MIN_SHARE = 0.5;
 const MAX_SHARE = 0.7;
 const SHARE_UNITS = 2;
 //
-const NAME_TYPE = "text-[0.9375rem] font-[550]";
-const RING =
+export const NAME_TYPE = "text-[0.9375rem] font-[550]";
+export const RING =
 	"focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-zinc-300";
 
-function ProgressInput({
+export function ProgressInput({
 	value,
 	min,
 	max,
@@ -62,7 +62,7 @@ function ProgressInput({
 			}}
 			onClick={(e) => e.stopPropagation()}
 			onBlur={onSubmit}
-			className="max-w-8 text-center focus:outline-none focus:ring-0 border-0"
+			className="max-w-10 text-center focus:outline-none focus:ring-0 border-0"
 			style={{
 				width: value === "" ? "1ch" : `${value.toString().length}ch`,
 			}}

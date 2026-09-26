@@ -8,6 +8,7 @@ import {
 	MediaCoverProps,
 	SeriesMediaProps,
 	SeriesTargetProps,
+	isPrintMedia,
 } from "@/types/media";
 import { GameProps } from "@/types/game";
 import { ShowProps } from "@/types/show";
@@ -51,6 +52,7 @@ import {
 	coverWave,
 	getStatusBg,
 	getStatusDetailWaveColor,
+	getStatusTextColor,
 } from "@/utils/styleUtils";
 import { slotSubtitle } from "@/app/shows/utils/animeTitles";
 import { activeLogoIndex, isLogoCleared } from "../../../utils/artworkIndex";
@@ -83,6 +85,12 @@ import {
 } from "@/app/shows/utils/slotRef";
 import { canNudgeMu, getDisplayScore, getTierFromMu } from "@/lib/tierConfig";
 import { BookProps } from "@/types/book";
+import { MangaProps } from "@/types/manga";
+import { ProgressInput } from "@/app/shows/components/EditProgressDetail";
+import {
+	chapterProgress,
+	chapterTotal,
+} from "@/app/manga/utils/chapterProgress";
 import { useScrollLock } from "@/hooks/useScrollLock";
 import { ConfirmPrompt } from "@/app/components/ui/ConfirmButton";
 
@@ -174,6 +182,9 @@ interface MobileDetailsProps<T extends BaseMediaProps> {
 	// book only
 	coverUrls?: MediaCoverProps[];
 	coverIndex?: number;
+	// manga only
+	isEditingChapter?: boolean;
+	chapterInput?: number | "";
 	// movie/show
 	posterUrls?: string[];
 	posterIndex?: number;
@@ -212,8 +223,10 @@ export function MobileDetails<T extends BaseMediaProps>({
 	backdropIndex,
 	logoUrls,
 	logoIndex,
+	isEditingChapter,
+	chapterInput,
 }: MobileDetailsProps<T>) {
-	const isBook = mediaType === "book";
+	const isPrint = isPrintMedia(mediaType);
 	const isPicking = isAdding || !!isSelecting;
 	const [isProgressPickerOpen, setIsProgressPickerOpen] = useState(false);
 	const [isScorePickerOpen, setIsScorePickerOpen] = useState(false);
@@ -270,20 +283,26 @@ export function MobileDetails<T extends BaseMediaProps>({
 	const s = item as unknown as SeriesMediaProps;
 	const g = item as unknown as GameProps;
 	const show = item as unknown as ShowProps;
+	const manga = item as unknown as MangaProps;
 	const isAnimeShow = mediaType === "show" && isAnimeRow(show);
 	//
 	const creditNames =
-		(mediaType === "movie" || mediaType === "show") && !isPicking
+		((mediaType === "movie" || mediaType === "show") && !isPicking) ||
+		mediaType === "manga"
 			? splitCredits(differentColumns[0].getValue(item))
 			: [];
-	const creditOpens: "director" | "studio" | "creator" | null =
+	const creditOpens: "director" | "studio" | "creator" | "author" | null =
 		!creditNames.length
 			? null
-			: mediaType === "movie"
-				? "director"
-				: isAnimeShow
-					? "studio"
-					: "creator";
+			: mediaType === "manga"
+				? isPicking
+					? null
+					: "author"
+				: mediaType === "movie"
+					? "director"
+					: isAnimeShow
+						? "studio"
+						: "creator";
 	//
 	const slotAt = slotIndexOf(show);
 	const slotLine = timelineOf(show);
@@ -322,14 +341,14 @@ export function MobileDetails<T extends BaseMediaProps>({
 
 	//
 	const activeCover =
-		(isBook && isPicking ? coverUrls?.[coverIndex ?? 0] : undefined) ??
+		(isPrint && isPicking ? coverUrls?.[coverIndex ?? 0] : undefined) ??
 		item.cover ??
 		undefined;
 
 	const coverSrc = item.cover?.url ?? item.posterUrl;
 
-	const posterCount = (isBook ? coverUrls?.length : posterUrls?.length) ?? 0;
-	const posterPos = (isBook ? coverIndex : posterIndex) ?? 0;
+	const posterCount = (isPrint ? coverUrls?.length : posterUrls?.length) ?? 0;
+	const posterPos = (isPrint ? coverIndex : posterIndex) ?? 0;
 	//
 	const backdropCount = backdropUrls?.length ?? 0;
 	const viewingBackdrop = isPicking && backdropCount > 0 && showBackdrop;
@@ -351,14 +370,14 @@ export function MobileDetails<T extends BaseMediaProps>({
 			urls: posterUrls,
 			index: posterIndex,
 			spec: POSTER_SPEC,
-			enabled: isPicking && !isBook,
+			enabled: isPicking && !isPrint,
 			palette: true,
 		},
 		{
 			urls: coverUrls?.map((cover) => cover.url),
 			index: coverIndex,
 			spec: POSTER_SPEC,
-			enabled: isPicking && isBook,
+			enabled: isPicking && isPrint,
 		},
 		{
 			urls: backdropUrls,
@@ -386,8 +405,8 @@ export function MobileDetails<T extends BaseMediaProps>({
 	const externalRating =
 		mediaType === "movie" && item.status === "Want to Watch"
 			? (item as unknown as MovieProps).imdbRating
-			: isBook && item.status === "Want to Read"
-				? (item as unknown as BookProps).rating
+			: isPrint && item.status === "Want to Read"
+				? (item as unknown as BookProps | MangaProps).rating
 				: null;
 
 	const metaDivider = (
@@ -437,8 +456,8 @@ export function MobileDetails<T extends BaseMediaProps>({
 					key: "moreOptions",
 					icon: ChevronsUp,
 					tone: "blue",
-					label: isBook ? "More" : "Year",
-					action: isBook ? "moreBooks" : "needYearField",
+					label: isPrint ? "More" : "Year",
+					action: isPrint ? "moreResults" : "needYearField",
 				},
 			]
 		: isSelecting
@@ -567,7 +586,7 @@ export function MobileDetails<T extends BaseMediaProps>({
 			</span>
 		) : item.status === "Completed" && item.dateCompleted ? (
 			<span className="shrink-0 flex items-center gap-1.5 tabular-nums">
-				{isBook && (
+				{isPrint && (
 					<BookCheck
 						className="w-3.5 h-3.5 shrink-0 text-zinc-400/70"
 						strokeWidth={1.75}
@@ -833,10 +852,11 @@ export function MobileDetails<T extends BaseMediaProps>({
 								draggable={false}
 								className="object-cover w-full select-none"
 							/>
-						) : isBook ? (
+						) : isPrint ? (
 							<BookCoverConfig
 								coverUrl={
-									(item as unknown as BookProps).cover?.url
+									(item as unknown as BookProps | MangaProps)
+										.cover?.url
 								}
 								title={item.title}
 								coverUrls={coverUrls}
@@ -897,7 +917,7 @@ export function MobileDetails<T extends BaseMediaProps>({
 										size="sm"
 										className="-mt-0.5 mx-auto min-w-0 max-w-full"
 										textClass={TITLE_TEXT.sm}
-										isBook={isBook}
+										isBook={isPrint}
 										underlineColor={underlineColor}
 									/>
 									{/* CURRENT ARC */}
@@ -963,7 +983,7 @@ export function MobileDetails<T extends BaseMediaProps>({
 														/>
 													</button>
 												)}
-											{isBook && (
+											{isPrint && (
 												<Feather
 													className="w-3.5 h-3.5 shrink-0 text-zinc-400/70 rotate-280"
 													strokeWidth={1.75}
@@ -995,6 +1015,19 @@ export function MobileDetails<T extends BaseMediaProps>({
 														})
 													}
 												/>
+											) : creditOpens === "author" ? (
+												<CreditNames
+													names={creditNames}
+													width="max-w-60"
+													label="Authors"
+													pickTitle="See their manga"
+													onPick={(name) =>
+														onAction({
+															type: "authorClick",
+															payload: name,
+														})
+													}
+												/>
 											) : creditOpens === "creator" ? (
 												<CreditNames
 													names={creditNames}
@@ -1011,7 +1044,11 @@ export function MobileDetails<T extends BaseMediaProps>({
 											) : creditNames.length > 1 ? (
 												<CreditNames
 													names={creditNames}
-													width="max-w-32"
+													width={
+														isPrint
+															? "max-w-60"
+															: "max-w-32"
+													}
 												/>
 											) : (
 												<span className="truncate min-w-0">
@@ -1027,7 +1064,7 @@ export function MobileDetails<T extends BaseMediaProps>({
 										{metaDivider}
 										{/* RELEASE YEAR */}
 										<span className="shrink-0 flex items-center gap-1.5 tabular-nums">
-											{isBook && (
+											{isPrint && (
 												<Hourglass
 													className="w-3.5 h-3.5 shrink-0 text-zinc-400/70"
 													strokeWidth={1.75}
@@ -1205,6 +1242,97 @@ export function MobileDetails<T extends BaseMediaProps>({
 										</button>
 									</div>
 								)}
+							</div>
+						)}
+						{/* PROGRESS BAR -- manga only */}
+						{mediaType === "manga" && (
+							// the steppers stand taller than a show's label row
+							<div className="mb-3" data-no-drag>
+								<div className="mt-4.5 w-full bg-zinc-800/80 rounded-md h-1.5 overflow-hidden shadow-md shadow-black/50">
+									<div
+										className={`${getStatusBg(item.status)} h-1.5 transition-all duration-500 ease-out rounded-md`}
+										style={{
+											width: `${chapterProgress(manga)}%`,
+										}}
+									/>
+								</div>
+								<div className="mt-1 flex items-center justify-between text-zinc-400 text-sm font-bold mb-0.5">
+									<span
+										role={
+											isEditingChapter ? undefined : "button"
+										}
+										onClick={() =>
+											onAction({
+												type: "clickChapterInput",
+											})
+										}
+									>
+										Chapter:{" "}
+										{isEditingChapter ? (
+											<ProgressInput
+												value={chapterInput ?? 0}
+												min={0}
+												max={
+													manga.chapters ??
+													Number.MAX_SAFE_INTEGER
+												}
+												onChange={(payload) =>
+													onAction({
+														type: "changeChapterInput",
+														payload,
+													})
+												}
+												onSubmit={() =>
+													onAction({
+														type: "submitChapterInput",
+													})
+												}
+												onCancel={() =>
+													onAction({
+														type: "clickChapterInput",
+													})
+												}
+											/>
+										) : (
+											<span
+												className={`underline ${getStatusTextColor(item.status)}`}
+											>
+												{manga.curChapter ?? 0}
+											</span>
+										)}
+										/{chapterTotal(manga.chapters)}
+									</span>
+									<span className="flex items-center gap-1.5">
+										<button
+											className={MOBILE_SCORE_SUB_BTN}
+											disabled={!manga.curChapter}
+											onClick={() =>
+												onAction({
+													type: "changeChapter",
+													payload: "left",
+												})
+											}
+										>
+											<ChevronLeft className="w-4 h-4" />
+										</button>
+										<button
+											className={MOBILE_SCORE_SUB_BTN}
+											disabled={
+												manga.chapters != null &&
+												(manga.curChapter ?? 0) >=
+													manga.chapters
+											}
+											onClick={() =>
+												onAction({
+													type: "changeChapter",
+													payload: "right",
+												})
+											}
+										>
+											<ChevronRight className="w-4 h-4" />
+										</button>
+									</span>
+								</div>
 							</div>
 						)}
 						{/* STATUS */}

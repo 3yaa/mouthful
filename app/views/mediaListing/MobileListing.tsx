@@ -13,7 +13,7 @@ import { useEffect, useRef, useState } from "react";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { Loading } from "../../components/ui/Loading";
 import { MobileItem } from "./MobileItem";
-import { statusLabel } from "@/utils/formattingUtils";
+import { pluralOf, statusLabel } from "@/utils/formattingUtils";
 
 // default row sizes
 const ROW_FALLBACK = 133;
@@ -238,7 +238,7 @@ export function MobileListing<T extends BaseMediaProps>({
 						</div>
 						<button
 							type="button"
-							aria-label={"Search " + mediaType + "s"}
+							aria-label={"Search " + pluralOf(mediaType)}
 							onClick={(e) => {
 								e.stopPropagation();
 								handleSearchOpen();
@@ -353,7 +353,7 @@ export function MobileListing<T extends BaseMediaProps>({
 						onKeyDown={(e) =>
 							e.key === "Enter" && searchBarRef.current?.blur()
 						}
-						placeholder={"Search " + mediaType + "s..."}
+						placeholder={"Search " + pluralOf(mediaType) + "..."}
 						enterKeyHint="search"
 						autoCapitalize="off"
 						autoCorrect="off"

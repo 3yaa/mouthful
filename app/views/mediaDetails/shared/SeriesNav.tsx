@@ -1,4 +1,4 @@
-// FOR GAME/MOVIE/BOOK
+// FOR GAME/MOVIE/BOOK/MANGA
 import Image from "next/image";
 import {
 	BaseMediaProps,
@@ -129,8 +129,9 @@ export function SeriesNav({
 				: "text-zinc-300/70 group-hover:text-zinc-300/85"
 		}`;
 
-	// show art if there is no series to step through
+	// show art if there is no series to step through -- manga/show goes without
 	if (!nav.prev && !nav.center && !nav.next) {
+		if (mediaType === "manga") return null;
 		const tinted = !!accentColor;
 		return (
 			<div className="-mt-2">

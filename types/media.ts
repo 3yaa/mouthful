@@ -3,10 +3,15 @@ import { Score } from "@/lib/tierConfig";
 export type MediaStatus =
 	| "Completed"
 	| "Want to Read"
+	| "Reading"
 	| "Playing"
 	| "Watching"
 	| "Want to Watch"
 	| "Dropped";
+
+// books and manga
+export const isPrintMedia = (mediaType: string) =>
+	mediaType === "book" || mediaType === "manga";
 
 export type SortState<K extends string> = { type: K; order: "asc" | "desc" };
 
@@ -34,7 +39,7 @@ export interface SeriesTargetProps {
 	title: string;
 }
 
-// jsonb { url, color } -- books, movies and games
+// jsonb { url, color } -- books, manga, movies and games
 export interface MediaCoverProps {
 	url: string;
 	color: string;

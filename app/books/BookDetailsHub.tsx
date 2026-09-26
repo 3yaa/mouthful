@@ -35,7 +35,7 @@ export type BookAction =
 	| { type: "confirmRefresh" }
 	| { type: "cancelRefresh" }
 	| { type: "pickCoverColor"; payload: string }
-	| { type: "moreBooks" };
+	| { type: "moreResults" };
 
 interface BookDetailsProps {
 	book: BookProps;
@@ -195,7 +195,7 @@ export function BookDetails({
 			case "pickCoverColor":
 				handlePickCoverColor(action.payload);
 				break;
-			case "moreBooks":
+			case "moreResults":
 				if (isSelecting) handleShowRefreshResults();
 				else onShowMore?.();
 				break;

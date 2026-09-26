@@ -7,7 +7,7 @@ import { BadgeLink } from "./ShowsBadge";
 import { ListingHeader } from "./ListingHeader";
 import { useFlash } from "@/app/components/RouteFlash";
 import { LISTING_COLUMN, ListingLoader } from "./ListingSkeleton";
-import { statusLabel } from "@/utils/formattingUtils";
+import { pluralOf, statusLabel } from "@/utils/formattingUtils";
 
 // default row size before measurement
 const ROW_FALLBACK = 127;
@@ -349,7 +349,9 @@ export function DesktopListing<T extends BaseMediaProps>({
 								onBlur={() =>
 									!searchQuery && setSearchOpen(false)
 								}
-								placeholder={"Search " + mediaType + "s..."}
+								placeholder={
+									"Search " + pluralOf(mediaType) + "..."
+								}
 								className={`bg-transparent text-sm text-zinc-100 font-medium placeholder-zinc-500 focus:outline-none flex-1 transition-all duration-300 ${
 									searchOpen
 										? "w-full opacity-100 pointer-events-auto"

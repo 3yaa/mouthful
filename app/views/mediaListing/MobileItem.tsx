@@ -1,7 +1,12 @@
 import Image from "next/image";
 import { isResizable } from "@/utils/image-loader";
 import React, { ReactNode } from "react";
-import { BaseMediaProps, ColumnConfig, SeriesMediaProps } from "@/types/media";
+import {
+	BaseMediaProps,
+	ColumnConfig,
+	SeriesMediaProps,
+	isPrintMedia,
+} from "@/types/media";
 import { BackdropImageMobile } from "../../components/ui/BackdropMobile";
 import { formatDateShort, splitCredits } from "@/utils/formattingUtils";
 import { CreditNames } from "../mediaDetails/shared/CreditNames";
@@ -22,6 +27,8 @@ import {
 } from "@/app/shows/utils/slotRef";
 import { GameProps } from "@/types/game";
 import { BookProps } from "@/types/book";
+import { MangaProps } from "@/types/manga";
+import { chapterProgress } from "@/app/manga/utils/chapterProgress";
 import { MovieProps } from "@/types/movie";
 import { Leaf } from "lucide-react";
 import { getDisplayScore } from "@/lib/tierConfig";
@@ -83,8 +90,8 @@ export const MobileItem = React.memo(function MobileItem<
 	const externalRating =
 		mediaType === "movie" && item.status === "Want to Watch"
 			? (item as unknown as MovieProps).imdbRating
-			: mediaType === "book" && item.status === "Want to Read"
-				? (item as unknown as BookProps).rating
+			: isPrintMedia(mediaType) && item.status === "Want to Read"
+				? (item as unknown as BookProps | MangaProps).rating
 				: null;
 
 	// progress
@@ -95,7 +102,9 @@ export const MobileItem = React.memo(function MobileItem<
 			? episodeCountOf(slotLine[slotAt])
 				? calcCurProgress(slotLine, slotAt, show.curEpisode ?? 0)
 				: 100
-			: 0;
+			: mediaType === "manga"
+				? chapterProgress(item as unknown as MangaProps)
+				: 0;
 
 	const metaDot = <span className="text-zinc-600 shrink-0">·</span>;
 	const credits = splitCredits(differentColumns[0].getValue(item));
@@ -184,8 +193,14 @@ export const MobileItem = React.memo(function MobileItem<
 							<>
 								<CreditNames
 									names={credits}
-									limit={1}
-									width="max-w-36"
+									limit={
+										mediaType === "manga" ? undefined : 1
+									}
+									width={
+										mediaType === "manga"
+											? "max-w-52"
+											: "max-w-36"
+									}
 								/>
 								{metaDot}
 							</>
@@ -203,8 +218,8 @@ export const MobileItem = React.memo(function MobileItem<
 								? getDisplayScore(item.score.mu)
 								: "-"}
 						</span>
-						{mediaType === "show" ? (
-							// shows fill to their progress, no season/episode labels
+						{mediaType === "show" || mediaType === "manga" ? (
+							// shows and manga fill to their progress 
 							<div className="w-full bg-zinc-800/80 h-1 rounded-md overflow-hidden">
 								<div
 									className={`relative h-1 ${getStatusBg(item.status)} rounded-md overflow-hidden transition-all duration-500 ease-out`}

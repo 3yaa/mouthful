@@ -2,6 +2,7 @@
 import { ChevronDown, ChevronUp } from "lucide-react";
 import type { ReactNode } from "react";
 import { useReportListingBar } from "@/app/components/RouteFlash";
+import { pluralOf } from "@/utils/formattingUtils";
 
 type SortColumn = { label: string; sortKey: string };
 
@@ -43,7 +44,7 @@ export function ListingHeader({
 				{/* media type + count */}
 				<div className="flex items-baseline gap-2 shrink-0">
 					<span className="text-[0.6875rem] font-bold tracking-[0.22em] uppercase text-zinc-400">
-						{mediaType}s
+						{pluralOf(mediaType)}
 					</span>
 					<span className="text-[0.75rem] font-mono text-zinc-500 tracking-tight">
 						{count ?? "_"}

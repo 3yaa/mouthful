@@ -5,6 +5,7 @@ import { DIFF_COLUMNS_SHOW } from "@/app/shows/utils/showDiffColumns";
 import { DIFF_COLUMNS_MOVIE } from "@/types/movie";
 import { DIFF_COLUMNS_BOOK } from "@/types/book";
 import { DIFF_COLUMNS_GAME } from "@/types/game";
+import { DIFF_COLUMNS_MANGA } from "@/types/manga";
 
 export const LISTING_COLUMN = "w-full md:w-[70%] lg:w-[65%]";
 
@@ -13,6 +14,7 @@ const LISTINGS = {
 	show: DIFF_COLUMNS_SHOW,
 	book: DIFF_COLUMNS_BOOK,
 	game: DIFF_COLUMNS_GAME,
+	manga: DIFF_COLUMNS_MANGA,
 } as const;
 
 export type ListingKind = keyof typeof LISTINGS;

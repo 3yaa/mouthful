@@ -6,6 +6,7 @@ import { isResizable } from "@/utils/image-loader";
 import { getStatusBg, getStatusWaveColor } from "@/utils/styleUtils";
 import { getDisplayScore } from "@/lib/tierConfig";
 import { ShowProps } from "@/types/show";
+import { MangaProps } from "@/types/manga";
 import { calcCurProgress } from "@/app/shows/utils/progressCalc";
 import {
 	episodeCountOf,
@@ -13,6 +14,10 @@ import {
 	slotIndexOf,
 	timelineOf,
 } from "@/app/shows/utils/slotRef";
+import {
+	chapterLabel,
+	chapterProgress,
+} from "@/app/manga/utils/chapterProgress";
 
 // score badge rule
 const scoreLabel = (mu?: number) => {
@@ -132,13 +137,20 @@ export function RecentItems({
 	if (!items || items.length === 0) return null;
 
 	const isShow = mediaType === "shows";
+	const isManga = mediaType === "manga";
 
 	return (
 		<ul className="flex flex-col gap-2">
 			{items.map((item) => {
+				const manga = item as unknown as MangaProps;
 				const { progress, label } = isShow
 					? showProgressOf(item)
-					: { progress: null, label: null };
+					: isManga
+						? {
+								progress: chapterProgress(manga),
+								label: chapterLabel(manga),
+							}
+						: { progress: null, label: null };
 
 				return (
 					<li key={item.id}>
@@ -163,13 +175,13 @@ export function RecentItems({
 								</div>
 								{/* update time */}
 								<div className="flex items-baseline justify-between gap-2 mb-1">
-									<p className="text-zinc-500/90 text-sm font-semibold">
+									<p className="shrink-0 whitespace-nowrap text-zinc-500/90 text-sm font-semibold">
 										{item.lastUpdated
 											? timeAgo(item.lastUpdated)
 											: "–"}
 									</p>
 									{label && (
-										<span className="shrink-0 text-[0.6875rem] font-medium tracking-wide text-zinc-400 tabular-nums transition-[opacity,transform] duration-200 ease-out group-hover/card:translate-x-1 group-hover/card:opacity-0 pr-1 pt-1">
+										<span className="min-w-0 truncate text-[0.6875rem] font-medium tracking-wide text-zinc-400 tabular-nums transition-[opacity,transform] duration-200 ease-out group-hover/card:translate-x-1 group-hover/card:opacity-0 pr-1 pt-1">
 											{label}
 										</span>
 									)}

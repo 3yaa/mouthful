@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, Leaf, Loader2, Tv, X } from "lucide-react";
+import { BookOpen, ChevronLeft, ChevronRight, Loader2, X } from "lucide-react";
 import { motion } from "framer-motion";
 import { useEffect, useRef } from "react";
 import { Loading } from "@/app/components/ui/Loading";
@@ -9,73 +9,50 @@ import { PosterCard } from "@/app/components/ui/PosterCard";
 import { useScrollLock } from "@/hooks/useScrollLock";
 import { useEscapeClose } from "@/hooks/useEscapeClose";
 import { MediaStatus } from "@/types/media";
-import { airSeasonLabel } from "@/utils/formattingUtils";
 import { getStatusBorderColor } from "@/utils/styleUtils";
-import { getTier } from "@/app/shows/utils/episodeRatings";
+import { ScoreLeaf } from "@/app/shows/components/StudioCatalogModal";
 import type {
-	StudioCatalog,
-	StudioSort,
-	StudioWork,
-} from "@/app/shows/utils/studioCatalog";
+	AuthorCatalog,
+	AuthorSort,
+	AuthorWork,
+} from "@/app/manga/utils/authorCatalog";
 
-const FORMAT_LABEL: Record<string, string> = {
-	TV_SHORT: "Shorts",
-	ONA: "ONA",
-	OVA: "OVA",
-	MOVIE: "Movie",
-	SPECIAL: "Special",
-	MUSIC: "Music",
-};
+// the mangaka's usual credit -- only a split one is worth a word
+const FULL_CREDIT = "Story & Art";
 
 const PAGE_BTN =
 	"flex items-center justify-center w-6 h-6 rounded-md text-zinc-400 enabled:hover:text-zinc-100 enabled:hover:bg-zinc-700/60 enabled:cursor-pointer disabled:opacity-25 transition-colors duration-200";
 
-const sizeLine = (work: StudioWork) => {
-	const size =
-		work.format === "MOVIE"
-			? work.duration && `${work.duration}m`
-			: work.episode_count && `${work.episode_count} ep`;
-	return [FORMAT_LABEL[work.format] ?? null, size]
+const sizeLine = (work: AuthorWork) =>
+	work.format === "ONE_SHOT"
+		? "One-shot"
+		: work.chapters
+			? `${work.chapters} ch`
+			: work.status === "RELEASING"
+				? "Ongoing"
+				: null;
+
+const whenLine = (work: AuthorWork) =>
+	[work.startYear, work.role !== FULL_CREDIT ? work.role : null]
 		.filter(Boolean)
 		.join(" · ");
-};
 
-// anilist score
-export function ScoreLeaf({ score, display }: { score: number; display: string }) {
-	const tier = getTier(score / 10);
-	if (!tier) return null;
-	return (
-		<span
-			title="AniList score"
-			className={`${display} shrink-0 items-center gap-0.5 text-[0.6875rem] font-bold tabular-nums text-zinc-300`}
-		>
-			<Leaf
-				className="w-2.5 h-2.5"
-				strokeWidth={2}
-				style={{ color: tier.hex }}
-			/>
-			{(score / 10).toFixed(1)}
-		</span>
-	);
-}
-
-interface StudioCatalogModalProps {
-	studioName: string;
-	catalog: StudioCatalog | null;
+interface AuthorCatalogModalProps {
+	authorName: string;
+	catalog: AuthorCatalog | null;
 	loading: boolean;
-	sort: StudioSort;
-	onSortChange: (sort: StudioSort) => void;
+	sort: AuthorSort;
+	onSortChange: (sort: AuthorSort) => void;
 	onClose: () => void;
-	onPick: (work: StudioWork) => void;
+	onPick: (work: AuthorWork) => void;
 	onPageChange?: (page: number) => void;
 	loadingMore?: boolean;
 	// already existing
-	ownedStatus?: (work: StudioWork) => MediaStatus | undefined;
-	isDropped?: (work: StudioWork) => boolean;
+	ownedStatus?: (work: AuthorWork) => MediaStatus | undefined;
 }
 
-export function StudioCatalogModal({
-	studioName,
+export function AuthorCatalogModal({
+	authorName,
 	catalog,
 	loading,
 	sort,
@@ -83,10 +60,9 @@ export function StudioCatalogModal({
 	onClose,
 	onPick,
 	ownedStatus,
-	isDropped,
 	onPageChange,
 	loadingMore,
-}: StudioCatalogModalProps) {
+}: AuthorCatalogModalProps) {
 	useScrollLock();
 	useEscapeClose(onClose);
 
@@ -121,10 +97,10 @@ export function StudioCatalogModal({
 						</button>
 						<div className="min-w-0">
 							<p className="text-[0.625rem] text-zinc-400/60 font-semibold uppercase tracking-[0.18em] mb-0.5">
-								Studio
+								Author
 							</p>
 							<h2 className="text-zinc-200/90 text-lg font-semibold leading-tight truncate tracking-tight">
-								{catalog?.name ?? studioName}
+								{catalog?.name ?? authorName}
 							</h2>
 						</div>
 					</div>
@@ -202,7 +178,7 @@ export function StudioCatalogModal({
 						)}
 						{!loading && works.length === 0 && (
 							<p className="text-zinc-500 italic text-sm text-center py-20">
-								Nothing found for {studioName}.
+								Nothing found for {authorName}.
 							</p>
 						)}
 						{!loading && works.length > 0 && (
@@ -219,97 +195,58 @@ export function StudioCatalogModal({
 							>
 								{works.map((work) => {
 									const status = ownedStatus?.(work);
-									const dropped = isDropped?.(work) ?? false;
 									return (
 										<PosterCard
 											key={work.anilistId}
 											src={work.posterUrl}
-											alt={work.title ?? "Untitled"}
+											alt={work.title}
 											fallback={
-												<Tv
+												<BookOpen
 													className="w-5 h-5 text-zinc-700"
 													strokeWidth={1.5}
 												/>
 											}
-											zoomOnHover={!dropped}
-											onClick={
-												dropped
-													? undefined
-													: () => onPick(work)
-											}
+											onClick={() => onPick(work)}
 											sizes="(max-width: 640px) 30vw, (max-width: 1024px) 22vw, 13vw"
-											className={`shadow-md shadow-black/50 transition-all duration-300 ease-out ${
-												dropped
-													? "opacity-60"
-													: "hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/60"
-											} ${
+											className={`shadow-md shadow-black/50 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/60 ${
 												status
 													? `${getStatusBorderColor(status)} border-2`
-													: "border-zinc-800/50" +
-														(dropped
-															? ""
-															: " hover:border-zinc-700/60")
+													: "border-zinc-800/50 hover:border-zinc-700/60"
 											}`}
 											badge={
-												<>
-													{dropped && (
-														<div
-															title="Left out of your chain"
-															className="absolute top-1.5 left-1.5 sm:top-2 sm:left-2 z-10 max-w-[calc(100%-0.75rem)] truncate px-1 sm:px-1.5 py-0.5 rounded-md bg-zinc-900/80 backdrop-blur-sm border border-zinc-700/60 text-[0.5625rem] sm:text-[0.625rem] font-semibold uppercase tracking-[0.08em] text-zinc-400 select-none"
-														>
-															Dropped
-														</div>
-													)}
-													{status && (
-														<div className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 z-10 px-1 sm:px-1.5 py-0.5 rounded-md bg-zinc-900/80 backdrop-blur-sm border border-zinc-700/60 text-[0.5625rem] sm:text-[0.625rem] font-semibold uppercase tracking-[0.08em] sm:tracking-[0.12em] text-zinc-300 select-none">
-															In List
-														</div>
-													)}
-													{work.part && (
-														<div className="absolute bottom-1.5 left-1.5 sm:bottom-1 sm:left-1 z-10 max-w-[calc(100%-0.75rem)] sm:max-w-[calc(100%-1rem)] truncate px-1 sm:px-1.5 py-0.5 rounded-md bg-zinc-950/75 backdrop-blur-sm border border-zinc-700/50 text-[0.5625rem] sm:text-[0.625rem] font-semibold text-zinc-300 select-none">
-															{work.base}
-														</div>
-													)}
-												</>
+												status && (
+													<div className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 z-10 px-1 sm:px-1.5 py-0.5 rounded-md bg-zinc-900/80 backdrop-blur-sm border border-zinc-700/60 text-[0.5625rem] sm:text-[0.625rem] font-semibold uppercase tracking-[0.08em] sm:tracking-[0.12em] text-zinc-300 select-none">
+														In List
+													</div>
+												)
 											}
 											footer={
 												<div className="px-2.5 pt-2 pb-1.5">
 													<div className="flex items-baseline justify-between gap-1.5">
 														<p
-															title={
-																work.title ??
-																undefined
-															}
+															title={work.title}
 															className="min-w-0 truncate font-semibold text-zinc-200 text-[0.75rem] leading-snug"
 														>
-															{work.part ??
-																work.base}
+															{work.title}
 														</p>
 														{work.score != null && (
 															<ScoreLeaf
-																score={
-																	work.score
-																}
+																score={work.score}
 																display="hidden sm:flex"
 															/>
 														)}
 													</div>
 													<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between sm:gap-1.5">
 														<span className="truncate text-zinc-400 text-[0.6875rem] font-semibold">
-															{airSeasonLabel(
-																work.startDate,
-															)}
+															{whenLine(work)}
 														</span>
 														<span className="flex shrink-0 items-center gap-1.5">
 															<span className="whitespace-nowrap text-zinc-500 text-[0.6875rem] font-medium">
 																{sizeLine(work)}
 															</span>
-															{work.score !=
-																null && (
+															{work.score != null && (
 																<ScoreLeaf
-																	score={
-																		work.score
-																	}
+																	score={work.score}
 																	display="flex sm:hidden"
 																/>
 															)}

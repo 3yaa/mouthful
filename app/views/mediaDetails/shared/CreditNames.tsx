@@ -84,8 +84,11 @@ export function CreditNames({
 		};
 
 		measure();
+		document.fonts?.ready.then(measure).catch(() => {});
 		const observer = new ResizeObserver(measure);
 		observer.observe(container);
+		// a cut name never grows its own box back
+		if (container.parentElement) observer.observe(container.parentElement);
 		return () => observer.disconnect();
 		// `key` stands in for `names`
 		// eslint-disable-next-line react-hooks/exhaustive-deps

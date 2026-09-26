@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { BattlerCover } from "./BattlerCover";
-import { BaseMediaProps } from "@/types/media";
+import { BaseMediaProps, isPrintMedia } from "@/types/media";
 import { accentBezel, statusBezel } from "@/utils/styleUtils";
 import { ModalBackdrop, ModalPanel } from "@/app/components/ui/ModalMotion";
 import { actions, coverFor, ScoreBattlerUIProps } from "./shared";
@@ -16,7 +16,7 @@ export function ScoreBattlerDesktop<T extends BaseMediaProps>({
 	const coverSwatch = selectedItem.cover?.color?.trim();
 
 	const imgFit =
-		mediaType === "game" || mediaType === "book"
+		mediaType === "game" || isPrintMedia(mediaType ?? "")
 			? "object-cover"
 			: "object-fill";
 

@@ -8,8 +8,8 @@ interface RouteGuardProps {
   children: ReactNode;
 }
 
-// Define which routes require authentication
-const PROTECTED_ROUTES = ["/movies", "/shows", "/books", "/games"];
+// routes require authentication
+const PROTECTED_ROUTES = ["/movies", "/shows", "/books", "/games", "/manga"];
 const PUBLIC_ROUTES = ["/login", "/register"];
 
 export function RouteGuard({ children }: RouteGuardProps) {

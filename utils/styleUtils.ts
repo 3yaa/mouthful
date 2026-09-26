@@ -20,8 +20,9 @@ export const getStatusBorderColor = (status: MediaStatus) => {
 		// movie && show
 		case "Want to Watch":
 			return "border-blue-500/50";
-		// show
+		// show && manga
 		case "Watching":
+		case "Reading":
 			return "border-rose-dusk-vivid/80";
 		// book
 		case "Want to Read":
@@ -44,6 +45,7 @@ export const getStatusAccent = (status: Partial<MediaStatus>) => {
 			// red-500
 			return "#ef4444";
 		case "Watching":
+		case "Reading":
 			// the dusk rose
 			return "var(--color-rose-dusk)";
 		case "Want to Watch":
@@ -81,6 +83,7 @@ export const accentBezel = (
 // the rose goes grubby at the others' dilution -- carries more of itself
 const BEZEL_WEIGHT: Partial<Record<MediaStatus, number>> = {
 	Watching: 1.5,
+	Reading: 1.5,
 };
 
 // details card | score battler | anime rail
@@ -97,14 +100,16 @@ export const statusBezel = (
 		bothEnds,
 	);
 
-// edit progress -- season/episode numbers and their underlines
+// edit progress -- season/episode/chapter numbers and their underlines
 export const getStatusTextColor = (status: MediaStatus) => {
 	switch (status) {
 		case "Completed":
 			return "text-emerald-500/80";
 		case "Watching":
+		case "Reading":
 			return "text-rose-dusk-lit/90";
 		case "Want to Watch":
+		case "Want to Read":
 			return "text-blue-500/85";
 		case "Dropped":
 			return "text-red-500/75";
@@ -123,8 +128,9 @@ export const getStatusBg = (status: Partial<MediaStatus>) => {
 		// movie && show
 		case "Want to Watch":
 			return "bg-blue-600/60";
-		// show
+		// show && manga
 		case "Watching":
+		case "Reading":
 			return "bg-rose-dusk/55";
 		// book
 		case "Want to Read":
@@ -150,6 +156,7 @@ export const getStatusWaveColor = (status: Partial<MediaStatus>) => {
 			// rose-600: rgb(225, 29, 72)
 			return "linear-gradient(90deg, transparent 20%, rgba(225, 29, 72, 0.35) 50%, transparent 80%)";
 		case "Watching":
+		case "Reading":
 			// cyan-600: rgb(8, 145, 178),
 			return "linear-gradient(90deg, transparent 20%, rgba(8, 145, 178, 0.5) 50%, transparent 80%)";
 		case "Want to Read":
@@ -183,6 +190,7 @@ export const getStatusDetailWaveColor = (status: Partial<MediaStatus>) => {
 			// blue-500: rgb(59, 130, 246)
 			return "linear-gradient(90deg, transparent 20%, rgba(59, 130, 246, 0.5) 50%, transparent 80%)";
 		case "Watching":
+		case "Reading":
 			return "linear-gradient(90deg, transparent 20%, color-mix(in srgb, var(--color-rose-dusk) 60%, transparent) 50%, transparent 80%)";
 		case "Want to Read":
 			// blue-500: rgb(59, 130, 246)
@@ -206,6 +214,7 @@ export const getStatusStrokeColor = (status?: MediaStatus): string => {
 		case "Want to Watch":
 			return "rgb(37, 99, 235)"; // blue-600
 		case "Watching":
+		case "Reading":
 			return "color-mix(in srgb, var(--color-rose-dusk) 80%, transparent)";
 		case "Want to Read":
 			return "rgb(37, 99, 235)"; // blue-600

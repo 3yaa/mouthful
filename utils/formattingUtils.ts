@@ -11,6 +11,10 @@ export const formatDateShort = (value?: string | Date | null): string => {
 	});
 };
 
+// "manga" is its own plural
+export const pluralOf = (mediaType: string) =>
+	mediaType === "manga" ? mediaType : `${mediaType}s`;
+
 // credits are stored as , jointed
 export const splitCredits = (value: unknown): string[] =>
 	String(value ?? "")

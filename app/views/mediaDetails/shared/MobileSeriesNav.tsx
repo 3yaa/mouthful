@@ -1,4 +1,4 @@
-// FOR GAME/MOVIE/BOOK
+// FOR GAME/MOVIE/BOOK/MANGA
 import {
 	BaseMediaProps,
 	SeriesMediaProps,
@@ -90,7 +90,9 @@ export function MobileSeriesNav({
 				: ""
 		}`;
 
-	if (!nav.center) return null;
+	// manga links its neighbours without ever knowing its place
+	if (!nav.center && !(mediaType === "manga" && (nav.prev || nav.next)))
+		return null;
 
 	return (
 		<div className="pt-5 grid grid-cols-[1fr_2rem_1fr]" data-no-drag>

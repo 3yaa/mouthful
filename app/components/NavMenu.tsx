@@ -6,6 +6,7 @@ import {
 	Tv,
 	Book,
 	Gamepad2,
+	BookOpen,
 	X,
 	ChevronRight,
 	LogIn,
@@ -45,6 +46,7 @@ const allMenuItems: NavigationItem[] = [
 	{ label: "Movies", icon: Video, path: "/movies" },
 	{ label: "Shows", icon: Tv, path: "/shows" },
 	{ label: "Books", icon: Book, path: "/books" },
+	{ label: "Manga", icon: BookOpen, path: "/manga" },
 	{ label: "Games", icon: Gamepad2, path: "/games" },
 	{ label: "Home", icon: Home, path: "/" },
 ];
@@ -120,7 +122,7 @@ export function NavMenu() {
 						return;
 					setIsNavOpen(!isNavOpen);
 					return;
-				case "5":
+				case "6":
 					if (isNavOpen) {
 						router.push("/");
 						setIsNavOpen(false);
@@ -145,6 +147,12 @@ export function NavMenu() {
 					}
 					return;
 				case "4":
+					if (isNavOpen) {
+						router.push("/manga");
+						setIsNavOpen(false);
+					}
+					return;
+				case "5":
 					if (isNavOpen) {
 						router.push("/games");
 						setIsNavOpen(false);
