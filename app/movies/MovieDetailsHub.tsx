@@ -35,11 +35,11 @@ import { AddMovie } from "@/app/movies/AddMovie";
 import { useAuthFetch } from "@/app/auth/hooks/useAuthFetch";
 import { ShowProps } from "@/types/show";
 import { ShowDetails } from "../shows/ShowDetailsHub";
-import { MediaStatus, SeriesTargetProps } from "@/types/media";
+import { MediaStatus, SeriesJumpProps, SeriesTargetProps } from "@/types/media";
 import { useMovieSearch } from "@/hooks/external/useMovieSearch";
 import { buildCover } from "@/utils/coverColor";
 import { isRealTmdbId } from "@/utils/mediaMatch";
-import { seriesNeighbours } from "@/utils/seriesRead";
+import { seriesJump } from "@/utils/seriesRead";
 // load actor modal dynamically
 const ActorItemsModal = dynamic(
 	() => import("../components/ActorModal").then((m) => m.ActorItemsModal),
@@ -88,7 +88,7 @@ interface MovieDetailsProps {
 		takeAction?: boolean,
 	) => void;
 	addMovie?: () => void | Promise<unknown>;
-	showSequelPrequel?: (target: SeriesTargetProps) => void;
+	showSequelPrequel?: (jump: SeriesJumpProps) => void;
 	isInList?: (target: SeriesTargetProps) => boolean;
 	existingMovies?: MovieProps[];
 	onAddWork?: (movie: MovieProps) => Promise<unknown>;
@@ -506,10 +506,15 @@ export function MovieDetails({
 	};
 
 	// switches modal to new movie in series
-	const handleSeriesNav = (seriesDir: string) => {
-		const { prev, next } = seriesNeighbours(movie);
-		const target = seriesDir === "sequel" ? next : prev;
-		if (target) showSequelPrequel?.(target);
+	const handleSeriesNav = (seriesDir: "prequel" | "sequel") => {
+		// a preview steps
+		const row = isSelecting ? { ...movie, ...reload.meta } : movie;
+		const from = {
+			id: isRealTmdbId(row.tmdbId) ? row.tmdbId : null,
+			title: row.title,
+		};
+		const jump = seriesJump(row, from, seriesDir);
+		if (jump) showSequelPrequel?.(jump);
 	};
 
 	const handleSaveNote = () => {
@@ -588,7 +593,6 @@ export function MovieDetails({
 					isAdding={!!addMovie}
 					onAdd={handleAddMovie}
 					isSubmitting={isSubmitting}
-					onClose={handleModalClose}
 					isInList={isInList}
 					canRefresh={!!onRefresh}
 					logoUrls={art.logos.items}

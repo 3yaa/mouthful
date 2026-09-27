@@ -9,7 +9,7 @@ import {
 } from "@/app/components/ui/SearchCard";
 //
 import { MangaProps, MangaSearchResult } from "@/types/manga";
-import { SeriesTargetProps } from "@/types/media";
+import { SeriesJumpProps, SeriesTargetProps } from "@/types/media";
 //
 import { mapMangaAPIDatatoManga } from "@/app/manga/utils/mangaMapping";
 //
@@ -26,9 +26,9 @@ interface AddMangaProps {
 	existingManga: MangaProps[];
 	// resolves true when the score battler took over the flow
 	onAddManga: (item: MangaProps) => void | Promise<boolean | void>;
-	targetFromAbove?: SeriesTargetProps | null;
+	targetFromAbove?: SeriesJumpProps | null;
 	// keeps prequel/sequel jumps alive while previewing an unadded manga
-	onSeriesNav?: (target: SeriesTargetProps) => void;
+	onSeriesNav?: (jump: SeriesJumpProps) => void;
 	isInList?: (target: SeriesTargetProps) => boolean;
 	onDuplicate?: (dup: { title: string; anilistId?: number }) => boolean;
 }

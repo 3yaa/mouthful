@@ -4,8 +4,12 @@ import {
 	MangaSearchResult,
 	DIFF_COLUMNS_MANGA,
 } from "@/types/manga";
-import { MediaCoverProps, SeriesTargetProps } from "@/types/media";
-import { seriesNeighbours } from "@/utils/seriesRead";
+import {
+	MediaCoverProps,
+	SeriesJumpProps,
+	SeriesTargetProps,
+} from "@/types/media";
+import { seriesJump } from "@/utils/seriesRead";
 import { useEffect, useState } from "react";
 import { DesktopDetails } from "@/app/views/mediaDetails/DesktopDetails";
 import { mangaStatusOptions } from "@/utils/dropDownDetails";
@@ -69,7 +73,7 @@ interface MangaDetailsProps {
 		takeAction?: boolean,
 	) => void;
 	addManga?: () => void | Promise<unknown>;
-	showSequelPrequel?: (target: SeriesTargetProps) => void;
+	showSequelPrequel?: (jump: SeriesJumpProps) => void;
 	isInList?: (target: SeriesTargetProps) => boolean;
 	onShowMore?: () => void;
 	onRefresh?: (metadata: Partial<MangaProps>) => Promise<void>;
@@ -306,7 +310,9 @@ export function MangaDetails({
 	const clampChapter = (chapter: number) =>
 		Math.max(
 			0,
-			manga.chapters != null ? Math.min(chapter, manga.chapters) : chapter,
+			manga.chapters != null
+				? Math.min(chapter, manga.chapters)
+				: chapter,
 		);
 
 	const writeChapter = (chapter: number) => {
@@ -355,11 +361,15 @@ export function MangaDetails({
 		showSequelPrequel?.({ id: String(work.anilistId), title: work.title });
 	};
 
-	const handleSeriesOpen = (seriesDir: string) => {
-		if (!showSequelPrequel) return;
-		const { prev, next } = seriesNeighbours(manga);
-		const target = seriesDir === "sequel" ? next : prev;
-		if (target) showSequelPrequel(target);
+	const handleSeriesOpen = (seriesDir: "prequel" | "sequel") => {
+		// a preview steps from the run it shows
+		const row = isSelecting ? { ...manga, ...reload.meta } : manga;
+		const from = {
+			id: row.anilistId ? String(row.anilistId) : null,
+			title: row.title,
+		};
+		const jump = seriesJump(row, from, seriesDir);
+		if (jump) showSequelPrequel?.(jump);
 	};
 
 	const handleSaveNote = () => {
@@ -442,7 +452,6 @@ export function MangaDetails({
 					isAdding={!!addManga}
 					onAdd={handleAddManga}
 					isSubmitting={isSubmitting}
-					onClose={handleModalClose}
 					canRefresh={!!onRefresh}
 					isInList={isInList}
 					isSelecting={isSelecting}

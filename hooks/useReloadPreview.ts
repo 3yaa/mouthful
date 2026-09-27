@@ -107,6 +107,19 @@ export function useReloadPreview<
 		}
 	}, [commit, setBusy]);
 
+	// preview
+	const stage = useCallback(
+		(next: ReloadPreviewInit<TMeta, TLists, TExtra>) => {
+			if (busyRef.current || previewRef.current) return;
+			commit({
+				meta: next.meta,
+				lists: next.lists,
+				extra: next.extra as TExtra,
+			});
+		},
+		[commit],
+	);
+
 	const cancel = useCallback(() => {
 		commit(null);
 		optsRef.current.onExit?.();
@@ -166,6 +179,7 @@ export function useReloadPreview<
 		meta: (preview?.meta ?? EMPTY_META) as Partial<TMeta>,
 		list,
 		refresh,
+		stage,
 		confirm,
 		cancel,
 		patch,

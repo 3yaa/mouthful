@@ -1134,7 +1134,6 @@ export function ShowDetails({
 						isSelecting={isSelecting}
 						onAdd={handleAddShow}
 						isSubmitting={isSubmitting}
-						onClose={handleModalClose}
 						canRefresh={!!onRefresh}
 						logoUrls={art.logos.items}
 						logoIndex={art.logos.index}

@@ -39,6 +39,17 @@ export interface SeriesTargetProps {
 	title: string;
 }
 
+// the row a prequel/sequel jump left from
+export interface SeriesHopProps {
+	from: SeriesTargetProps;
+	run: SeriesProps;
+	dir: "prequel" | "sequel";
+}
+
+export interface SeriesJumpProps extends SeriesTargetProps {
+	hop?: SeriesHopProps;
+}
+
 // jsonb { url, color } -- books, manga, movies and games
 export interface MediaCoverProps {
 	url: string;

@@ -53,11 +53,11 @@ const SERIES_HALO =
 	"[text-shadow:0_0_3px_rgba(0,0,0,0.95),0_1px_4px_rgba(0,0,0,0.8),0_0_14px_rgba(0,0,0,0.5)]";
 const SERIES_BASE = `font-display uppercase font-normal ${SERIES_HALO} text-balance break-words`;
 //
+const KICKER = `font-display uppercase font-semibold bg-linear-to-b from-zinc-200 to-zinc-400/90 bg-clip-text text-transparent [background-repeat:repeat-y] drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] text-balance break-words text-center max-w-full`;
 
 export const SERIES_TEXT = {
-	lg: `${SERIES_BASE} text-center max-w-full mb-0.5 text-[0.95rem] leading-[1.5] tracking-[0.25em] text-zinc-200/80`,
-	lgScreen: `${SERIES_BASE} text-center max-w-full mb-0.5 text-[0.85rem] leading-[1.5] tracking-[0.28em] text-zinc-400/75`,
-	sm: `${SERIES_BASE} text-center max-w-full -mt-2.5 text-[0.7rem] leading-[1.4] tracking-[0.26em] text-zinc-400/75`,
+	lg: `${KICKER} mb-1 text-[0.9rem] leading-[1.5] [background-size:100%_1.5em] tracking-[0.3em] [text-indent:0.3em]`,
+	sm: `${KICKER} -mt-2.5 text-[0.72rem] leading-[1.4] [background-size:100%_1.4em] tracking-[0.26em] [text-indent:0.26em]`,
 };
 
 // for anime

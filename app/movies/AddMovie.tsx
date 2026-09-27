@@ -9,7 +9,7 @@ import {
 import { Clapperboard } from "lucide-react";
 import { MovieProps } from "@/types/movie";
 import { ShowProps } from "@/types/show";
-import { SeriesTargetProps } from "@/types/media";
+import { SeriesJumpProps, SeriesTargetProps } from "@/types/media";
 import { mapMetaToMovie } from "@/app/movies/utils/movieMapping";
 import { MovieDetails } from "./MovieDetailsHub";
 import { useMovieSearch } from "@/hooks/external/useMovieSearch";
@@ -21,9 +21,9 @@ interface AddMovieProps {
 	onClose: () => void;
 	existingMovies: MovieProps[];
 	onAddMovie: (item: MovieProps) => void | Promise<boolean | void>;
-	targetFromAbove?: SeriesTargetProps | null;
+	targetFromAbove?: SeriesJumpProps | null;
 	existingShows?: ShowProps[];
-	onSeriesNav?: (target: SeriesTargetProps) => void;
+	onSeriesNav?: (jump: SeriesJumpProps) => void;
 	isInList?: (target: SeriesTargetProps) => boolean;
 	onDuplicate?: (dup: {
 		title: string;

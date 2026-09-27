@@ -1,7 +1,7 @@
 import {
 	BaseMediaProps,
 	MediaStatus,
-	SeriesTargetProps,
+	SeriesJumpProps,
 	SortState,
 } from "@/types/media";
 import {
@@ -33,6 +33,7 @@ interface ManageMediaConfig<T extends BaseMediaProps> {
 	onRefresh?: (
 		itemId: number,
 		metadata: Partial<T>,
+		indirect?: boolean,
 	) => Promise<T | undefined>;
 	// bc anime nodes can't be pitted against items
 	isEligibleOpponent?: (item: T) => boolean;
@@ -54,9 +55,7 @@ export function useManageMedia<T extends BaseMediaProps>({
 	const [selectedItem, setSelectedItem] = useState<T | null>(null);
 	const [searchQuery, setSearchQuery] = useState("");
 	// what an add flow was opened for: a series jump knows the id it wants
-	const [titleToUse, setTitleToUse] = useState<SeriesTargetProps | null>(
-		null,
-	);
+	const [titleToUse, setTitleToUse] = useState<SeriesJumpProps | null>(null);
 	const [activeModal, setActiveModal] = useState<
 		"detailsModal" | "addModal" | "scoreBattlerModal" | null
 	>(null);
@@ -234,7 +233,7 @@ export function useManageMedia<T extends BaseMediaProps>({
 	);
 
 	const handleItemRefresh = useCallback(
-		async (metadata: Partial<T>) => {
+		async (metadata: Partial<T>, indirect?: boolean) => {
 			if (!selectedItem?.id || !onRefresh) return;
 			// drop undefined values
 			const clean = Object.fromEntries(
@@ -243,7 +242,7 @@ export function useManageMedia<T extends BaseMediaProps>({
 			if (Object.keys(clean).length === 0) return;
 			// reflect refreshed metadata in the open modal immediately
 			setSelectedItem({ ...selectedItem, ...clean });
-			await onRefresh(selectedItem.id, clean);
+			await onRefresh(selectedItem.id, clean, indirect);
 		},
 		[selectedItem, onRefresh],
 	);

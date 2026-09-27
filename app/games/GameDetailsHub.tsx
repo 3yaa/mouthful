@@ -384,7 +384,6 @@ export function GameDetails({
 					isAdding={!!addGame}
 					onAdd={handleAddGame}
 					isSubmitting={isSubmitting}
-					onClose={handleModalClose}
 					canRefresh={!!onRefresh}
 					isSelecting={isSelecting}
 					onAction={

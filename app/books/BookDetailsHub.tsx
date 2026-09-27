@@ -1,7 +1,12 @@
 "use client";
 import { BookProps, BookSearchResult, DIFF_COLUMNS_BOOK } from "@/types/book";
-import { MediaCoverProps, SeriesProps, SeriesTargetProps } from "@/types/media";
-import { seriesNeighbours } from "@/utils/seriesRead";
+import {
+	MediaCoverProps,
+	SeriesJumpProps,
+	SeriesProps,
+	SeriesTargetProps,
+} from "@/types/media";
+import { seriesJump } from "@/utils/seriesRead";
 import { useEffect, useState } from "react";
 import { DesktopDetails } from "@/app/views/mediaDetails/DesktopDetails";
 import { bookStatusOptions } from "@/utils/dropDownDetails";
@@ -47,11 +52,17 @@ interface BookDetailsProps {
 		takeAction?: boolean,
 	) => void;
 	addBook?: () => void | Promise<unknown>;
-	showSequelPrequel?: (target: SeriesTargetProps) => void;
+	showSequelPrequel?: (jump: SeriesJumpProps) => void;
 	isInList?: (target: SeriesTargetProps) => boolean;
 	showBookInSeries?: (seriesDir: "left" | "right") => void;
 	onShowMore?: () => void;
-	onRefresh?: (metadata: Partial<BookProps>) => Promise<void>;
+	onRefresh?: (
+		metadata: Partial<BookProps>,
+		indirect?: boolean,
+	) => Promise<void>;
+	// what a series jump learnt for this book
+	landingRuns?: SeriesProps[];
+	onLandingStaged?: () => void;
 	//
 	coverUrls?: MediaCoverProps[];
 	coverIndex?: number;
@@ -79,6 +90,8 @@ export function BookDetails({
 	isInList,
 	onShowMore,
 	onRefresh,
+	landingRuns,
+	onLandingStaged,
 	coverUrls,
 	coverIndex,
 	updateCoverIndex,
@@ -88,8 +101,10 @@ export function BookDetails({
 	const { searchForBooksMulti, loadBookByKey, isBookSearching } =
 		useBookSearch();
 	const [multResultsOpen, setMultResultsOpen] = useState(false);
+	// a staged jump backfill -- applies without bumping last updated
+	const [isBackfill, setIsBackfill] = useState(false);
 	const reload = useReloadPreview<BookProps, BookPicks, BookSearchResult[]>({
-		onRefresh,
+		onRefresh: onRefresh && ((meta) => onRefresh(meta, isBackfill)),
 		canLoad: !!book.key,
 		// reload via key
 		load: async () => {
@@ -125,7 +140,10 @@ export function BookDetails({
 			return next;
 		},
 		// the results panel belongs to the flow, so it closes with it
-		onExit: () => setMultResultsOpen(false),
+		onExit: () => {
+			setMultResultsOpen(false);
+			setIsBackfill(false);
+		},
 	});
 	const { isRefreshing, isSelecting } = reload;
 	const art = isSelecting
@@ -313,11 +331,11 @@ export function BookDetails({
 		updateCoverIndex(newCoverIndex);
 	};
 
-	const handleSeriesOpen = (seriesDir: string) => {
-		if (!showSequelPrequel) return;
-		const { prev, next } = seriesNeighbours(book);
-		const target = seriesDir === "sequel" ? next : prev;
-		if (target) showSequelPrequel(target);
+	const handleSeriesOpen = (seriesDir: "prequel" | "sequel") => {
+		const row = isSelecting ? { ...book, ...reload.meta } : book;
+		const from = { id: row.key ?? null, title: row.title };
+		const jump = seriesJump(row, from, seriesDir);
+		if (jump) showSequelPrequel?.(jump);
 	};
 
 	const handleSaveNote = () => {
@@ -347,6 +365,22 @@ export function BookDetails({
 		reload.cancel();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [book.id]);
+
+	// landed from a jump -- preview the backfill
+	useEffect(() => {
+		if (!landingRuns?.length) return;
+		reload.stage({
+			meta: { series: landingRuns[0] },
+			lists: {
+				covers: { items: book.cover ? [book.cover] : [], index: 0 },
+				series: { items: landingRuns, index: 0 },
+			},
+			extra: [],
+		});
+		setIsBackfill(true);
+		onLandingStaged?.();
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [landingRuns]);
 
 	useEffect(() => {
 		const handleLeave = (e: KeyboardEvent) => {
@@ -395,7 +429,6 @@ export function BookDetails({
 					isAdding={!!addBook}
 					onAdd={handleAddBook}
 					isSubmitting={isSubmitting}
-					onClose={handleModalClose}
 					onSeriesNav={
 						isSelecting
 							? stagedSeries.items.length > 1

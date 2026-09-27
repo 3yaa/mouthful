@@ -90,12 +90,10 @@ export function MobileSeriesNav({
 				: ""
 		}`;
 
-	// manga links its neighbours without ever knowing its place
-	if (!nav.center && !(mediaType === "manga" && (nav.prev || nav.next)))
-		return null;
+	if (!nav.prev && !nav.center && !nav.next) return null;
 
 	return (
-		<div className="pt-5 grid grid-cols-[1fr_2rem_1fr]" data-no-drag>
+		<div className="pt-5 grid grid-cols-[1fr_auto_1fr] gap-2" data-no-drag>
 			{/* PREV */}
 			<div className="min-w-0 text-left">
 				{nav.prev && (
@@ -112,10 +110,10 @@ export function MobileSeriesNav({
 				)}
 			</div>
 			{/* CENTER */}
-			<div className="flex justify-center items-end shrink-0">
-				<label className="text-sm font-medium text-zinc-400/85">
+			<div className="flex justify-center items-center shrink-0">
+				<span className="text-[0.8125rem] leading-5 font-semibold text-zinc-400/80 tabular-nums">
 					{nav.center}
-				</label>
+				</span>
 			</div>
 			{/* NEXT */}
 			<div className="min-w-0 text-right flex justify-end">

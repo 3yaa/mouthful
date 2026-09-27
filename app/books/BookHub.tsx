@@ -1,5 +1,5 @@
 "use client";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { BookProps } from "@/types/book";
 import { DIFF_COLUMNS_BOOK } from "@/types/book";
 import { useMediaData } from "@/hooks/useMediaData";
@@ -12,7 +12,8 @@ import { DesktopListing } from "@/app/views/mediaListing/DesktopListing";
 import { MobileListing } from "@/app/views/mediaListing/MobileListing";
 import { AddButton } from "../components/ui/AddButton";
 import { isSameName } from "@/utils/mediaMatch";
-import { SeriesTargetProps } from "@/types/media";
+import { SeriesJumpProps, SeriesProps, SeriesTargetProps } from "@/types/media";
+import { backfillRuns } from "@/utils/seriesRead";
 import { AnimatePresence } from "framer-motion";
 import dynamic from "next/dynamic";
 // load score dynamically
@@ -73,7 +74,7 @@ export default function BookHub() {
 		DIFF_COLUMNS_BOOK,
 	);
 
-	// item a series jump points at 
+	// item a series jump points at
 	const findOwned = useCallback(
 		(target: SeriesTargetProps) =>
 			target.id
@@ -87,17 +88,24 @@ export default function BookHub() {
 		[findOwned],
 	);
 
+	// runs a jump offers the book it lands on -- previewed
+	const [landing, setLanding] = useState<{
+		id: number;
+		runs: SeriesProps[];
+	} | null>(null);
+
 	// sequel/prequel navigation
 	const showSequelPrequel = useCallback(
-		(target: SeriesTargetProps) => {
-			const owned = findOwned(target);
-			if (owned) {
-				// owned -- hand it to the real details modal
-				handleItemClicked(owned);
-			} else {
-				setTitleToUse(target);
+		(jump: SeriesJumpProps) => {
+			const owned = findOwned(jump);
+			if (!owned) {
+				setTitleToUse(jump);
 				setActiveModal("addModal");
+				return;
 			}
+			const runs = jump.hop ? backfillRuns(owned.series, jump.hop) : [];
+			setLanding(runs.length ? { id: owned.id, runs } : null);
+			handleItemClicked(owned);
 		},
 		[findOwned, handleItemClicked, setTitleToUse, setActiveModal],
 	);
@@ -184,6 +192,12 @@ export default function BookHub() {
 						onUpdate={handleItemUpdates}
 						onRefresh={handleItemRefresh}
 						showSequelPrequel={showSequelPrequel}
+						landingRuns={
+							landing?.id === selectedItem.id
+								? landing.runs
+								: undefined
+						}
+						onLandingStaged={() => setLanding(null)}
 						isInList={isInList}
 					/>
 				)}

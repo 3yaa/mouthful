@@ -123,7 +123,7 @@ export function SeriesNav({
 	const nextMissing = isMissing(nav.next);
 
 	const nameStyle = (missing: boolean) =>
-		`text-sm font-medium transition-colors duration-200 group-hover:underline group-hover:underline-offset-4 ${
+		`truncate text-sm font-medium transition-colors duration-200 group-hover:underline group-hover:underline-offset-4 ${
 			missing
 				? "text-zinc-300/45 group-hover:text-zinc-300/70 group-hover:decoration-dotted group-hover:decoration-zinc-400/80"
 				: "text-zinc-300/70 group-hover:text-zinc-300/85"
@@ -219,8 +219,12 @@ export function SeriesNav({
 	}
 
 	return (
-		<div className="pt-2.5 border-t border-black/50 shadow-[inset_0_1px_0_rgba(255,255,255,0.045)] pr-2">
-			<div className="grid grid-cols-[1fr_3rem_1fr] gap-3 w-full pr-1.5 select-none">
+		<div className="pt-3.5 pr-0.5 pl-1.75">
+			<div
+				className={`grid grid-cols-[1fr_auto_1fr] w-full pr-1.5 select-none ${
+					nav.prev && nav.center && nav.next ? "gap-6" : "gap-3"
+				}`}
+			>
 				<div className="truncate text-left">
 					{nav.prev && (
 						<div
@@ -228,7 +232,7 @@ export function SeriesNav({
 							onClick={() => onAction(nav.prev!.action)}
 						>
 							<label className="text-xs font-medium text-zinc-500 block pointer-events-none">
-								<span className="inline-flex items-center gap-1">
+								<span className="inline-flex h-4 items-center gap-1 align-top">
 									<span>←</span>
 									<span>{nav.prev.label}</span>
 									{prevMissing && <NotInListBadge />}
@@ -241,11 +245,16 @@ export function SeriesNav({
 					)}
 				</div>
 
-				<div className="flex justify-center items-end pb-0.5">
+				<div className="flex justify-center">
 					{nav.center && (
-						<label className="text-xs font-semibold text-zinc-400/90 block">
-							{nav.center}
-						</label>
+						<div className="flex flex-col items-center">
+							<label className="text-xs font-medium text-zinc-500 block">
+								{mediaType === "game" ? "DLC" : "Position"}
+							</label>
+							<span className="text-[0.8125rem] leading-5 font-medium text-zinc-300/70 tabular-nums">
+								{nav.center}
+							</span>
+						</div>
 					)}
 				</div>
 
@@ -256,7 +265,7 @@ export function SeriesNav({
 							onClick={() => onAction(nav.next!.action)}
 						>
 							<label className="text-xs font-medium text-zinc-500 block pointer-events-none">
-								<span className="inline-flex items-center gap-1">
+								<span className="inline-flex h-4 items-center gap-1 align-top">
 									{nextMissing && <NotInListBadge />}
 									<span>{nav.next.label}</span>
 									<span>→</span>

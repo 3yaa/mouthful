@@ -12,7 +12,8 @@ import { DesktopListing } from "@/app/views/mediaListing/DesktopListing";
 import { MobileListing } from "@/app/views/mediaListing/MobileListing";
 import { AddButton } from "../components/ui/AddButton";
 import { isSameName } from "@/utils/mediaMatch";
-import { SeriesTargetProps } from "@/types/media";
+import { SeriesJumpProps, SeriesTargetProps } from "@/types/media";
+import { backfillRuns } from "@/utils/seriesRead";
 import { AnimatePresence } from "framer-motion";
 import dynamic from "next/dynamic";
 // load score dynamically
@@ -78,7 +79,7 @@ export default function MangaHub() {
 		DIFF_COLUMNS_MANGA,
 	);
 
-	// item a series jump points at 
+	// item a series jump points at
 	const findOwned = useCallback(
 		(target: SeriesTargetProps) =>
 			target.id
@@ -94,17 +95,18 @@ export default function MangaHub() {
 
 	// sequel/prequel navigation
 	const showSequelPrequel = useCallback(
-		(target: SeriesTargetProps) => {
-			const owned = findOwned(target);
-			if (owned) {
-				// owned -- hand it to the real details modal
-				handleItemClicked(owned);
-			} else {
-				setTitleToUse(target);
+		(jump: SeriesJumpProps) => {
+			const owned = findOwned(jump);
+			if (!owned) {
+				setTitleToUse(jump);
 				setActiveModal("addModal");
+				return;
 			}
+			const filled = jump.hop && backfillRuns(owned.series, jump.hop)[0];
+			if (filled) update(owned.id, { series: filled }, true);
+			handleItemClicked(filled ? { ...owned, series: filled } : owned);
 		},
-		[findOwned, handleItemClicked, setTitleToUse, setActiveModal],
+		[findOwned, handleItemClicked, setTitleToUse, setActiveModal, update],
 	);
 
 	return (
@@ -169,7 +171,8 @@ export default function MangaHub() {
 							const owned =
 								(dup.anilistId
 									? items.find(
-											(m) => m.anilistId === dup.anilistId,
+											(m) =>
+												m.anilistId === dup.anilistId,
 										)
 									: undefined) ??
 								items.find((m) => isSameName(m, dup.title));

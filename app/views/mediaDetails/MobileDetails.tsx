@@ -892,7 +892,9 @@ export function MobileDetails<T extends BaseMediaProps>({
 										? g.dlcIndex !== 0
 											? g.mainTitle
 											: null
-										: seriesTitleOf(s);
+										: mediaType === "movie"
+											? null
+											: seriesTitleOf(s);
 
 								return seriesLabel ? (
 									<div className={SERIES_TEXT.sm}>

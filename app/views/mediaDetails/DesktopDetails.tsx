@@ -23,7 +23,6 @@ import { slotSubtitle } from "@/app/shows/utils/animeTitles";
 import {
 	Trash2,
 	Plus,
-	X,
 	ChevronsUp,
 	ChevronLeft,
 	ChevronRight,
@@ -114,7 +113,6 @@ interface DesktopDetailsProps<T extends BaseMediaProps> {
 	isAdding: boolean;
 	onAdd: () => void;
 	isSubmitting?: boolean;
-	onClose: () => void;
 	onSeriesNav?: (dir: "left" | "right") => void;
 	isInList?: (target: SeriesTargetProps) => boolean;
 	differentColumns: [ColumnConfig<T>, ColumnConfig<T>];
@@ -160,7 +158,6 @@ export function DesktopDetails<T extends BaseMediaProps>({
 	isAdding,
 	onAdd,
 	isSubmitting,
-	onClose,
 	onSeriesNav,
 	isInList,
 	isBrowsing,
@@ -448,7 +445,9 @@ export function DesktopDetails<T extends BaseMediaProps>({
 			? gameItem.dlcIndex !== 0
 				? gameItem.mainTitle
 				: null
-			: seriesTitleOf(series);
+			: mediaType === "movie"
+				? null
+				: seriesTitleOf(series);
 	// ---
 	const underlineColor =
 		mediaType === "show"
@@ -663,13 +662,7 @@ export function DesktopDetails<T extends BaseMediaProps>({
 		<ModalBackdrop className="fixed inset-0 bg-linear-to-br from-black/50 via-black/60 to-black/80 backdrop-blur-md flex items-center justify-center z-20">
 			<div
 				className="fixed inset-0"
-				onClick={
-					isPicking
-						? undefined
-						: () => {
-								onAction({ type: "closeModal" });
-							}
-				}
+				onClick={() => onAction({ type: "closeModal" })}
 			/>
 			<div className="relative">
 				{sidePanel}
@@ -712,16 +705,6 @@ export function DesktopDetails<T extends BaseMediaProps>({
 										}
 										title="Apply"
 									/>
-									{/* CANCEL REFRESH */}
-									<ActionBtn
-										icon={X}
-										tone="red"
-										pad="py-1.5 px-2"
-										onClick={() =>
-											onAction({ type: "cancelRefresh" })
-										}
-										title="Cancel"
-									/>
 								</div>
 							) : isAdding ? (
 								<div className={`${ACTION_ROW} gap-1.5`}>
@@ -758,14 +741,6 @@ export function DesktopDetails<T extends BaseMediaProps>({
 										/>
 									)}
 									{moreResults}
-									{/* CLOSE BUTTON */}
-									<ActionBtn
-										icon={X}
-										tone="red"
-										pad="py-1.5 px-2"
-										onClick={onClose}
-										title="Close"
-									/>
 								</div>
 							) : (
 								<div className={`${ACTION_ROW} gap-1`}>
@@ -963,10 +938,9 @@ export function DesktopDetails<T extends BaseMediaProps>({
 											mediaType === "show"
 												? "justify-end translate-y-1.5"
 												: seriesLabel
-													? "justify-end mb-4"
+													? "justify-end"
 													: "justify-end mb-3"
 										} ${
-											// the progress row costs the header its headroom -- a long title grows the card rather than slide under the actions
 											mediaType === "manga" ? "pt-10" : ""
 										}`}
 									>
@@ -995,11 +969,7 @@ export function DesktopDetails<T extends BaseMediaProps>({
 											{/* SERIES TITLE */}
 											{seriesLabel && (
 												<span
-													className={
-														!isPrint
-															? SERIES_TEXT.lgScreen
-															: SERIES_TEXT.lg
-													}
+													className={SERIES_TEXT.lg}
 												>
 													{seriesLabel}
 												</span>

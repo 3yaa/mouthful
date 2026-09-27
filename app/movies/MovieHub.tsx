@@ -2,7 +2,8 @@
 import { useCallback, useState } from "react";
 import { MovieProps } from "@/types/movie";
 import { isRealTmdbId, isSameName } from "@/utils/mediaMatch";
-import { SeriesTargetProps } from "@/types/media";
+import { SeriesJumpProps, SeriesTargetProps } from "@/types/media";
+import { backfillRuns } from "@/utils/seriesRead";
 import { DIFF_COLUMNS_MOVIE } from "@/types/movie";
 import { useMediaData } from "@/hooks/useMediaData";
 import { useManageMedia } from "@/hooks/useManageMedia";
@@ -160,17 +161,18 @@ export default function MoviesHub() {
 
 	// sequel/prequel navigation
 	const showSequelPrequel = useCallback(
-		(target: SeriesTargetProps) => {
-			const owned = findOwned(target);
-			if (owned) {
-				// owned -- hand it to the real details modal
-				handleItemClicked(owned);
-			} else {
-				setTitleToUse(target);
+		(jump: SeriesJumpProps) => {
+			const owned = findOwned(jump);
+			if (!owned) {
+				setTitleToUse(jump);
 				setActiveModal("addModal");
+				return;
 			}
+			const filled = jump.hop && backfillRuns(owned.series, jump.hop)[0];
+			if (filled) update(owned.id, { series: filled }, true);
+			handleItemClicked(filled ? { ...owned, series: filled } : owned);
 		},
-		[findOwned, handleItemClicked, setTitleToUse, setActiveModal],
+		[findOwned, handleItemClicked, setTitleToUse, setActiveModal, update],
 	);
 
 	return (

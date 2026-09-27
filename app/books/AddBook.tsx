@@ -9,7 +9,12 @@ import {
 } from "@/app/components/ui/SearchCard";
 //
 import { BookProps, BookSearchResult } from "@/types/book";
-import { MediaCoverProps, SeriesProps, SeriesTargetProps } from "@/types/media";
+import {
+	MediaCoverProps,
+	SeriesJumpProps,
+	SeriesProps,
+	SeriesTargetProps,
+} from "@/types/media";
 //
 import {
 	mapBookAPIDatatoBook,
@@ -29,9 +34,9 @@ interface AddBookProps {
 	existingBooks: BookProps[];
 	// resolves true when the score battler took over the flow
 	onAddBook: (item: BookProps) => void | Promise<boolean | void>;
-	targetFromAbove?: SeriesTargetProps | null;
+	targetFromAbove?: SeriesJumpProps | null;
 	// keeps prequel/sequel jumps alive while previewing an unadded book
-	onSeriesNav?: (target: SeriesTargetProps) => void;
+	onSeriesNav?: (jump: SeriesJumpProps) => void;
 	isInList?: (target: SeriesTargetProps) => boolean;
 	onDuplicate?: (dup: { title: string; key?: string }) => boolean;
 }
