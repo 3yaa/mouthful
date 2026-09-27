@@ -184,6 +184,14 @@ export function sourceOf(show: ChainShow): SourceMediaProps | null {
 	return null;
 }
 
+// -- novels belong with books
+const MANGA_FORMATS = new Set(["MANGA", "ONE_SHOT"]);
+
+export function mangaSourceOf(show: ChainShow): SourceMediaProps | null {
+	const source = sourceOf(show);
+	return source && MANGA_FORMATS.has(source.format) ? source : null;
+}
+
 //
 export function franchiseRomajiOf(
 	show: Pick<ShowProps, "seasons" | "anilistId">,

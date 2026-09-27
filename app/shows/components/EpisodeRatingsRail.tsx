@@ -6,7 +6,6 @@ import { Disc, Film, Leaf } from "lucide-react";
 import { ShowProps } from "@/types/show";
 import type { AuthFetch } from "@/app/auth/hooks/useAuthFetch";
 import { Loading } from "@/app/components/ui/Loading";
-import { getStatusAccent } from "@/utils/styleUtils";
 import {
 	EpisodeRating,
 	RatingColumn,
@@ -16,9 +15,6 @@ import {
 	getTier,
 	partitionRatings,
 } from "@/app/shows/utils/episodeRatings";
-
-const mix = (hex: string, pct: number, base = "transparent") =>
-	`color-mix(in srgb, ${hex} ${pct}%, ${base})`;
 
 // cell's silhouette
 const CELL_SHAPE =
@@ -155,7 +151,6 @@ export function EpisodeRatingsRail({
 	onSeries,
 }: EpisodeRatingsRailProps) {
 	const reduced = useReducedMotion();
-	const statusColor = getStatusAccent(show.status);
 	const [ratings, setRatings] = useState<EpisodeRating[]>([]);
 	// a movie or an ova
 	const [extraScores, setExtraScores] = useState<ExtraScores>({});
@@ -206,14 +201,9 @@ export function EpisodeRatingsRail({
 					opacity: { duration: 0.16, delay: 0.12, ease: "easeIn" },
 				},
 			}}
-			className="pointer-events-none absolute right-full top-0 mr-1.5 h-full hidden 2xl:flex w-76 flex-col py-2"
+			className="pointer-events-none absolute right-full top-0 mr-1 h-full hidden 2xl:flex w-76 flex-col py-2"
 		>
-			<div
-				className="pointer-events-auto relative flex max-h-full min-h-0 select-none flex-col overflow-hidden rounded-2xl bg-[#121212] py-2"
-				style={{
-					boxShadow: `0 22px 55px -20px rgba(0,0,0,0.9), 0 0 34px -18px ${mix(statusColor, 45)}`,
-				}}
-			>
+			<div className="pointer-events-auto relative flex max-h-full min-h-0 select-none flex-col overflow-hidden rounded-2xl bg-zinc-950 py-2 shadow-2xl">
 				{loading ? (
 					<div className="relative h-24">
 						<Loading customStyle="h-6 w-6 border-zinc-500" />

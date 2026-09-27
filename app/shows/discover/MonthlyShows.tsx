@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import { Loader2, Tv, ChevronLeft, ChevronRight, Leaf } from "lucide-react";
 import { useMediaData } from "@/hooks/useMediaData";
+import { SHOW_LIST } from "@/hooks/mediaLists";
 import { withPartPatch } from "@/app/shows/utils/animePartMarks";
 import { getStatusBorderColor } from "@/utils/styleUtils";
 import { useAuthFetch } from "@/app/auth/hooks/useAuthFetch";
@@ -68,16 +69,8 @@ export function MonthlyShows() {
 	const [page, setPage] = useState(1);
 	const [totalPages, setTotalPages] = useState(1);
 	//
-	const { items, add, update, updatePart } = useMediaData<ShowProps>({
-		endpoint: "shows",
-		requiredFieldsToPost: ["title", "status", "tmdbId"],
-		statusOrder: {
-			Watching: 0,
-			"Want to Watch": 1,
-			Completed: 2,
-			Dropped: 3,
-		},
-	});
+	const { items, add, update, updatePart } =
+		useMediaData<ShowProps>(SHOW_LIST);
 	const { authFetch } = useAuthFetch();
 	const selectAddedShow =
 		selectAddedShowId != null

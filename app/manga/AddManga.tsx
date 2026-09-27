@@ -226,7 +226,7 @@ export function AddManga({
 	if (!isOpen) return null;
 
 	return (
-		<ModalBackdrop className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-10">
+		<ModalBackdrop className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-30">
 			<div className="fixed inset-0" onClick={onClose} />
 			{!targetFromAbove || !!failedReason ? (
 				<SearchCard icon={BookOpen} label="Search for New Manga">

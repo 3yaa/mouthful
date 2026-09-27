@@ -3,6 +3,7 @@ import { useCallback, useState } from "react";
 import { BookProps } from "@/types/book";
 import { DIFF_COLUMNS_BOOK } from "@/types/book";
 import { useMediaData } from "@/hooks/useMediaData";
+import { BOOK_LIST } from "@/hooks/mediaLists";
 import { useManageMedia } from "@/hooks/useManageMedia";
 import { useSortMedia } from "@/hooks/useSortMedia";
 import { bookStatusOptions } from "@/utils/dropDownDetails";
@@ -28,12 +29,7 @@ const ScoreBattlerHub = dynamic(
 export default function BookHub() {
 	// GET DATA FROM DB
 	const { items, add, update, refresh, remove, isProcessing } =
-		useMediaData<BookProps>({
-			endpoint: "books",
-			requiredFieldsToPost: ["title", "status", "key"],
-			statusOrder: { "Want to Read": 0, Completed: 1, Dropped: 2 },
-			extraFieldsToUpdate: ["series"],
-		});
+		useMediaData<BookProps>(BOOK_LIST);
 
 	// MANAGEMENT OF STATES
 	const {

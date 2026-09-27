@@ -4,6 +4,8 @@ import { DIFF_COLUMNS_SHOW } from "./utils/showDiffColumns";
 import { useCallback, useMemo, useState } from "react";
 import { Score } from "@/lib/tierConfig";
 import { useMediaData } from "@/hooks/useMediaData";
+import { useCrossList } from "@/hooks/useCrossList";
+import { MANGA_LIST, MOVIE_LIST, SHOW_LIST } from "@/hooks/mediaLists";
 import { useManageMedia } from "@/hooks/useManageMedia";
 import { useSortMedia } from "@/hooks/useSortMedia";
 import { showStatusOptions } from "@/utils/dropDownDetails";
@@ -24,26 +26,17 @@ const ScoreBattlerHub = dynamic(
 	{ ssr: false },
 );
 import { MovieProps } from "@/types/movie";
+import { MangaProps } from "@/types/manga";
 import { slotIndexAt, slotName, timelineOf } from "./utils/slotRef";
-import { isBattleReady, PartPatch, withPartPatch } from "./utils/animePartMarks";
+import {
+	isBattleReady,
+	PartPatch,
+	withPartPatch,
+} from "./utils/animePartMarks";
 
 export default function ShowHub() {
 	const { items, add, update, updatePart, refresh, remove, isProcessing } =
-		useMediaData<ShowProps>({
-			endpoint: "shows",
-			requiredFieldsToPost: ["title", "status", "tmdbId"],
-			statusOrder: {
-				Watching: 0,
-				"Want to Watch": 1,
-				Completed: 2,
-				Dropped: 3,
-			},
-			extraFieldsToUpdate: [
-				"curSeasonIndex",
-				"curEpisode",
-				"franchisePoster",
-			],
-		});
+		useMediaData<ShowProps>(SHOW_LIST);
 
 	// part of an anime chain, mid-battle
 	const [partBattle, setPartBattle] = useState<{
@@ -78,45 +71,9 @@ export default function ShowHub() {
 	);
 
 	// IN-CASE NEED MOVIE DATA
-	const {
-		items: movieItems,
-		add: movieAdd,
-		update: movieUpdate,
-		remove: movieRemove,
-	} = useMediaData<MovieProps>({
-		endpoint: "movies",
-		requiredFieldsToPost: ["title", "status", "imdbId"],
-		statusOrder: { "Want to Watch": 0, Completed: 1, Dropped: 2 },
-		extraFieldsToUpdate: ["series"],
-	});
-
-	// MOVIE SCORE BATTLER
-	const [movieBattle, setMovieBattle] = useState<{
-		item: MovieProps;
-		score: Score;
-	} | null>(null);
-
-	const handleMovieUpdates = useCallback(
-		(
-			movieId: number,
-			updates?: Partial<MovieProps>,
-			shouldDelete?: boolean,
-		) => {
-			if (shouldDelete) {
-				movieRemove(movieId);
-				return;
-			}
-			if (!updates) return;
-			const target = movieItems.find((m) => m.id === movieId);
-			// go through the ringer
-			if (updates.score && target && !target.score) {
-				setMovieBattle({ item: target, score: updates.score });
-				return;
-			}
-			movieUpdate(movieId, updates, true);
-		},
-		[movieItems, movieUpdate, movieRemove],
-	);
+	const movies = useCrossList<MovieProps>(MOVIE_LIST);
+	// an anime's source
+	const manga = useCrossList<MangaProps>(MANGA_LIST);
 
 	const {
 		filteredItems,
@@ -174,17 +131,6 @@ export default function ShowHub() {
 				);
 		},
 		[updatePart, setSelectedItem],
-	);
-
-	// adding a movie from a show's actor modal
-	const handleMovieAdd = useCallback(
-		async (movie: MovieProps) => {
-			const newItem = await movieAdd(movie);
-			if (!newItem?.score) return false;
-			setMovieBattle({ item: newItem, score: newItem.score });
-			return true;
-		},
-		[movieAdd],
 	);
 
 	const sortedShows = useSortMedia(
@@ -263,9 +209,12 @@ export default function ShowHub() {
 							return true;
 						}}
 						titleFromAbove={titleToUse?.title}
-						existingMovies={movieItems}
-						onMovieUpdate={handleMovieUpdates}
-						onAddMovie={handleMovieAdd}
+						existingMovies={movies.items}
+						onMovieUpdate={movies.handleUpdates}
+						onAddMovie={movies.handleAdd}
+						existingManga={manga.items}
+						onMangaUpdate={manga.handleUpdates}
+						onAddManga={manga.handleAdd}
 					/>
 				)}
 			</AnimatePresence>
@@ -283,9 +232,12 @@ export default function ShowHub() {
 						existingShows={items}
 						onAddWork={handleItemAdd}
 						//
-						existingMovies={movieItems}
-						onMovieUpdate={handleMovieUpdates}
-						onAddMovie={handleMovieAdd}
+						existingMovies={movies.items}
+						onMovieUpdate={movies.handleUpdates}
+						onAddMovie={movies.handleAdd}
+						existingManga={manga.items}
+						onMangaUpdate={manga.handleUpdates}
+						onAddManga={manga.handleAdd}
 					/>
 				)}
 			</AnimatePresence>
@@ -338,20 +290,34 @@ export default function ShowHub() {
 			</AnimatePresence>
 			{/* SCORE BATTLER -- cross media (a movie opened from an actor) */}
 			<AnimatePresence>
-				{movieBattle && (
+				{movies.battle && (
 					<ScoreBattlerHub
 						key="movie-battler"
 						mediaType="movie"
-						items={movieItems}
-						initialScore={movieBattle.score}
-						selectedItem={movieBattle.item}
-						onClose={() => setMovieBattle(null)}
-						onScoreFinal={(score) => {
-							movieUpdate(movieBattle.item.id, { score }, true);
-							setMovieBattle(null);
-						}}
+						items={movies.items}
+						initialScore={movies.battle.score}
+						selectedItem={movies.battle.item}
+						onClose={movies.closeBattle}
+						onScoreFinal={movies.finishBattle}
 						onOpponentUpdate={(id, score) =>
-							movieUpdate(id, { score }, true)
+							movies.update(id, { score }, true)
+						}
+					/>
+				)}
+			</AnimatePresence>
+			{/* SCORE BATTLER -- cross media (the manga an anime adapts) */}
+			<AnimatePresence>
+				{manga.battle && (
+					<ScoreBattlerHub
+						key="manga-battler"
+						mediaType="manga"
+						items={manga.items}
+						initialScore={manga.battle.score}
+						selectedItem={manga.battle.item}
+						onClose={manga.closeBattle}
+						onScoreFinal={manga.finishBattle}
+						onOpponentUpdate={(id, score) =>
+							manga.update(id, { score }, true)
 						}
 					/>
 				)}

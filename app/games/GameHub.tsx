@@ -2,6 +2,7 @@
 import { useCallback, useState } from "react";
 import { GameProps, IGDBInitProps, DIFF_COLUMNS_GAME } from "@/types/game";
 import { useMediaData } from "@/hooks/useMediaData";
+import { GAME_LIST } from "@/hooks/mediaLists";
 import { useManageMedia } from "@/hooks/useManageMedia";
 import { useSortMedia } from "@/hooks/useSortMedia";
 import { gameStatusOptions } from "@/utils/dropDownDetails";
@@ -24,11 +25,7 @@ const ScoreBattlerHub = dynamic(
 
 export default function GameList() {
 	const { items, add, update, refresh, remove, isProcessing } =
-		useMediaData<GameProps>({
-			endpoint: "games",
-			requiredFieldsToPost: ["title", "status", "igdbId"],
-			statusOrder: { Playing: 0, Completed: 1, Dropped: 2 },
-		});
+		useMediaData<GameProps>(GAME_LIST);
 
 	const {
 		filteredItems,

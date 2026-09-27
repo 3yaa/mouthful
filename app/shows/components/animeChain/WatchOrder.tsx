@@ -8,7 +8,7 @@ import {
 	useReducedMotion,
 	Variants,
 } from "framer-motion";
-import { ArrowUpRight, ChevronDown, X } from "lucide-react";
+import { ArrowUpRight, ChevronDown, Plus, X } from "lucide-react";
 import {
 	AnimeMovieProps,
 	ShowProps,
@@ -29,11 +29,7 @@ import {
 	timelineOf,
 } from "@/app/shows/utils/slotRef";
 import { weigherOf } from "@/app/shows/utils/animePartMarks";
-import {
-	getStatusAccent,
-	statusBezel,
-	HEADER_WASH_MASK,
-} from "@/utils/styleUtils";
+import { getStatusAccent, HEADER_WASH_MASK } from "@/utils/styleUtils";
 import { titleCase } from "@/app/shows/utils/animeTitles";
 import { ModalBackdrop, ModalPanel } from "@/app/components/ui/ModalMotion";
 import {
@@ -71,6 +67,9 @@ export interface AnimeChainProps {
 	canPickCut?: boolean;
 	onHide?: (anilistId: number) => void;
 	onUnhide?: (anilistId: number) => void;
+	// the manga it adapts -- opens it, or starts adding it
+	onOpenSource?: () => void;
+	sourceOwned?: boolean;
 }
 
 // ─── the header
@@ -94,15 +93,18 @@ function SourceLine({
 	show,
 	className = "",
 	onOpen,
+	owned,
 }: {
 	show: ShowProps;
 	className?: string;
 	onOpen?: () => void;
+	owned?: boolean;
 }) {
 	const source = sourceOf(show);
 	if (!source) return null;
 	const color = railColorOf(show);
 	const opens = !!onOpen;
+	const Glyph = owned ? ArrowUpRight : Plus;
 
 	const body = (
 		<>
@@ -122,7 +124,7 @@ function SourceLine({
 			>
 				{rowName(source.title, show.title, franchiseRomajiOf(show))}
 			</span>
-			<span className="relative flex h-6 shrink-0 items-center justify-end">
+			<span className="relative flex h-6 shrink-0 items-center justify-end gap-1.5">
 				<span
 					className={`flex h-4 items-center rounded px-1.5 neu-carved text-[0.62rem] tracking-[0.06em] indent-[0.06em] transition-opacity duration-200 ${
 						opens ? "group-hover/source:opacity-0" : ""
@@ -134,9 +136,10 @@ function SourceLine({
 				>
 					{sourceKind(source.format)}
 				</span>
+				{/* touch has no hover to reveal it */}
 				{opens && (
-					<span className="absolute right-0 flex h-6 w-6 items-center justify-center rounded-lg neu-carved opacity-0 transition-opacity duration-200 group-hover/source:opacity-100">
-						<ArrowUpRight className="w-3.5 h-3.5 text-zinc-300/80" />
+					<span className="absolute right-0 flex h-6 w-6 items-center justify-center rounded-lg neu-carved opacity-0 transition-opacity duration-200 group-hover/source:opacity-100 pointer-coarse:static pointer-coarse:opacity-100">
+						<Glyph className="w-3.5 h-3.5 text-zinc-300/80" />
 					</span>
 				)}
 			</span>
@@ -144,14 +147,17 @@ function SourceLine({
 	);
 
 	const shell = `group/source relative flex min-w-0 items-center gap-2 ${className}`;
-	const title = `Adapted from the ${sourceKind(source.format)} "${source.title}"`;
+	const adapted = `Adapted from the ${sourceKind(source.format)} "${source.title}"`;
+	const title = opens
+		? `${adapted} -- click to ${owned ? "open" : "add"} it`
+		: adapted;
 
 	return opens ? (
 		<button
 			type="button"
 			onClick={onOpen}
 			title={title}
-			className={`${shell} hover:cursor-pointer`}
+			className={`${shell} w-full hover:cursor-pointer`}
 		>
 			{body}
 		</button>
@@ -673,9 +679,8 @@ function SetAside({
 // ─── docked beside details modal
 
 export function AnimeChainRail(props: AnimeChainProps) {
-	const { show } = props;
+	const { show, onOpenSource, sourceOwned } = props;
 	const reduced = useReducedMotion();
-	const statusColor = getStatusAccent(show.status);
 
 	return (
 		<motion.aside
@@ -696,21 +701,19 @@ export function AnimeChainRail(props: AnimeChainProps) {
 					opacity: { duration: 0.16, delay: 0.12, ease: "easeIn" },
 				},
 			}}
-			className="absolute left-full top-0 ml-3 max-h-full hidden 2xl:flex w-76 flex-col select-none rounded-[1.25rem] p-1 py-1.5"
-			style={{
-				background: statusBezel(show.status, 34, "top left"),
-				boxShadow: `0 22px 55px -20px rgba(0,0,0,0.9), 0 0 34px -18px ${mix(statusColor, 45)}`,
-			}}
+			className="absolute left-full top-0 ml-1.5 max-h-full hidden 2xl:flex w-76 flex-col select-none overflow-hidden rounded-2xl bg-zinc-950 shadow-2xl"
 		>
-			<div className="relative flex min-h-0 flex-col overflow-hidden rounded-2xl border border-zinc-800/50 bg-[#121212] shadow-2xl">
-				<header className="relative shrink-0 space-y-2 px-3.5 py-2.5">
-					<SourceLine show={show} />
-					<Pips show={show} />
-				</header>
-				<LayoutGroup id="chain-rail">
-					<ChainRows {...props} />
-				</LayoutGroup>
-			</div>
+			<header className="relative shrink-0 space-y-2 px-3.5 py-2.5">
+				<SourceLine
+					show={show}
+					onOpen={onOpenSource}
+					owned={sourceOwned}
+				/>
+				<Pips show={show} />
+			</header>
+			<LayoutGroup id="chain-rail">
+				<ChainRows {...props} />
+			</LayoutGroup>
 		</motion.aside>
 	);
 }
@@ -718,7 +721,7 @@ export function AnimeChainRail(props: AnimeChainProps) {
 // ─── modal
 
 export function AnimeChainModal(props: AnimeChainProps) {
-	const { show, onClose } = props;
+	const { show, onClose, onOpenSource, sourceOwned } = props;
 
 	return (
 		<ModalBackdrop className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-30">
@@ -769,6 +772,8 @@ export function AnimeChainModal(props: AnimeChainProps) {
 					<SourceLine
 						show={show}
 						className="relative mt-2.5 justify-center"
+						onOpen={onOpenSource}
+						owned={sourceOwned}
 					/>
 				</header>
 				<LayoutGroup id="chain-modal">

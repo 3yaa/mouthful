@@ -1,11 +1,13 @@
 "use client";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { MovieProps } from "@/types/movie";
 import { isRealTmdbId, isSameName } from "@/utils/mediaMatch";
 import { SeriesJumpProps, SeriesTargetProps } from "@/types/media";
 import { backfillRuns } from "@/utils/seriesRead";
 import { DIFF_COLUMNS_MOVIE } from "@/types/movie";
 import { useMediaData } from "@/hooks/useMediaData";
+import { useCrossList } from "@/hooks/useCrossList";
+import { MOVIE_LIST, SHOW_LIST } from "@/hooks/mediaLists";
 import { useManageMedia } from "@/hooks/useManageMedia";
 import { useSortMedia } from "@/hooks/useSortMedia";
 import { movieStatusOptions } from "@/utils/dropDownDetails";
@@ -25,64 +27,19 @@ const ScoreBattlerHub = dynamic(
 		),
 	{ ssr: false },
 );
-import { Score } from "@/lib/tierConfig";
 import { ShowProps } from "@/types/show";
-import { withPartPatch } from "@/app/shows/utils/animePartMarks";
+import { isBattleReady, withPartPatch } from "@/app/shows/utils/animePartMarks";
 
 export default function MoviesHub() {
 	const { items, add, update, refresh, remove, isProcessing } =
-		useMediaData<MovieProps>({
-			endpoint: "movies",
-			requiredFieldsToPost: ["title", "status", "imdbId"],
-			statusOrder: { "Want to Watch": 0, Completed: 1, Dropped: 2 },
-			extraFieldsToUpdate: ["series"],
-		});
+		useMediaData<MovieProps>(MOVIE_LIST);
 
 	// IN-CASE NEED SHOW DATA
-	const {
-		items: showItems,
-		add: showAdd,
-		update: showUpdate,
-		updatePart: showUpdatePart,
-		remove: showRemove,
-	} = useMediaData<ShowProps>({
-		endpoint: "shows",
-		requiredFieldsToPost: ["title", "status", "tmdbId"],
-		statusOrder: {
-			Watching: 0,
-			"Want to Watch": 1,
-			Completed: 2,
-			Dropped: 3,
-		},
-		extraFieldsToUpdate: ["curSeasonIndex", "curEpisode"],
-	});
-
-	// SHOW BATTLER
-	const [showBattle, setShowBattle] = useState<{
-		item: ShowProps;
-		score: Score;
-	} | null>(null);
-
-	const handleShowUpdates = useCallback(
-		(
-			showId: number,
-			updates?: Partial<ShowProps>,
-			shouldDelete?: boolean,
-		) => {
-			if (shouldDelete) {
-				showRemove(showId);
-				return;
-			}
-			if (!updates) return;
-			const target = showItems.find((s) => s.id === showId);
-			// go through the ringer
-			if (updates.score && target && !target.score) {
-				setShowBattle({ item: target, score: updates.score });
-				return;
-			}
-			showUpdate(showId, updates, true);
-		},
-		[showItems, showUpdate, showRemove],
+	const shows = useCrossList<ShowProps>(SHOW_LIST);
+	// same pool the shows hub battles against
+	const showPool = useMemo(
+		() => shows.items.filter(isBattleReady),
+		[shows.items],
 	);
 
 	const {
@@ -130,17 +87,6 @@ export default function MoviesHub() {
 	);
 
 	const [chainShowTitle, setChainShowTitle] = useState<string | null>(null);
-
-	// adding a show from a movie's actor modal
-	const handleShowAdd = useCallback(
-		async (show: ShowProps) => {
-			const newItem = await showAdd(show);
-			if (!newItem?.score) return false;
-			setShowBattle({ item: newItem, score: newItem.score });
-			return true;
-		},
-		[showAdd],
-	);
 
 	const findOwned = useCallback(
 		(target: SeriesTargetProps) =>
@@ -229,7 +175,7 @@ export default function MoviesHub() {
 						isOpen={activeModal === "addModal"}
 						onClose={handleModalClose}
 						existingMovies={items}
-						existingShows={showItems}
+						existingShows={shows.items}
 						onAddMovie={handleItemAdd}
 						targetFromAbove={titleToUse}
 						onSeriesNav={showSequelPrequel}
@@ -270,14 +216,14 @@ export default function MoviesHub() {
 						existingMovies={items}
 						onAddWork={handleItemAdd}
 						//
-						existingShows={showItems}
-						onShowUpdate={handleShowUpdates}
+						existingShows={shows.items}
+						onShowUpdate={shows.handleUpdates}
 						onShowUpdatePart={(showId, anilistId, patch) =>
-							showUpdatePart(showId, anilistId, patch, (item) =>
+							shows.updatePart(showId, anilistId, patch, (item) =>
 								withPartPatch(item, anilistId, patch),
 							)
 						}
-						onAddShow={handleShowAdd}
+						onAddShow={shows.handleAdd}
 					/>
 				)}
 			</AnimatePresence>
@@ -288,8 +234,8 @@ export default function MoviesHub() {
 						key="chain-show"
 						isOpen
 						titleFromAbove={chainShowTitle}
-						existingShows={showItems}
-						onAddShow={handleShowAdd}
+						existingShows={shows.items}
+						onAddShow={shows.handleAdd}
 						onClose={() => setChainShowTitle(null)}
 					/>
 				)}
@@ -317,20 +263,17 @@ export default function MoviesHub() {
 			</AnimatePresence>
 			{/* SCORE BATTLER -- cross media (a show opened from an actor) */}
 			<AnimatePresence>
-				{showBattle && (
+				{shows.battle && (
 					<ScoreBattlerHub
 						key="show-battler"
 						mediaType="show"
-						items={showItems}
-						initialScore={showBattle.score}
-						selectedItem={showBattle.item}
-						onClose={() => setShowBattle(null)}
-						onScoreFinal={(score) => {
-							showUpdate(showBattle.item.id, { score }, true);
-							setShowBattle(null);
-						}}
+						items={showPool}
+						initialScore={shows.battle.score}
+						selectedItem={shows.battle.item}
+						onClose={shows.closeBattle}
+						onScoreFinal={shows.finishBattle}
 						onOpponentUpdate={(id, score) =>
-							showUpdate(id, { score }, true)
+							shows.update(id, { score }, true)
 						}
 					/>
 				)}

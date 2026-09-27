@@ -10,10 +10,15 @@ import { ShowDetails, type ShowDetailsProps } from "./ShowDetailsHub";
 import { useShowSearch } from "@/hooks/external/useShowSearch";
 import { findOnlyNamed, isRealTmdbId } from "@/utils/mediaMatch";
 
-// used in AddShow -- for movie items
+// used in AddShow -- for movie and manga
 type CrossMedia = Pick<
 	ShowDetailsProps,
-	"existingMovies" | "onMovieUpdate" | "onAddMovie"
+	| "existingMovies"
+	| "onMovieUpdate"
+	| "onAddMovie"
+	| "existingManga"
+	| "onMangaUpdate"
+	| "onAddManga"
 >;
 
 interface AddShowProps extends CrossMedia {

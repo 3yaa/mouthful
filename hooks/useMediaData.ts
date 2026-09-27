@@ -11,7 +11,7 @@ import {
 const STALE_AFTER = 120_000;
 const NO_ROWS: never[] = [];
 
-interface MediaDataConfig<T> {
+export interface MediaDataConfig<T> {
 	endpoint: string;
 	extraFieldsToUpdate?: string[];
 	requiredFieldsToPost: (keyof T)[];

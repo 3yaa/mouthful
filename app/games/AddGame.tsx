@@ -346,7 +346,7 @@ export function AddGame({
 	if (!isOpen) return null;
 
 	return (
-		<ModalBackdrop className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-10">
+		<ModalBackdrop className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-30">
 			{/* maybe not allow user to close modal as new game coming? */}
 			<div className="fixed inset-0" onClick={onClose} />
 			{!titleFromAbove ? (

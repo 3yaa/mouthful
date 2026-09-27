@@ -3,6 +3,7 @@ import { useCallback } from "react";
 import { MangaProps } from "@/types/manga";
 import { DIFF_COLUMNS_MANGA } from "@/types/manga";
 import { useMediaData } from "@/hooks/useMediaData";
+import { MANGA_LIST } from "@/hooks/mediaLists";
 import { useManageMedia } from "@/hooks/useManageMedia";
 import { useSortMedia } from "@/hooks/useSortMedia";
 import { mangaStatusOptions } from "@/utils/dropDownDetails";
@@ -28,17 +29,7 @@ const ScoreBattlerHub = dynamic(
 export default function MangaHub() {
 	// GET DATA FROM DB
 	const { items, add, update, refresh, remove, isProcessing } =
-		useMediaData<MangaProps>({
-			endpoint: "manga",
-			requiredFieldsToPost: ["title", "status", "anilistId"],
-			statusOrder: {
-				Reading: 0,
-				"Want to Read": 1,
-				Completed: 2,
-				Dropped: 3,
-			},
-			extraFieldsToUpdate: ["series", "curChapter"],
-		});
+		useMediaData<MangaProps>(MANGA_LIST);
 
 	// MANAGEMENT OF STATES
 	const {

@@ -29,6 +29,7 @@ import {
 	mainCount,
 	episodeCountOf,
 	isOpenEnded,
+	mangaSourceOf,
 } from "@/app/shows/utils/slotRef";
 import { markOf } from "@/app/shows/utils/animePartMarks";
 import { useStudioCatalog } from "./hooks/useStudioCatalog";
@@ -53,7 +54,11 @@ import { AddMovie } from "@/app/movies/AddMovie";
 import { useAuthFetch } from "@/app/auth/hooks/useAuthFetch";
 import { MovieProps } from "@/types/movie";
 import { MovieDetails } from "@/app/movies/MovieDetailsHub";
-import { MediaStatus, SeriesTargetProps } from "@/types/media";
+import { AddManga } from "@/app/manga/AddManga";
+import { MangaProps } from "@/types/manga";
+import { MangaDetails } from "@/app/manga/MangaDetailsHub";
+import { MediaStatus, SeriesJumpProps, SeriesTargetProps } from "@/types/media";
+import { backfillRuns } from "@/utils/seriesRead";
 import { useShowSearch } from "@/hooks/external/useShowSearch";
 import { mapShowMeta } from "./utils/showMapping";
 import { isRealTmdbId, isSameName, normName } from "@/utils/mediaMatch";
@@ -165,6 +170,14 @@ export interface ShowDetailsProps {
 		takeAction?: boolean,
 	) => void;
 	onAddMovie?: (movie: MovieProps) => Promise<unknown>;
+	//
+	existingManga?: MangaProps[];
+	onMangaUpdate?: (
+		mangaId: number,
+		updates?: Partial<MangaProps>,
+		takeAction?: boolean,
+	) => void;
+	onAddManga?: (manga: MangaProps) => Promise<unknown>;
 	// reload metadata from source (poster/backdrop, seasons, studio)
 	onRefresh?: (metadata: Partial<ShowProps>) => Promise<void>;
 	// a slot: score | note | skip
@@ -207,6 +220,9 @@ export function ShowDetails({
 	onAddWork,
 	onMovieUpdate,
 	onAddMovie,
+	existingManga = [],
+	onMangaUpdate,
+	onAddManga,
 	onRefresh,
 	onUpdatePart,
 	onPartBattle,
@@ -359,15 +375,16 @@ export function ShowDetails({
 	// handing off to another list
 	const [pendingWork, setPendingWork] = useState<{
 		title: string;
-		media_type: ActorWork["media_type"];
-		// tmdb id when the caller knew one -- a series jump does
+		media_type: ActorWork["media_type"] | "manga";
 		id?: string | null;
-		// a jump off a movie card replaces it -- panel pick opens over it
 		handsOff?: boolean;
 	} | null>(null);
-	const [selectedWorkItem, setSelectedWorkItem] = useState<
-		{ type: "movie"; id: number } | { type: "tv"; id: number } | null
-	>(null);
+	const [selectedWorkItem, setSelectedWorkItem] = useState<{
+		type: "movie" | "tv" | "manga";
+		id: number;
+	} | null>(null);
+	// handing over to another list
+	const handedOff = !!selectedWorkItem || !!pendingWork?.handsOff;
 	//
 	const { loadShowChain } = useShowSearch();
 	const { authFetch } = useAuthFetch();
@@ -390,6 +407,11 @@ export function ShowDetails({
 	const selectedShow =
 		selectedWorkItem?.type === "tv"
 			? existingShows.find((s) => s.id === selectedWorkItem.id)
+			: undefined;
+
+	const selectedManga =
+		selectedWorkItem?.type === "manga"
+			? existingManga.find((m) => m.id === selectedWorkItem.id)
 			: undefined;
 
 	const handleWorkClick = useCallback(
@@ -822,6 +844,44 @@ export function ShowDetails({
 		});
 	};
 
+	// owned manga open in place, the rest start the add flow by anilist id
+	const findOwnedManga = (target: SeriesTargetProps) =>
+		target.id
+			? existingManga.find((m) => String(m.anilistId) === target.id)
+			: existingManga.find((m) => isSameName(m, target.title));
+
+	// a jump off the manga card, or the source itself
+	const handleMangaNav = (jump: SeriesJumpProps) => {
+		const owned = findOwnedManga(jump);
+		if (!owned) {
+			setSelectedWorkItem(null);
+			setPendingWork({
+				title: jump.title,
+				media_type: "manga",
+				id: jump.id,
+				handsOff: true,
+			});
+			return;
+		}
+		const filled = jump.hop && backfillRuns(owned.series, jump.hop)[0];
+		if (filled) onMangaUpdate?.(owned.id, { series: filled });
+		setPendingWork(null);
+		setSelectedWorkItem({ type: "manga", id: owned.id });
+	};
+
+	// light novels live in books, so only a manga source opens
+	const mangaSource = onMangaUpdate && onAddManga ? mangaSourceOf(row) : null;
+	const sourceTarget = mangaSource && {
+		id: String(mangaSource.anilistId),
+		title: mangaSource.title ?? row.title,
+	};
+	const chainSource = sourceTarget
+		? {
+				onOpenSource: () => handleMangaNav(sourceTarget),
+				sourceOwned: !!findOwnedManga(sourceTarget),
+			}
+		: {};
+
 	const handleStatusChange = (value: string) => {
 		const newStatus = value as "Completed" | "Want to Watch";
 		const updatesViaStatus: Partial<ShowProps> = {
@@ -1053,7 +1113,13 @@ export function ShowDetails({
 				const isInInput = activeElement?.tagName === "INPUT";
 				const isInEditingMode =
 					editingMode.season || editingMode.episode;
-				if (!isInTextarea && !isInInput && !isInEditingMode) {
+				const isAway = !!selectedWorkItem || !!pendingWork;
+				if (
+					!isInTextarea &&
+					!isInInput &&
+					!isInEditingMode &&
+					!isAway
+				) {
 					handleAddShow();
 				}
 			}
@@ -1061,7 +1127,7 @@ export function ShowDetails({
 		//
 		window.addEventListener("keydown", handleLeave);
 		return () => window.removeEventListener("keydown", handleLeave);
-	}, [onClose, editingMode, handleAddShow]);
+	}, [onClose, editingMode, handleAddShow, selectedWorkItem, pendingWork]);
 
 	useEffect(() => {
 		setInputValues({
@@ -1111,9 +1177,6 @@ export function ShowDetails({
 				text: "Reloading...",
 			}
 		: isLoading;
-
-	// handing over to movie list
-	const handedOff = !!selectedWorkItem || !!pendingWork?.handsOff;
 
 	return (
 		<>
@@ -1187,6 +1250,7 @@ export function ShowDetails({
 										onUnhide={(anilistId) =>
 											marks.setHidden(anilistId, false)
 										}
+										{...chainSource}
 									/>
 								)}
 							</AnimatePresence>
@@ -1241,7 +1305,7 @@ export function ShowDetails({
 			</AnimatePresence>
 			{/* watch order, when desktop is small */}
 			<AnimatePresence>
-				{!isWideCard && chainOpen && hasChain && (
+				{!isWideCard && chainOpen && hasChain && !handedOff && (
 					<AnimeChainModal
 						key="chain"
 						show={row}
@@ -1260,6 +1324,7 @@ export function ShowDetails({
 						onUnhide={(anilistId) =>
 							marks.setHidden(anilistId, false)
 						}
+						{...chainSource}
 					/>
 				)}
 			</AnimatePresence>
@@ -1344,6 +1409,9 @@ export function ShowDetails({
 					onMovieUpdate={onMovieUpdate}
 					onAddWork={onAddWork}
 					onAddMovie={onAddMovie}
+					existingManga={existingManga}
+					onMangaUpdate={onMangaUpdate}
+					onAddManga={onAddManga}
 				/>
 			)}
 			{/* MOVIE DETAILS */}
@@ -1411,6 +1479,45 @@ export function ShowDetails({
 								headers: { "Content-Type": "application/json" },
 								body: JSON.stringify(m),
 							});
+						setPendingWork(null);
+					}}
+				/>
+			)}
+			{/* MANGA DETAILS */}
+			{selectedManga && onMangaUpdate && (
+				<MangaDetails
+					manga={selectedManga}
+					existingManga={existingManga}
+					onClose={() => setSelectedWorkItem(null)}
+					onUpdate={onMangaUpdate}
+					showSequelPrequel={handleMangaNav}
+					isInList={(target) => !!findOwnedManga(target)}
+				/>
+			)}
+			{/* MANGA ADD */}
+			{pendingWork?.media_type === "manga" && (
+				<AddManga
+					isOpen
+					targetFromAbove={{
+						title: pendingWork.title,
+						id: pendingWork.id,
+					}}
+					onClose={() => setPendingWork(null)}
+					existingManga={existingManga}
+					onSeriesNav={handleMangaNav}
+					isInList={(target) => !!findOwnedManga(target)}
+					onDuplicate={(dup) => {
+						const owned = findOwnedManga({
+							id: dup.anilistId ? String(dup.anilistId) : null,
+							title: dup.title,
+						});
+						if (!owned) return false;
+						setPendingWork(null);
+						setSelectedWorkItem({ type: "manga", id: owned.id });
+						return true;
+					}}
+					onAddManga={async (m) => {
+						await onAddManga?.(m);
 						setPendingWork(null);
 					}}
 				/>
