@@ -183,7 +183,7 @@ export function EpisodeRatingsRail({
 
 	return (
 		<motion.aside
-			initial={reduced ? { opacity: 0 } : { opacity: 0, x: -22 }}
+			initial={reduced ? { opacity: 0 } : { opacity: 0, x: 22 }}
 			animate={{
 				opacity: 1,
 				x: 0,
@@ -195,15 +195,15 @@ export function EpisodeRatingsRail({
 			// the arrival run backwards on a faster clock
 			exit={{
 				opacity: 0,
-				x: reduced ? 0 : -22,
+				x: reduced ? 0 : 22,
 				transition: {
 					x: { duration: 0.28, ease: [0.7, 0, 0.84, 0] },
 					opacity: { duration: 0.16, delay: 0.12, ease: "easeIn" },
 				},
 			}}
-			className="pointer-events-none absolute right-full top-0 mr-1 h-full hidden 2xl:flex w-76 flex-col py-2"
+			className="pointer-events-none absolute left-full -top-1.5 ml-1 h-full hidden 2xl:flex w-76 flex-col"
 		>
-			<div className="pointer-events-auto relative flex max-h-full min-h-0 select-none flex-col overflow-hidden rounded-2xl bg-zinc-950 py-2 shadow-2xl">
+			<div className="pointer-events-auto relative flex max-h-full min-h-0 select-none flex-col overflow-hidden rounded-2xl bg-zinc-950 shadow-2xl">
 				{loading ? (
 					<div className="relative h-24">
 						<Loading customStyle="h-6 w-6 border-zinc-500" />

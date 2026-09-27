@@ -1,5 +1,10 @@
 import { Settings2, Circle, Search } from "lucide-react";
-import { BaseMediaProps, MediaStatus, ColumnConfig } from "@/types/media";
+import {
+	BaseMediaProps,
+	MediaStatus,
+	ColumnConfig,
+	ListSubset,
+} from "@/types/media";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { DesktopItem } from "./DesktopItem";
@@ -32,6 +37,7 @@ interface DesktopListingProps<T extends BaseMediaProps> {
 	onSortConfig: (sortKey: string) => void;
 	onSearchChange: (searchVal: string) => void;
 	onStatusFilter: (Status: MediaStatus) => void;
+	subset?: ListSubset;
 }
 
 export function DesktopListing<T extends BaseMediaProps>({
@@ -49,6 +55,7 @@ export function DesktopListing<T extends BaseMediaProps>({
 	onSortConfig,
 	onSearchChange,
 	onStatusFilter,
+	subset,
 }: DesktopListingProps<T>) {
 	const parentRef = useRef<HTMLDivElement>(null);
 	const listRef = useRef<HTMLDivElement>(null);
@@ -380,6 +387,7 @@ export function DesktopListing<T extends BaseMediaProps>({
 					differentColumns={differentColumns}
 					sortConfig={sortConfig}
 					onSortConfig={onSortConfig}
+					subset={subset}
 					badge={
 						mediaType === "show" && (
 							<BadgeLink

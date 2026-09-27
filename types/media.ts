@@ -15,6 +15,13 @@ export const isPrintMedia = (mediaType: string) =>
 
 export type SortState<K extends string> = { type: K; order: "asc" | "desc" };
 
+// anime among shows
+export interface ListSubset {
+	name: string;
+	on: boolean;
+	onToggle: () => void;
+}
+
 export interface ColumnConfig<T> {
 	label: string;
 	sortKey: string;

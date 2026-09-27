@@ -676,7 +676,7 @@ function SetAside({
 	);
 }
 
-// ─── docked beside details modal
+// ─── docked left
 
 export function AnimeChainRail(props: AnimeChainProps) {
 	const { show, onOpenSource, sourceOwned } = props;
@@ -684,7 +684,7 @@ export function AnimeChainRail(props: AnimeChainProps) {
 
 	return (
 		<motion.aside
-			initial={reduced ? { opacity: 0 } : { opacity: 0, x: 22 }}
+			initial={reduced ? { opacity: 0 } : { opacity: 0, x: -22 }}
 			animate={{
 				opacity: 1,
 				x: 0,
@@ -695,13 +695,13 @@ export function AnimeChainRail(props: AnimeChainProps) {
 			}}
 			exit={{
 				opacity: 0,
-				x: reduced ? 0 : 22,
+				x: reduced ? 0 : -22,
 				transition: {
 					x: { duration: 0.28, ease: [0.7, 0, 0.84, 0] },
 					opacity: { duration: 0.16, delay: 0.12, ease: "easeIn" },
 				},
 			}}
-			className="absolute left-full top-0 ml-1.5 max-h-full hidden 2xl:flex w-76 flex-col select-none overflow-hidden rounded-2xl bg-zinc-950 shadow-2xl"
+			className="absolute right-full top-0 mr-1.5 max-h-full hidden 2xl:flex w-76 flex-col select-none overflow-hidden rounded-2xl bg-zinc-950 shadow-2xl"
 		>
 			<header className="relative shrink-0 space-y-2 px-3.5 py-2.5">
 				<SourceLine

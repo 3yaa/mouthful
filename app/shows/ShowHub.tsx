@@ -27,7 +27,7 @@ const ScoreBattlerHub = dynamic(
 );
 import { MovieProps } from "@/types/movie";
 import { MangaProps } from "@/types/manga";
-import { slotIndexAt, slotName, timelineOf } from "./utils/slotRef";
+import { isAnimeRow, slotIndexAt, slotName, timelineOf } from "./utils/slotRef";
 import {
 	isBattleReady,
 	PartPatch,
@@ -133,11 +133,21 @@ export default function ShowHub() {
 		[updatePart, setSelectedItem],
 	);
 
-	const sortedShows = useSortMedia(
-		filteredItems,
-		sortConfig,
-		DIFF_COLUMNS_SHOW,
+	const [animeOnly, setAnimeOnly] = useState(false);
+	const shownShows = useMemo(
+		() => (animeOnly ? filteredItems.filter(isAnimeRow) : filteredItems),
+		[filteredItems, animeOnly],
 	);
+	const animeSubset = useMemo(
+		() => ({
+			name: "anime",
+			on: animeOnly,
+			onToggle: () => setAnimeOnly((on) => !on),
+		}),
+		[animeOnly],
+	);
+
+	const sortedShows = useSortMedia(shownShows, sortConfig, DIFF_COLUMNS_SHOW);
 
 	return (
 		<div className="min-h-screen">
@@ -153,7 +163,12 @@ export default function ShowHub() {
 					mediaType="show"
 					differentColumns={DIFF_COLUMNS_SHOW}
 					searchQuery={searchQuery}
-					emptyListText="No shows yet — add one!"
+					emptyListText={
+						animeOnly
+							? "No anime yet - add one!"
+							: "No shows yet — add one!"
+					}
+					subset={animeSubset}
 					openItemId={openItemId}
 					onItemClicked={handleItemClicked}
 					onSortConfig={handleSortConfig}
@@ -173,7 +188,12 @@ export default function ShowHub() {
 					mediaType="show"
 					differentColumns={DIFF_COLUMNS_SHOW}
 					searchQuery={searchQuery}
-					emptyListText="No shows yet — add one!"
+					emptyListText={
+						animeOnly
+							? "No anime yet - add one!"
+							: "No shows yet — add one!"
+					}
+					subset={animeSubset}
 					onItemClicked={handleItemClicked}
 					onSortConfig={handleSortConfig}
 					onStatusFilter={handleStatusFilterConfig}

@@ -7,7 +7,12 @@ import {
 	Circle,
 	Search,
 } from "lucide-react";
-import { BaseMediaProps, MediaStatus, ColumnConfig } from "@/types/media";
+import {
+	BaseMediaProps,
+	MediaStatus,
+	ColumnConfig,
+	ListSubset,
+} from "@/types/media";
 import { useNav } from "../../components/NavContext";
 import { useEffect, useRef, useState } from "react";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
@@ -34,6 +39,7 @@ interface MobileListingProps<T extends BaseMediaProps> {
 	onSortConfig: (sortKey: string) => void;
 	onStatusFilter: (status: MediaStatus) => void;
 	onSearchChange: (searchVal: string) => void;
+	subset?: ListSubset;
 }
 
 export function MobileListing<T extends BaseMediaProps>({
@@ -50,6 +56,7 @@ export function MobileListing<T extends BaseMediaProps>({
 	onSortConfig,
 	onStatusFilter,
 	onSearchChange,
+	subset,
 }: MobileListingProps<T>) {
 	const { isNavOpen } = useNav();
 	const parentRef = useRef<HTMLDivElement>(null);
@@ -206,27 +213,32 @@ export function MobileListing<T extends BaseMediaProps>({
 									<span className="font-medium">
 										{statusLabel(status)}
 									</span>
-									<div
-										className={`
-	                  transition-all duration-200 ease-out
-	                  ${
-							curStatusFilter === status
-								? "scale-100 opacity-100"
-								: "scale-75 opacity-40"
-						}
-	                `}
-									>
-										{curStatusFilter === status ? (
-											<div className="relative w-5 h-5">
-												<Circle className="w-5 h-5 text-blue-400 absolute" />
-												<div className="w-3 h-3 bg-blue-400/90 rounded-full absolute top-1 left-1 animate-pulse" />
-											</div>
-										) : (
-											<Circle className="w-5 h-5 text-gray-500" />
-										)}
-									</div>
+									<FilterMark
+										on={curStatusFilter === status}
+									/>
 								</div>
 							))}
+							{subset && (
+								<div
+									className={`flex items-center justify-between px-4 py-3 text-zinc-300 text-sm active:scale-98 border-t border-zinc-700/50 ${
+										subset.on ? "bg-zinc-800/40" : ""
+									}`}
+									style={{
+										transitionDelay: openStatusOption
+											? `${statusOptions.length * 30}ms`
+											: "0ms",
+									}}
+									onClick={() => {
+										subset.onToggle();
+										setOpenStatusOption(false);
+									}}
+								>
+									<span className="font-medium capitalize">
+										{subset.name}
+									</span>
+									<FilterMark on={subset.on} />
+								</div>
+							)}
 						</div>
 					</div>
 
@@ -234,7 +246,10 @@ export function MobileListing<T extends BaseMediaProps>({
 					<div className="flex items-center gap-3">
 						<div className="flex items-center gap-1 text-slate-400 text-sm font-medium">
 							<ChartNoAxesColumn className="w-4 h-4 text-slate-500" />
-							<span>{mediaItems.length} Entries</span>
+							<span className={subset?.on ? "capitalize" : ""}>
+								{mediaItems.length}{" "}
+								{subset?.on ? subset.name : "Entries"}
+							</span>
 						</div>
 						<button
 							type="button"
@@ -427,6 +442,25 @@ export function MobileListing<T extends BaseMediaProps>({
 						})}
 					</div>
 				</div>
+			)}
+		</div>
+	);
+}
+
+function FilterMark({ on }: { on: boolean }) {
+	return (
+		<div
+			className={`transition-all duration-200 ease-out ${
+				on ? "scale-100 opacity-100" : "scale-75 opacity-40"
+			}`}
+		>
+			{on ? (
+				<div className="relative w-5 h-5">
+					<Circle className="w-5 h-5 text-blue-400 absolute" />
+					<div className="w-3 h-3 bg-blue-400/90 rounded-full absolute top-1 left-1 animate-pulse" />
+				</div>
+			) : (
+				<Circle className="w-5 h-5 text-gray-500" />
 			)}
 		</div>
 	);
