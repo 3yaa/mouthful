@@ -156,17 +156,33 @@ export function useManageMedia<T extends BaseMediaProps>({
 		[selectedItem, queueUpdate],
 	);
 
-	// returns whether the battler took over
+	// a scored add goes through the battler
+	const battleAdded = useCallback((newItem: T, score: Score) => {
+		setActiveModal("scoreBattlerModal");
+		setSelectedItem(newItem);
+		setTempScore(score);
+	}, []);
+
+	// the add modal
 	const handleItemAdd = useCallback(
 		async (item: T) => {
 			const newItem = await onAdd(item);
-			if (!newItem?.score) return false;
-			setActiveModal("scoreBattlerModal");
-			setSelectedItem(newItem);
-			setTempScore(newItem.score);
+			if (!newItem) return false;
+			if (newItem.score) battleAdded(newItem, newItem.score);
+			else handleItemClicked(newItem);
 			return true;
 		},
-		[onAdd],
+		[onAdd, battleAdded, handleItemClicked],
+	);
+
+	// from inside an open card
+	const handleWorkAdd = useCallback(
+		async (item: T): Promise<T | undefined> => {
+			const newItem = await onAdd(item);
+			if (!newItem?.score) return newItem;
+			battleAdded(newItem, newItem.score);
+		},
+		[onAdd, battleAdded],
 	);
 
 	const handleItemUpdates = useCallback(
@@ -332,6 +348,7 @@ export function useManageMedia<T extends BaseMediaProps>({
 		isMenuButtonsVisible,
 		// handlers
 		handleItemAdd,
+		handleWorkAdd,
 		handleScoreFinal,
 		handleSortConfig,
 		handleModalClose,

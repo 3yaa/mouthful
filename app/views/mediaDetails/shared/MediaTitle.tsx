@@ -4,6 +4,7 @@ import {
 	Fragment,
 	useCallback,
 	useEffect,
+	useLayoutEffect,
 	useReducer,
 	useRef,
 	useState,
@@ -30,23 +31,31 @@ const TITLE_FILL =
 const TITLE_RELIEF = "drop-shadow-[0_2px_8px_rgba(0,0,0,0.55)]";
 const TITLE_BASE = `font-display uppercase ${TITLE_FILL} ${TITLE_RELIEF} text-balance break-words font-bold`;
 //
-
-// --title-scale comes from the title's length -- see titleScale
+const LETTERED = `font-lettering text-center max-w-full text-balance break-words font-semibold text-[length:calc(2.6rem*var(--title-scale,1))] leading-[1.08] [font-variation-settings:'SOFT'_100,'WONK'_1,'opsz'_72]`;
 export const TITLE_TEXT = {
-	lg: `${TITLE_BASE} text-center max-w-full text-[length:calc(2.4rem*var(--title-scale,1))] leading-[1.1] [background-size:100%_1.1em] tracking-[0.03em]`,
-	lgScreen: `${TITLE_BASE} text-center max-w-full text-[length:calc(2rem*var(--title-scale,1))] leading-[1.2] [background-size:100%_1.2em] tracking-[0.08em] [text-indent:0.16em]`,
 	sm: `${TITLE_BASE} text-center max-w-full text-[length:calc(1.7rem*var(--title-scale,1))] leading-[1.12] [background-size:100%_1.12em] font-medium tracking-[0.06em] [text-indent:0.06em] min-w-0`,
+	book: `${LETTERED} text-(--book-ink) [text-shadow:0_-1px_0_rgba(20,12,6,0.45),0_1px_0_rgba(255,240,220,0.1)]`,
+	art: `${LETTERED} text-(--title-ink) [text-shadow:0_1px_2px_rgba(0,0,0,0.55),0_2px_14px_rgba(0,0,0,0.5)]`,
 };
 
 // about a line's worth of capitals at the base size
 const TITLE_FIT = 22;
 const MIN_TITLE_SCALE = 0.68;
+// a title too wide for its row cap
+const ROWS_SCALE = 0.82;
 
-const titleScale = (title: string) =>
-	Math.max(
+// wordFit, when given, is how many capitals a line holds
+const titleScale = (title: string, wordFit?: number) => {
+	const longest = Math.max(1, ...title.split(/\s+/).map((w) => w.length));
+	return Math.max(
 		MIN_TITLE_SCALE,
-		Math.min(1, Math.sqrt(TITLE_FIT / Math.max(title.length, 1))),
+		Math.min(
+			1,
+			Math.sqrt(TITLE_FIT / Math.max(title.length, 1)),
+			wordFit ? wordFit / longest : 1,
+		),
 	);
+};
 
 //
 const SERIES_HALO =
@@ -55,9 +64,12 @@ const SERIES_BASE = `font-display uppercase font-normal ${SERIES_HALO} text-bala
 //
 const KICKER = `font-display uppercase font-semibold bg-linear-to-b from-zinc-200 to-zinc-400/90 bg-clip-text text-transparent [background-repeat:repeat-y] drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] text-balance break-words text-center max-w-full`;
 
+const SERIES_LETTERED = `font-lettering italic mb-0 text-center max-w-full text-balance text-[1.05rem] leading-[1.4] [font-variation-settings:'SOFT'_100]`;
+
 export const SERIES_TEXT = {
-	lg: `${KICKER} mb-1 text-[0.9rem] leading-[1.5] [background-size:100%_1.5em] tracking-[0.3em] [text-indent:0.3em]`,
 	sm: `${KICKER} -mt-2.5 text-[0.72rem] leading-[1.4] [background-size:100%_1.4em] tracking-[0.26em] [text-indent:0.26em]`,
+	book: `${SERIES_LETTERED} text-(--book-ink) opacity-75`,
+	art: `${SERIES_LETTERED} text-(--title-ink)/85 [text-shadow:0_1px_2px_rgba(0,0,0,0.7),0_0_10px_rgba(0,0,0,0.5)]`,
 };
 
 // for anime
@@ -117,23 +129,14 @@ function widestLine(el: HTMLElement): number | null {
 function StatusWave({
 	color,
 	width,
-	isBook,
-	isLogo,
 }: {
 	color: string;
 	width?: number;
 	isBook: boolean;
-	isLogo?: boolean;
 }) {
-	const spacing = isLogo
-		? "mt-3 -mb-1"
-		: isBook
-			? "mt-1.5 mb-1"
-			: "mt-1 mb-1";
-
 	return (
 		<div
-			className={`bg-zinc-800 rounded-full h-0.75 overflow-hidden mx-auto max-w-full ${spacing}`}
+			className="bg-zinc-800 rounded-full h-0.75 overflow-hidden mx-auto max-w-full mt-1 mb-0.5"
 			style={{ width: width ?? "100%" }}
 		>
 			<div className="bg-zinc-900 h-0.75 w-full rounded-full relative overflow-hidden">
@@ -160,6 +163,10 @@ interface MediaTitleProps {
 	textClass: string;
 	className?: string;
 	underlineColor?: string;
+	// capitals a line holds, for a title set in a tight frame
+	wordFit?: number;
+	// ems a title may run on one line at full size
+	rowCap?: number;
 }
 
 export function MediaTitle({
@@ -172,6 +179,8 @@ export function MediaTitle({
 	className = "",
 	underlineColor,
 	isBook,
+	wordFit,
+	rowCap,
 }: MediaTitleProps) {
 	const [brokenUrl, setBrokenUrl] = useState<string | null>(null);
 	const [, remeasured] = useReducer((n: number) => n + 1, 0);
@@ -199,6 +208,31 @@ export function MediaTitle({
 
 	const showsText = !logoUrl || brokenUrl === logoUrl;
 	const textRef = useRef<HTMLDivElement | null>(null);
+	// the title on one line at full size, unseen
+	const probeRef = useRef<HTMLSpanElement | null>(null);
+	// set when the title goes into rows: how wide they may run, in ems
+	const [rowWidth, setRowWidth] = useState<number | null>(null);
+
+	useLayoutEffect(() => {
+		const probe = probeRef.current;
+		if (!showsText || !rowCap || !probe) return setRowWidth(null);
+		const measure = () => {
+			const em = parseFloat(getComputedStyle(probe).fontSize);
+			const width = probe.getBoundingClientRect().width / em;
+			if (width <= rowCap) return setRowWidth(null);
+			const parts = Array.from(
+				probe.children,
+				(part) => part.getBoundingClientRect().width / em,
+			);
+			// two rows, never three
+			const needs =
+				parts.length > 1 ? Math.max(...parts) : width / 2 + 0.8;
+			setRowWidth(Math.max(rowCap, needs) + 0.1);
+		};
+		measure();
+		// the lettering face swaps in after first paint
+		document.fonts?.ready.then(measure).catch(() => {});
+	}, [showsText, rowCap, title, textClass]);
 	// longest rendered line
 	const [lineWidth, setLineWidth] = useState<number | undefined>(undefined);
 
@@ -221,15 +255,40 @@ export function MediaTitle({
 	}, [showsText, title, textClass]);
 
 	if (showsText) {
+		const scale = titleScale(title || "Untitled", wordFit);
 		return (
-			<div className={`flex flex-col max-w-full ${className}`}>
+			<div className={`relative flex flex-col max-w-full ${className}`}>
+				{rowCap && (
+					<span
+						ref={probeRef}
+						aria-hidden
+						className={`${textClass} pointer-events-none invisible absolute left-0 top-0 w-max max-w-none! whitespace-nowrap`}
+						style={
+							{ "--title-scale": scale } as React.CSSProperties
+						}
+					>
+						{titleParts(title || "Untitled").map((part, i) => (
+							<Fragment key={i}>
+								{i > 0 && " "}
+								<span>{part}</span>
+							</Fragment>
+						))}
+					</span>
+				)}
 				<div
 					ref={textRef}
 					onClick={copyName}
 					className={`${textClass} cursor-pointer select-none`}
 					style={
 						{
-							"--title-scale": titleScale(title || "Untitled"),
+							"--title-scale":
+								rowWidth !== null
+									? Math.min(scale, ROWS_SCALE)
+									: scale,
+							...(rowWidth !== null && {
+								maxWidth: `min(100%, ${rowWidth}em)`,
+								marginInline: "auto",
+							}),
 						} as React.CSSProperties
 					}
 				>
@@ -296,9 +355,6 @@ export function MediaTitle({
 				}}
 				className="block max-w-full object-contain cursor-pointer select-none drop-shadow-[0_2px_8px_rgba(0,0,0,0.55)]"
 			/>
-			{underlineColor && (
-				<StatusWave color={underlineColor} isBook={isBook} isLogo />
-			)}
 		</div>
 	);
 }

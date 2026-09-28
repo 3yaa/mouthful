@@ -1,5 +1,5 @@
 "use client";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { MangaProps } from "@/types/manga";
 import { DIFF_COLUMNS_MANGA } from "@/types/manga";
 import { useMediaData } from "@/hooks/useMediaData";
@@ -16,6 +16,7 @@ import { isSameName } from "@/utils/mediaMatch";
 import { SeriesJumpProps, SeriesTargetProps } from "@/types/media";
 import { backfillRuns } from "@/utils/seriesRead";
 import { AnimatePresence } from "framer-motion";
+import { withPages } from "../components/ui/MangaBackdrop";
 import dynamic from "next/dynamic";
 // load score dynamically
 const ScoreBattlerHub = dynamic(
@@ -69,6 +70,7 @@ export default function MangaHub() {
 		sortConfig,
 		DIFF_COLUMNS_MANGA,
 	);
+	const pagedManga = useMemo(() => withPages(sortedManga), [sortedManga]);
 
 	// item a series jump points at
 	const findOwned = useCallback(
@@ -104,7 +106,7 @@ export default function MangaHub() {
 		<div className="min-h-screen">
 			<div className="lg:block hidden">
 				<DesktopListing
-					mediaItems={sortedManga}
+					mediaItems={pagedManga}
 					isProcessing={isProcessing}
 					sortConfig={sortConfig}
 					statusOptions={mangaStatusOptions.map(
@@ -124,7 +126,7 @@ export default function MangaHub() {
 			</div>
 			<div className="block lg:hidden">
 				<MobileListing
-					mediaItems={sortedManga}
+					mediaItems={pagedManga}
 					isProcessing={isProcessing || isFilterPending}
 					sortConfig={sortConfig}
 					statusOptions={mangaStatusOptions.map(

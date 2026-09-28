@@ -1,35 +1,47 @@
 import { Loader2, LucideIcon } from "lucide-react";
 
 // --- action buttons
-const SOLID_TONE = {
-	green: "hover:bg-green-600/20 hover:text-green-500",
-	blue: "hover:bg-blue-600/20 hover:text-blue-400",
-	red: "hover:bg-red-600/50 hover:text-red-300",
-	purple: "hover:bg-purple-600/25 hover:text-purple-400",
+const GLASS_TONE = {
+	white: "hover:text-white",
+	green: "hover:text-emerald-400",
+	red: "hover:text-red-400",
 } as const;
+
+const GLASS =
+	"rounded-full shadow-[0_2px_8px_rgba(0,0,0,0.4)] backdrop-blur-sm transition-[color,background-color] duration-150";
+
+// add/reload
+export const glassBtn = ({
+	on = false,
+	tone = "white",
+}: { on?: boolean; tone?: keyof typeof GLASS_TONE } = {}) =>
+	`${GLASS} hover:cursor-pointer ${
+		on
+			? "bg-white/20 text-white"
+			: `bg-black/35 text-white/60 hover:bg-black/55 ${GLASS_TONE[tone]}`
+	}`;
 
 const GHOST_TONE = {
-	emerald: "hover:bg-emerald-800/20 hover:text-emerald-400",
-	blue: "hover:bg-blue-800/20 hover:text-blue-400",
-	orange: "hover:bg-orange-700/20 hover:text-orange-400",
-	red: "hover:bg-red-700/20 hover:text-red-500",
-	purple: "hover:bg-purple-800/20 hover:text-purple-400",
+	emerald: "hover:text-emerald-400",
+	blue: "hover:text-blue-400",
+	orange: "hover:text-orange-400",
+	red: "hover:text-red-400",
+	purple: "hover:text-purple-400",
 } as const;
 
-type SolidProps = {
-	variant?: "solid";
-	tone: keyof typeof SOLID_TONE;
-	// the pills padding
-	pad?: "p-1.5" | "p-1.5 px-2.5" | "py-1.5 px-2" | "py-1.5 px-5";
+type GlassProps = {
+	variant?: "glass";
+	tone: keyof typeof GLASS_TONE;
+	wide?: boolean;
 };
 
 type GhostProps = {
 	variant: "ghost";
 	tone: keyof typeof GHOST_TONE;
-	pad?: never;
+	wide?: never;
 };
 
-type ActionBtnProps = (SolidProps | GhostProps) & {
+type ActionBtnProps = (GlassProps | GhostProps) & {
 	icon: LucideIcon;
 	onClick: () => void;
 	title: string;
@@ -46,19 +58,22 @@ export function ActionBtn({
 	const ghost = rest.variant === "ghost";
 	const size = ghost ? "w-4 h-4" : "w-5 h-5";
 	const shape = ghost
-		? `p-1.5 duration-200 bg-zinc-800/0 text-black/0 ${GHOST_TONE[rest.tone]}`
-		: `${rest.pad ?? "p-1.5"} bg-zinc-800/50 ${
-				busy ? "text-gray-300" : "text-gray-400"
-			} ${busy ? "" : SOLID_TONE[rest.tone]}`;
+		? // unseen until hovered
+			`rounded-full p-1.5 text-transparent transition-[color,background-color,box-shadow] duration-200 hover:bg-black/55 hover:shadow-[0_2px_8px_rgba(0,0,0,0.4)] hover:backdrop-blur-sm ${GHOST_TONE[rest.tone]} ${
+				busy ? "cursor-default" : "hover:cursor-pointer"
+			}`
+		: `${rest.wide ? "py-1.5 px-5" : "p-1.5"} ${
+				busy
+					? `${GLASS} cursor-default bg-black/35 text-white/80`
+					: glassBtn({ tone: rest.tone })
+			}`;
 	return (
 		<button
 			type="button"
 			onClick={onClick}
 			disabled={busy}
 			title={title}
-			className={`rounded-lg transition-all ${
-				busy ? "cursor-default" : "hover:cursor-pointer"
-			} ${shape}`}
+			className={shape}
 		>
 			{busy ? (
 				<Loader2 className={`${size} animate-spin`} />

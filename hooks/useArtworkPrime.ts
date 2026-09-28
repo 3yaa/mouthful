@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef } from "react";
 import { extractCoverPalette } from "@/utils/extractCoverPalette";
+import { isDesktopView } from "@/hooks/useMediaQuery";
 import {
 	primeSequence,
 	type PrimeSpec,
@@ -15,7 +16,6 @@ export type PrimeTrack = {
 	palette?: boolean;
 };
 
-const DESKTOP = "(min-width: 64rem)";
 const NEIGHBOURS = 3;
 
 function isMetered(): boolean {
@@ -51,7 +51,7 @@ export function useArtworkPrime(
 
 	useEffect(() => {
 		if (typeof window === "undefined") return;
-		if (window.matchMedia(DESKTOP).matches !== (view === "desktop")) return;
+		if (isDesktopView() !== (view === "desktop")) return;
 
 		const cancels: Array<() => void> = [];
 		const limit = isMetered() ? NEIGHBOURS : undefined;

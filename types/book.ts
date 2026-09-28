@@ -19,7 +19,7 @@ export const DIFF_COLUMNS_BOOK: [
 ];
 
 export interface BookProps extends BaseMediaProps, SeriesMediaProps {
-	status: "Completed" | "Want to Read" | "Dropped";
+	status: "Reading" | "Want to Read" | "Completed" | "Dropped";
 	key: string;
 	author: string;
 	datePublished: number;

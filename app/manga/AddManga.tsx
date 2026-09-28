@@ -19,6 +19,7 @@ import { AnimatePresence } from "framer-motion";
 //
 import { useMangaSearch } from "@/hooks/external/useMangaSearch";
 import { findOnlyNamed } from "@/utils/mediaMatch";
+import { useEscapeClose } from "@/hooks/useEscapeClose";
 
 interface AddMangaProps {
 	isOpen: boolean;
@@ -169,9 +170,8 @@ export function AddManga({
 		if (newManga.anilistId && isDupTitle) {
 			return;
 		}
-		// only close when the battler did not take over -- closing would clear item scoring
-		const isBattling = await onAddManga(newManga as MangaProps);
-		if (!isBattling) onClose();
+		const tookOver = await onAddManga(newManga as MangaProps);
+		if (!tookOver) onClose();
 	};
 
 	const handleMangaDetailsClose = () => {
@@ -212,16 +212,7 @@ export function AddManga({
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [targetFromAbove?.id, targetFromAbove?.title]);
 
-	useEffect(() => {
-		const handleEscape = (e: KeyboardEvent) => {
-			if (e.key === "Escape") {
-				onClose();
-			}
-		};
-		//
-		window.addEventListener("keydown", handleEscape);
-		return () => window.removeEventListener("keydown", handleEscape);
-	}, [onClose]);
+	useEscapeClose(onClose);
 
 	if (!isOpen) return null;
 
@@ -266,6 +257,13 @@ export function AddManga({
 						setNewManga((prev) =>
 							prev.cover
 								? { ...prev, cover: { ...prev.cover, color } }
+								: prev,
+						)
+					}
+					updateCoverPage={(page: number) =>
+						setNewManga((prev) =>
+							prev.cover
+								? { ...prev, cover: { ...prev.cover, page } }
 								: prev,
 						)
 					}

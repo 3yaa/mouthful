@@ -27,6 +27,7 @@ import { AnimatePresence } from "framer-motion";
 //
 import { useBookSearch } from "@/hooks/external/useBookSearch";
 import { findOnlyNamed } from "@/utils/mediaMatch";
+import { useEscapeClose } from "@/hooks/useEscapeClose";
 
 interface AddBookProps {
 	isOpen: boolean;
@@ -197,9 +198,9 @@ export function AddBook({
 			cover: covers[coverIndex],
 			series: pickBookSeries(series, seriesIndex),
 		};
-		// only close when the battler did not take over -- closing would clear item scoring
-		const isBattling = await onAddBook(finalBook as BookProps);
-		if (!isBattling) onClose();
+		// new row's details or battler take over
+		const tookOver = await onAddBook(finalBook as BookProps);
+		if (!tookOver) onClose();
 	};
 
 	const handleSeriesChange = useCallback(
@@ -260,16 +261,7 @@ export function AddBook({
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [targetFromAbove?.id, targetFromAbove?.title]);
 
-	useEffect(() => {
-		const handleEscape = (e: KeyboardEvent) => {
-			if (e.key === "Escape") {
-				onClose();
-			}
-		};
-		//
-		window.addEventListener("keydown", handleEscape);
-		return () => window.removeEventListener("keydown", handleEscape);
-	}, [onClose]);
+	useEscapeClose(onClose);
 
 	if (!isOpen) return null;
 

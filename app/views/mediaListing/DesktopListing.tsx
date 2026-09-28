@@ -13,6 +13,7 @@ import { ListingHeader } from "./ListingHeader";
 import { useFlash } from "@/app/components/RouteFlash";
 import { LISTING_COLUMN, ListingLoader } from "./ListingSkeleton";
 import { pluralOf, statusLabel } from "@/utils/formattingUtils";
+import { useDesktopView } from "@/hooks/useMediaQuery";
 
 // default row size before measurement
 const ROW_FALLBACK = 127;
@@ -66,9 +67,13 @@ export function DesktopListing<T extends BaseMediaProps>({
 	const statusFilterRef = useRef<HTMLDivElement>(null);
 	const [openStatusOption, setOpenStatusOption] = useState(false);
 	const [rowEstimate, setRowEstimate] = useState(ROW_FALLBACK);
+	// both trees stay mounted -- only the one on screen renders
+	const showing = useDesktopView();
+	// the height the listing lands in
+	const fold = showing ? window.innerHeight : 0;
 	//
 	const virtualizer = useVirtualizer({
-		count: mediaItems.length,
+		count: showing ? mediaItems.length : 0,
 		getScrollElement: () => parentRef.current,
 		estimateSize: () => rowEstimate,
 		overscan: 5,
@@ -423,6 +428,9 @@ export function DesktopListing<T extends BaseMediaProps>({
 							{virtualizer
 								.getVirtualItems()
 								.map((virtualItem) => {
+									// the overscan below the fold stays lazy
+									const onFirstScreen =
+										virtualItem.start < fold;
 									const item = mediaItems[virtualItem.index];
 									return (
 										<div
@@ -443,6 +451,7 @@ export function DesktopListing<T extends BaseMediaProps>({
 												total={mediaItems.length}
 												rank={ranks[virtualItem.index]}
 												isOpen={item.id === openItemId}
+												priority={onFirstScreen}
 												mediaType={mediaType}
 												onClick={onItemClicked}
 												differentColumns={

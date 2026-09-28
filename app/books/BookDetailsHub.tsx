@@ -26,7 +26,7 @@ export type BookAction =
 	| { type: "delete" }
 	| {
 			type: "changeStatus";
-			payload: "Completed" | "Want to Read" | "Dropped";
+			payload: BookProps["status"];
 	  }
 	| { type: "resetScore" }
 	| { type: "nudgeScore"; payload: "up" | "down" }
@@ -304,7 +304,7 @@ export function BookDetails({
 	};
 
 	const handleStatusChange = (value: string) => {
-		const newStatus = value as "Completed" | "Want to Read";
+		const newStatus = value as BookProps["status"];
 		const statusLoad: Partial<BookProps> = {
 			status: newStatus,
 		};
@@ -355,7 +355,12 @@ export function BookDetails({
 		commitScoreNudge();
 		onClose();
 	};
-	useEscapeClose(handleModalClose);
+	// one layer per press -- the results panel, then the reload preview, then the modal
+	useEscapeClose(() => {
+		if (multResultsOpen) setMultResultsOpen(false);
+		else if (isSelecting) reload.cancel();
+		else handleModalClose();
+	});
 
 	const { isSubmitting, submit: handleAddBook } = useAddWait(addBook);
 

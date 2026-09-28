@@ -25,13 +25,34 @@ const EDGE_WASH = [
 	"rgba(9,9,9,0.2) 100%)",
 ].join(", ");
 
+const BOTTOM_WASH = [
+	"linear-gradient(to bottom",
+	"transparent 38%",
+	"rgba(9,9,9,0.05) 48%",
+	"rgba(9,9,9,0.16) 58%",
+	"rgba(9,9,9,0.34) 68%",
+	"rgba(9,9,9,0.56) 78%",
+	"rgba(9,9,9,0.78) 88%",
+	"rgba(9,9,9,0.92) 95%",
+	"rgba(9,9,9,1) 100%)",
+].join(", ");
+
+const CORNER_WASH = [
+	"radial-gradient(55% 100% at 0% 100%",
+	"rgba(9,9,9,0.9) 0%",
+	"rgba(9,9,9,0.72) 30%",
+	"rgba(9,9,9,0.4) 55%",
+	"rgba(9,9,9,0.14) 80%",
+	"transparent 100%)",
+].join(", ");
+
 export const BackdropImageMobile = ({
 	src,
 	width,
 	height,
 	priority = false,
 }: BackdropImagePropsMobile) => (
-	<div className="absolute top-0 left-44 right-0 -z-10 overflow-hidden select-none md:h-30">
+	<div className="absolute -top-3 bottom-0 left-11 -right-3 -z-10 overflow-hidden select-none">
 		<div className="relative w-full h-full">
 			{/* IMAGE */}
 			<Image
@@ -40,27 +61,20 @@ export const BackdropImageMobile = ({
 				width={width}
 				height={height}
 				sizes="(min-width: 768px) 85vw, 62vw"
-				className="object-cover w-full"
+				className="object-cover w-full h-full"
 				style={{
-					objectPosition: "center -7px",
+					objectPosition: "center 12%",
 					filter: "brightness(0.32) saturate(0.9)",
 				}}
 				// lazy past the first rows
 				priority={priority}
 			/>
 
-			{/* HORIZONTAL GRADIENT */}
-			<div
-				className="absolute inset-0 pointer-events-none"
-				style={{ background: EDGE_WASH }}
-			/>
-
-			{/* VERTICAL GRADIENT */}
+			{/* EDGE GRADIENTS */}
 			<div
 				className="absolute inset-0 pointer-events-none"
 				style={{
-					background:
-						"linear-gradient(to bottom, transparent 50%, rgba(9,9,9,0.9) 70%, rgba(9,9,9,1) 75%, rgba(9,9,9,1) 100%)",
+					background: `${CORNER_WASH}, ${BOTTOM_WASH}, ${EDGE_WASH}`,
 				}}
 			/>
 		</div>

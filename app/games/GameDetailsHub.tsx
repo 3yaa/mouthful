@@ -300,7 +300,7 @@ export function GameDetails({
 		commitScoreNudge();
 		onClose();
 	};
-	useEscapeClose(handleModalClose);
+	useEscapeClose(() => (isSelecting ? reload.cancel() : handleModalClose()));
 
 	const handleNeedYear = () => {
 		const needYear = true;

@@ -62,6 +62,8 @@ export function Dropdown({
 		if (!isOpen) return;
 		const handleEscapeKey = (event: KeyboardEvent) => {
 			if (event.key === "Escape") {
+				// the card under it keeps its escape
+				event.stopPropagation();
 				setIsOpen(false);
 			}
 		};

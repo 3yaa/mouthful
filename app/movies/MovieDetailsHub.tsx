@@ -90,8 +90,8 @@ interface MovieDetailsProps {
 	addMovie?: () => void | Promise<unknown>;
 	showSequelPrequel?: (jump: SeriesJumpProps) => void;
 	isInList?: (target: SeriesTargetProps) => boolean;
-	existingMovies?: MovieProps[];
-	onAddWork?: (movie: MovieProps) => Promise<unknown>;
+	existingMovies: MovieProps[];
+	onAddWork: (movie: MovieProps) => Promise<MovieProps | undefined>;
 	onRefresh?: (metadata: Partial<MovieProps>) => Promise<void>;
 	// legacy
 	onBackfillTmdbId?: (movieId: number, tmdbId: string) => void;
@@ -111,14 +111,24 @@ interface MovieDetailsProps {
 		anilistId: number,
 		patch: { note?: string | null; hidden?: boolean },
 	) => void | Promise<unknown>;
-	onShowUpdate?: (
+	onShowUpdate: (
 		showId: number,
 		updates?: Partial<ShowProps>,
 		takeAction?: boolean,
 	) => void;
-	existingShows?: ShowProps[];
-	onAddShow?: (movie: ShowProps) => Promise<unknown>;
+	existingShows: ShowProps[];
+	onAddShow: (show: ShowProps) => Promise<ShowProps | undefined>;
 }
+
+export type MovieCrossMedia = Pick<
+	MovieDetailsProps,
+	| "existingMovies"
+	| "onAddWork"
+	| "existingShows"
+	| "onShowUpdate"
+	| "onShowUpdatePart"
+	| "onAddShow"
+>;
 
 // choices a movie reload offers
 type MovieArt = {
@@ -135,8 +145,8 @@ export function MovieDetails({
 	isLoading,
 	showSequelPrequel,
 	isInList,
-	existingMovies = [],
-	existingShows = [],
+	existingMovies,
+	existingShows,
 	onShowUpdate,
 	onShowUpdatePart,
 	onAddWork,
@@ -179,6 +189,7 @@ export function MovieDetails({
 			}
 			// reload can clear series
 			meta.series = reloaded.series ?? null;
+			meta.genres = reloaded.genres;
 			if (reloaded.title) meta.title = reloaded.title;
 			return {
 				meta,
@@ -263,7 +274,14 @@ export function MovieDetails({
 		}
 	}, [castPanel.works, existingMovies, onBackfillTmdbId]);
 
-	// for cross media
+	const crossMedia: MovieCrossMedia = {
+		existingMovies,
+		onAddWork,
+		existingShows,
+		onShowUpdate,
+		onShowUpdatePart,
+		onAddShow,
+	};
 	const selectedMovie =
 		selectedWorkItem?.type === "movie"
 			? existingMovies.find((m) => m.id === selectedWorkItem.id)
@@ -534,7 +552,7 @@ export function MovieDetails({
 		commitScoreNudge();
 		onClose();
 	};
-	useEscapeClose(handleModalClose);
+	useEscapeClose(() => (isSelecting ? reload.cancel() : handleModalClose()));
 
 	// AddMovie.tsx -- goes back to search with year field
 	const handleNeedYear = () => {
@@ -676,17 +694,14 @@ export function MovieDetails({
 						})
 					}
 					onClose={() => setPendingWork(null)}
-					existingMovies={existingMovies}
+					{...crossMedia}
 					onAddMovie={async (m) => {
-						if (onAddWork) {
-							await onAddWork(m);
-						} else {
-							await authFetch("/api/movies", {
-								method: "POST",
-								headers: { "Content-Type": "application/json" },
-								body: JSON.stringify(m),
+						const added = await onAddWork(m);
+						if (added)
+							setSelectedWorkItem({
+								type: "movie",
+								id: added.id,
 							});
-						}
 						setPendingWork(null);
 					}}
 				/>
@@ -696,16 +711,11 @@ export function MovieDetails({
 					movie={selectedMovie}
 					onClose={() => setSelectedWorkItem(null)}
 					onUpdate={onUpdate}
-					existingMovies={existingMovies}
-					existingShows={existingShows}
-					onShowUpdate={onShowUpdate}
-					onShowUpdatePart={onShowUpdatePart}
-					onAddWork={onAddWork}
-					onAddShow={onAddShow}
+					{...crossMedia}
 				/>
 			)}
 			{/* SHOW STUFF */}
-			{selectedShow && onShowUpdate && (
+			{selectedShow && (
 				<ShowDetails
 					show={selectedShow}
 					onClose={() => setSelectedWorkItem(null)}
@@ -724,16 +734,14 @@ export function MovieDetails({
 					titleFromAbove={pendingWork.title}
 					onClose={() => setPendingWork(null)}
 					existingShows={existingShows}
+					onAddWork={onAddShow}
+					existingMovies={existingMovies}
+					onMovieUpdate={onUpdate}
+					onAddMovie={onAddWork}
 					onAddShow={async (s) => {
-						if (onAddShow) {
-							await onAddShow(s);
-						} else {
-							await authFetch("/api/shows", {
-								method: "POST",
-								headers: { "Content-Type": "application/json" },
-								body: JSON.stringify(s),
-							});
-						}
+						const added = await onAddShow(s);
+						if (added)
+							setSelectedWorkItem({ type: "tv", id: added.id });
 						setPendingWork(null);
 					}}
 				/>

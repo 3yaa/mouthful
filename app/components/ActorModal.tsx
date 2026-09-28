@@ -7,7 +7,7 @@ import React, {
 	useState,
 } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Loader2, Tv, X } from "lucide-react";
+import { ArrowLeft, Clapperboard, Loader2, Tv, X } from "lucide-react";
 import type { CastMember, ActorWork } from "../../utils/getActorInfo";
 import { Loading } from "@/app/components/ui/Loading";
 import { ModalBackdrop, ModalPanel } from "@/app/components/ui/ModalMotion";
@@ -15,6 +15,7 @@ import { PosterCard } from "@/app/components/ui/PosterCard";
 import { MediaStatus } from "@/types/media";
 import { getStatusBorderColor } from "@/utils/styleUtils";
 import { useScrollLock } from "@/hooks/useScrollLock";
+import { useEscapeClose } from "@/hooks/useEscapeClose";
 
 const WorkCard = memo(function WorkCard({
 	work,
@@ -25,12 +26,13 @@ const WorkCard = memo(function WorkCard({
 	status?: MediaStatus;
 	onOpen?: (work: ActorWork) => void;
 }) {
+	const Glyph = work.media_type === "tv" ? Tv : Clapperboard;
 	return (
 		<PosterCard
 			src={work.poster_path}
 			alt={work.title}
 			fallback={
-				<Tv className="w-5 h-5 text-zinc-700" strokeWidth={1.5} />
+				<Glyph className="w-5 h-5 text-zinc-700" strokeWidth={1.5} />
 			}
 			onClick={onOpen ? () => onOpen(work) : undefined}
 			className={`shadow-md shadow-black/50 ${onOpen ? "hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/60 transition-all duration-300 ease-out" : ""} ${status ? `${getStatusBorderColor(status)} border-2` : "border-zinc-800/50 hover:border-zinc-700/60"}`}
@@ -97,6 +99,8 @@ export function ActorItemsModal({
 	isPersonView = false,
 	personName,
 }: Props) {
+	// same step back as the backdrop -- an actor's works return to the cast first
+	useEscapeClose(selectedActor && !isPersonView ? onActorBack : onClose);
 	const [mediaFilter, setMediaFilter] = useState<"all" | "tv" | "movie">(
 		"all",
 	);

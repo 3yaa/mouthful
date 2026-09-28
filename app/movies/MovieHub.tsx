@@ -14,6 +14,7 @@ import { movieStatusOptions } from "@/utils/dropDownDetails";
 import { AddMovie } from "./AddMovie";
 import { AddShow } from "@/app/shows/AddShow";
 import { MovieDetails } from "./MovieDetailsHub";
+import { ShowDetails } from "@/app/shows/ShowDetailsHub";
 import { DesktopListing } from "@/app/views/mediaListing/DesktopListing";
 import { MobileListing } from "@/app/views/mediaListing/MobileListing";
 import { AddButton } from "../components/ui/AddButton";
@@ -65,6 +66,7 @@ export default function MoviesHub() {
 		tempScore,
 		handleScoreFinal,
 		handleItemAdd,
+		handleWorkAdd,
 	} = useManageMedia<MovieProps>({
 		onAdd: add,
 		items: items,
@@ -87,6 +89,25 @@ export default function MoviesHub() {
 	);
 
 	const [chainShowTitle, setChainShowTitle] = useState<string | null>(null);
+	// an anime part's mark, from any show card opened here
+	const { updatePart: updateShowPart } = shows;
+	const handleShowPart = useCallback(
+		(
+			showId: number,
+			anilistId: number,
+			patch: Parameters<typeof withPartPatch>[2],
+		) =>
+			updateShowPart(showId, anilistId, patch, (item) =>
+				withPartPatch(item, anilistId, patch),
+			),
+		[updateShowPart],
+	);
+	// the chain show once it's added
+	const [chainShowId, setChainShowId] = useState<number | null>(null);
+	const chainShow =
+		chainShowId != null
+			? shows.items.find((s) => s.id === chainShowId)
+			: undefined;
 
 	const findOwned = useCallback(
 		(target: SeriesTargetProps) =>
@@ -175,7 +196,11 @@ export default function MoviesHub() {
 						isOpen={activeModal === "addModal"}
 						onClose={handleModalClose}
 						existingMovies={items}
+						onAddWork={handleWorkAdd}
 						existingShows={shows.items}
+						onShowUpdate={shows.handleUpdates}
+						onShowUpdatePart={handleShowPart}
+						onAddShow={shows.handleAdd}
 						onAddMovie={handleItemAdd}
 						targetFromAbove={titleToUse}
 						onSeriesNav={showSequelPrequel}
@@ -214,15 +239,11 @@ export default function MoviesHub() {
 						showSequelPrequel={showSequelPrequel}
 						isInList={isInList}
 						existingMovies={items}
-						onAddWork={handleItemAdd}
+						onAddWork={handleWorkAdd}
 						//
 						existingShows={shows.items}
 						onShowUpdate={shows.handleUpdates}
-						onShowUpdatePart={(showId, anilistId, patch) =>
-							shows.updatePart(showId, anilistId, patch, (item) =>
-								withPartPatch(item, anilistId, patch),
-							)
-						}
+						onShowUpdatePart={handleShowPart}
 						onAddShow={shows.handleAdd}
 					/>
 				)}
@@ -235,8 +256,32 @@ export default function MoviesHub() {
 						isOpen
 						titleFromAbove={chainShowTitle}
 						existingShows={shows.items}
-						onAddShow={shows.handleAdd}
+						onAddWork={shows.handleAdd}
+						existingMovies={items}
+						onMovieUpdate={handleItemUpdates}
+						onAddMovie={handleWorkAdd}
+						onAddShow={async (s) => {
+							const added = await shows.handleAdd(s);
+							if (added) setChainShowId(added.id);
+						}}
 						onClose={() => setChainShowTitle(null)}
+					/>
+				)}
+			</AnimatePresence>
+			<AnimatePresence>
+				{/* steps aside while a movie of its own takes the screen */}
+				{chainShow && !activeModal && (
+					<ShowDetails
+						key="chain-show-details"
+						show={chainShow}
+						onClose={() => setChainShowId(null)}
+						onUpdate={shows.handleUpdates}
+						onUpdatePart={handleShowPart}
+						existingShows={shows.items}
+						onAddWork={shows.handleAdd}
+						existingMovies={items}
+						onMovieUpdate={handleItemUpdates}
+						onAddMovie={handleWorkAdd}
 					/>
 				)}
 			</AnimatePresence>

@@ -8,21 +8,19 @@ import {
 } from "@/app/components/ui/SearchCard";
 import { Clapperboard } from "lucide-react";
 import { MovieProps } from "@/types/movie";
-import { ShowProps } from "@/types/show";
 import { SeriesJumpProps, SeriesTargetProps } from "@/types/media";
 import { mapMetaToMovie } from "@/app/movies/utils/movieMapping";
-import { MovieDetails } from "./MovieDetailsHub";
+import { MovieDetails, type MovieCrossMedia } from "./MovieDetailsHub";
 import { useMovieSearch } from "@/hooks/external/useMovieSearch";
 import { buildCover } from "@/utils/coverColor";
 import { findOnlyNamed, isRealTmdbId } from "@/utils/mediaMatch";
+import { useEscapeClose } from "@/hooks/useEscapeClose";
 
-interface AddMovieProps {
+interface AddMovieProps extends MovieCrossMedia {
 	isOpen: boolean;
 	onClose: () => void;
-	existingMovies: MovieProps[];
 	onAddMovie: (item: MovieProps) => void | Promise<boolean | void>;
 	targetFromAbove?: SeriesJumpProps | null;
-	existingShows?: ShowProps[];
 	onSeriesNav?: (jump: SeriesJumpProps) => void;
 	isInList?: (target: SeriesTargetProps) => boolean;
 	onDuplicate?: (dup: {
@@ -49,6 +47,7 @@ export function AddMovie({
 	isInList,
 	onDuplicate,
 	onAnimeChain,
+	...crossMedia
 }: AddMovieProps) {
 	//failure reasons && their fixes -- for user
 	const [failedReason, setFailedReason] = useState("");
@@ -164,7 +163,7 @@ export function AddMovie({
 			const placed = movieOnly ? undefined : movieData.animeMovie;
 			if (placed?.kind === "show" && onAnimeChain) {
 				//
-				const owned = (existingShows ?? []).some(
+				const owned = existingShows.some(
 					(show) => String(show.tmdbId) === placed.tmdbId,
 				);
 				if (owned) {
@@ -261,8 +260,8 @@ export function AddMovie({
 				? { backdropUrl: backdropUrls[backdropIndex] }
 				: {}),
 		};
-		const isBattling = await onAddMovie(finalMovie as MovieProps);
-		if (!isBattling) onClose();
+		const tookOver = await onAddMovie(finalMovie as MovieProps);
+		if (!tookOver) onClose();
 	};
 
 	const handleMovieDetailsClose = () => {
@@ -322,16 +321,7 @@ export function AddMovie({
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [targetFromAbove?.id, targetFromAbove?.title]);
 
-	useEffect(() => {
-		const handleEscape = (e: KeyboardEvent) => {
-			if (e.key === "Escape") {
-				onClose();
-			}
-		};
-		//
-		window.addEventListener("keydown", handleEscape);
-		return () => window.removeEventListener("keydown", handleEscape);
-	}, [onClose]);
+	useEscapeClose(onClose);
 
 	if (!isOpen) return null;
 
@@ -384,6 +374,7 @@ export function AddMovie({
 					addMovie={handleMovieAdd}
 					existingMovies={existingMovies}
 					existingShows={existingShows}
+					{...crossMedia}
 					showSequelPrequel={onSeriesNav}
 					isInList={isInList}
 					isLoading={{

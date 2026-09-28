@@ -9,10 +9,11 @@ import { mapNewShow, mapShowMeta } from "@/app/shows/utils/showMapping";
 import { ShowDetails, type ShowDetailsProps } from "./ShowDetailsHub";
 import { useShowSearch } from "@/hooks/external/useShowSearch";
 import { findOnlyNamed, isRealTmdbId } from "@/utils/mediaMatch";
+import { useEscapeClose } from "@/hooks/useEscapeClose";
 
-// used in AddShow -- for movie and manga
 type CrossMedia = Pick<
 	ShowDetailsProps,
+	| "onAddWork"
 	| "existingMovies"
 	| "onMovieUpdate"
 	| "onAddMovie"
@@ -198,8 +199,8 @@ export function AddShow({
 				? { backdropUrl: backdropUrls[backdropIndex] }
 				: {}),
 		};
-		const isBattling = await onAddShow(finalShow as ShowProps);
-		if (!isBattling) onClose();
+		const tookOver = await onAddShow(finalShow as ShowProps);
+		if (!tookOver) onClose();
 	};
 
 	const handleShowDetailsClose = () => {
@@ -248,16 +249,7 @@ export function AddShow({
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [titleFromAbove]);
 
-	useEffect(() => {
-		const handleEscape = (e: KeyboardEvent) => {
-			if (e.key === "Escape") {
-				onClose();
-			}
-		};
-		//
-		window.addEventListener("keydown", handleEscape);
-		return () => window.removeEventListener("keydown", handleEscape);
-	}, [onClose]);
+	useEscapeClose(onClose);
 
 	if (!isOpen) return null;
 

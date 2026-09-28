@@ -19,6 +19,7 @@ import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { Loading } from "../../components/ui/Loading";
 import { MobileItem } from "./MobileItem";
 import { pluralOf, statusLabel } from "@/utils/formattingUtils";
+import { useDesktopView } from "@/hooks/useMediaQuery";
 
 // default row sizes
 const ROW_FALLBACK = 133;
@@ -67,9 +68,13 @@ export function MobileListing<T extends BaseMediaProps>({
 	const [rowEstimate, setRowEstimate] = useState(
 		mediaType === "game" ? GAME_ROW_FALLBACK : ROW_FALLBACK,
 	);
+	// both trees stay mounted -- only the one on screen renders rows
+	const showing = !useDesktopView();
+	// the height the listing lands in
+	const fold = showing && typeof window !== "undefined" ? window.innerHeight : 0;
 	//
 	const virtualizer = useWindowVirtualizer({
-		count: mediaItems.length,
+		count: showing ? mediaItems.length : 0,
 		estimateSize: () => rowEstimate,
 		overscan: 5,
 		measureElement: (element) =>
@@ -118,7 +123,7 @@ export function MobileListing<T extends BaseMediaProps>({
 	//
 	useEffect(() => {
 		const update = () => {
-			const row = document.querySelector("[data-index]");
+			const row = parentRef.current?.querySelector("[data-index]");
 			const measured = row?.getBoundingClientRect().height;
 			// a hair of slack, or a sub-pixel difference re-renders forever
 			if (measured)
@@ -417,6 +422,8 @@ export function MobileListing<T extends BaseMediaProps>({
 					>
 						{virtualizer.getVirtualItems().map((virtualItem) => {
 							const item = mediaItems[virtualItem.index];
+							// the overscan below the fold stays lazy
+							const onFirstScreen = virtualItem.start < fold;
 							return (
 								<div
 									key={item.id}
@@ -433,6 +440,7 @@ export function MobileListing<T extends BaseMediaProps>({
 									<MobileItem
 										item={item}
 										isNavOpen={isNavOpen}
+										priority={onFirstScreen}
 										mediaType={mediaType}
 										differentColumns={differentColumns}
 										onClick={handleItemClicked}

@@ -30,13 +30,13 @@ export function useCrossList<T extends BaseMediaProps>(
 		[items, update, remove],
 	);
 
-	// resolves true when the battler took over
+	// resolves to the new row for the card to open -- a scored one gets the battler
 	const handleAdd = useCallback(
-		async (item: T) => {
-			const newItem = await add(item);
-			if (!newItem?.score) return false;
-			setBattle({ item: newItem, score: newItem.score });
-			return true;
+		async (item: T): Promise<T | undefined> => {
+			const newItem: T | undefined = await add(item);
+			if (newItem?.score)
+				setBattle({ item: newItem, score: newItem.score });
+			return newItem;
 		},
 		[add],
 	);

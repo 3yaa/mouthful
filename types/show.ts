@@ -6,7 +6,7 @@ export type SlotIndex = number & { readonly __slotIndex: unique symbol }; // pos
 
 // main
 export interface ShowProps extends BaseMediaProps {
-	status: "Completed" | "Want to Watch" | "Dropped" | "Watching";
+	status: "Completed" | "Want to Watch" | "Dropped" | "Watching" | "On Hold";
 	tmdbId: string;
 	imdbId?: string;
 	creator?: string;

@@ -19,6 +19,7 @@ import {
 } from "@/utils/styleUtils";
 import { BackdropDesktop } from "../../components/ui/BackdropDesktop";
 import { BookBackdropDesktop } from "../../components/ui/BookBackdrop";
+import { MangaBackdropDesktop } from "../../components/ui/MangaBackdrop";
 import { ScoreMark } from "../../components/ui/ScoreMark";
 import {
 	ShowProgressBarDesktop,
@@ -53,6 +54,7 @@ interface DesktopItemProps<T extends BaseMediaProps> {
 	total: number;
 	rank: number;
 	isOpen: boolean;
+	priority: boolean;
 	mediaType: string;
 	onClick: (item: T) => void;
 	differentColumns: [ColumnConfig<T>, ColumnConfig<T>];
@@ -66,6 +68,7 @@ export const DesktopItem = React.memo(function DesktopItem<
 	// total,
 	// rank,
 	isOpen,
+	priority,
 	mediaType,
 	onClick,
 	differentColumns,
@@ -121,6 +124,7 @@ export const DesktopItem = React.memo(function DesktopItem<
 							fill
 							sizes="(min-width: 2200px) 160px, 80px"
 							unoptimized={!isResizable(coverSrc)}
+							priority={priority}
 							className="object-cover transition-transform duration-420 ease-leave live:scale-[1.04] live:duration-800 live:ease-arrive"
 						/>
 					) : (
@@ -131,6 +135,7 @@ export const DesktopItem = React.memo(function DesktopItem<
 							height={240}
 							sizes="(min-width: 2200px) 160px, 80px"
 							unoptimized={!isResizable(coverSrc)}
+							priority={priority}
 							className="relative w-full h-full aspect-2/3 object-fill transition-transform duration-420 ease-leave live:scale-[1.04] live:duration-800 live:ease-arrive"
 						/>
 					)}
@@ -310,13 +315,28 @@ export const DesktopItem = React.memo(function DesktopItem<
 
 			{/* ISLAND - BACKDROP */}
 			<div className="listing-art-window h-full">
-				<div className="h-full origin-left will-change-transform transition-transform duration-420 ease-leave live:translate-x-[20%] live:duration-800 live:ease-arrive live:delay-200">
+				<div
+					className={`h-full ${
+						mediaType === "manga"
+							? ""
+							: "origin-left will-change-transform transition-transform duration-420 ease-leave live:translate-x-[10%] live:duration-800 live:ease-arrive live:delay-200"
+					}`}
+				>
 					{item.backdropUrl ? (
-						<BackdropDesktop src={item.backdropUrl} />
+						<BackdropDesktop
+							src={item.backdropUrl}
+							priority={priority}
+						/>
+					) : mediaType === "manga" && printItem.cover ? (
+						<MangaBackdropDesktop
+							cover={printItem.cover}
+							anilistId={(printItem as MangaProps).anilistId}
+						/>
 					) : isPrint && printItem.cover ? (
 						<BookBackdropDesktop
 							color={printItem.cover.color}
 							title={item.title}
+							author={printItem.author}
 						/>
 					) : (
 						<div />

@@ -51,6 +51,7 @@ import { hasSeries, seriesTitleOf } from "@/utils/seriesRead";
 import {
 	coverWave,
 	getStatusBg,
+	getStatusOnFill,
 	getStatusDetailWaveColor,
 	getStatusTextColor,
 } from "@/utils/styleUtils";
@@ -394,12 +395,10 @@ export function MobileDetails<T extends BaseMediaProps>({
 	]);
 
 	const coverColor = activeCover?.color;
-	const underlineColor =
-		mediaType === "show"
-			? undefined
-			: coverColor?.trim()
-				? coverWave(coverColor)
-				: getStatusDetailWaveColor(item.status);
+	// drawn under lettered titles only -- MediaTitle leaves logos bare
+	const underlineColor = coverColor?.trim()
+		? coverWave(coverColor)
+		: getStatusDetailWaveColor(item.status);
 
 	// source rating stands in for the completed date until it is watched/read
 	const externalRating =
@@ -985,7 +984,7 @@ export function MobileDetails<T extends BaseMediaProps>({
 														/>
 													</button>
 												)}
-											{isPrint && (
+											{mediaType === "book" && (
 												<Feather
 													className="w-3.5 h-3.5 shrink-0 text-zinc-400/70 rotate-280"
 													strokeWidth={1.75}
@@ -1152,7 +1151,10 @@ export function MobileDetails<T extends BaseMediaProps>({
 						</div>
 						{/* PROGRESS BAR — show only */}
 						{mediaType === "show" && slotLine.length > 0 && (
-							<div onClick={() => setIsProgressPickerOpen(true)}>
+							<div
+								className="mb-3"
+								onClick={() => setIsProgressPickerOpen(true)}
+							>
 								<div className="mt-4.5 w-full bg-zinc-800/80 rounded-md h-1.5 overflow-hidden shadow-md shadow-black/50">
 									<div
 										className={`${getStatusBg(item.status)} h-1.5 transition-all duration-500 ease-out rounded-md`}
@@ -1346,27 +1348,36 @@ export function MobileDetails<T extends BaseMediaProps>({
 							<label className="text-zinc-400 text-xs font-medium">
 								Status
 							</label>
-							<div className="pt-1 flex flex-wrap gap-2 pb-1">
-								{statusOptions.map((status, index) => (
-									<button
-										key={status.value}
-										onClick={() =>
-											onAction({
-												type: "changeStatus",
-												payload: `${status.value}`,
-											})
-										}
-										className={`${
-											index === 3 ? "w-full" : "flex-1"
-										} px-4 py-1.5 text-sm rounded-md border border-zinc-700/30 font-semibold whitespace-nowrap transition-all duration-200 active:scale-95 shadow-lg shadow-black/50 ${
-											status.value === item.status
-												? `${getStatusBg(status.value)} text-zinc-100`
-												: "text-zinc-300 bg-zinc-900/40 hover:bg-zinc-800/60"
-										}`}
-									>
-										{status.label}
-									</button>
-								))}
+							{/* three to a row*/}
+							<div className="pt-1 flex flex-col gap-2 pb-1">
+								{[
+									statusOptions.slice(0, 3),
+									statusOptions.slice(3),
+								]
+									.filter((row) => row.length)
+									.map((row, r) => (
+										<div key={r} className="flex gap-2">
+											{row.map((status) => (
+												<button
+													key={status.value}
+													onClick={() =>
+														onAction({
+															type: "changeStatus",
+															payload: `${status.value}`,
+														})
+													}
+													className={`flex-1 px-4 py-1.5 text-sm rounded-md border border-zinc-700/30 font-semibold whitespace-nowrap transition-all duration-200 active:scale-95 shadow-lg shadow-black/50 ${
+														status.value ===
+														item.status
+															? `${getStatusBg(status.value)} ${getStatusOnFill(status.value)}`
+															: "text-zinc-300 bg-zinc-900/40 hover:bg-zinc-800/60"
+													}`}
+												>
+													{status.label}
+												</button>
+											))}
+										</div>
+									))}
 							</div>
 						</div>
 						{/* PREQUEL AND SEQUEL */}

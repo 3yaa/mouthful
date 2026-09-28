@@ -18,6 +18,10 @@ const statusConfig = {
 		textStyle: "text-rose-dusk-lit/90",
 		bgStyle: "to-rose-dusk/12",
 	},
+	"On Hold": {
+		textStyle: "text-yellow-400/90",
+		bgStyle: "to-yellow-400/10",
+	},
 	Playing: {
 		textStyle: "text-blue-500/80",
 		bgStyle: "to-blue-500/10",
@@ -43,6 +47,7 @@ const createStatusOptions = <T extends keyof typeof statusConfig>(
 
 // status options
 export const bookStatusOptions = createStatusOptions([
+	"Reading",
 	"Want to Read",
 	"Completed",
 	"Dropped",
@@ -58,6 +63,7 @@ export const showStatusOptions = createStatusOptions([
 	"Watching",
 	"Want to Watch",
 	"Completed",
+	"On Hold",
 	"Dropped",
 ]);
 

@@ -1,7 +1,7 @@
 import { BaseMediaProps, MediaStatus } from "@/types/media";
 import Image from "next/image";
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { isResizable } from "@/utils/image-loader";
 import { getStatusBg, getStatusWaveColor } from "@/utils/styleUtils";
 import { getDisplayScore } from "@/lib/tierConfig";
@@ -120,6 +120,79 @@ function showProgressOf(item: BaseMediaProps) {
 			: 100,
 		label: progressLabel(line, at, show.curEpisode),
 	};
+}
+
+// a phone's folded recents
+export function RecentPeek({
+	items,
+	label,
+	open,
+	controls,
+	onToggle,
+}: {
+	items: BaseMediaProps[];
+	label: string;
+	open: boolean;
+	controls: string;
+	onToggle: (peek: HTMLElement) => void;
+}) {
+	const latest = items[0];
+	return (
+		<button
+			type="button"
+			aria-expanded={open}
+			aria-controls={controls}
+			aria-label={`Recent ${label}`}
+			onClick={(e) => onToggle(e.currentTarget)}
+			className={`group/peek relative flex w-full items-center rounded-lg neu-carved pr-10 pl-3.5 transition-[height,background-color,box-shadow,transform] duration-[300ms,200ms,200ms,200ms] ease-arrive hover:neu-carved-hi hover:cursor-pointer active:translate-y-px active:neu-carved-in active:duration-75 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-400 motion-reduce:transition-none ${
+				open ? "h-8" : "h-15"
+			}`}
+		>
+			<span
+				className={`flex items-center gap-3 transition-[opacity,scale] duration-200 ease-out motion-reduce:transition-none ${
+					open ? "scale-95 opacity-0" : ""
+				}`}
+			>
+				<span className="flex items-center">
+					{items.map((item, i) => (
+						<span
+							key={item.id}
+							className="relative -ml-3 h-10 w-7.5 shrink-0 origin-bottom overflow-hidden rounded-[0.3rem] bg-zinc-900 p-px shadow-island first:ml-0"
+							// latest on top, the rest tucked behind it
+							style={{
+								zIndex: items.length - i,
+								rotate: `${i * 7}deg`,
+							}}
+						>
+							{item.imageUrl ? (
+								<Image
+									src={item.imageUrl}
+									alt=""
+									className="h-full w-full rounded-sm object-cover"
+									width={60}
+									height={80}
+									sizes="30px"
+									unoptimized={!isResizable(item.imageUrl)}
+								/>
+							) : (
+								<span className="block h-full w-full rounded-sm neu-carved" />
+							)}
+						</span>
+					))}
+				</span>
+				<span className="text-sm font-semibold whitespace-nowrap text-zinc-500/90">
+					{latest.lastUpdated ? timeAgo(latest.lastUpdated) : "–"}
+				</span>
+			</span>
+			<ChevronDown
+				aria-hidden
+				strokeWidth={2.25}
+				className={`absolute top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-500 transition-[rotate,color,right,translate] duration-300 ease-arrive group-hover/peek:text-zinc-300 motion-reduce:transition-none ${
+					open ? "right-1/2 translate-x-1/2 rotate-180" : "right-3"
+				}`}
+			/>
+		</button>
+	);
 }
 
 export function RecentItems({

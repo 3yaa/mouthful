@@ -7,9 +7,10 @@ import { BaseMediaProps } from "@/types/media";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useAuthFetch } from "../auth/hooks/useAuthFetch";
 import { StatsBar } from "../components/StatsBar";
-import { RecentItems } from "../components/RecentMedias";
+import { RecentItems, RecentPeek } from "../components/RecentMedias";
 import { useFlash } from "../components/RouteFlash";
 import { listingOf } from "./mediaListing/ListingSkeleton";
+import { PHONE_QUERY, useMediaQuery } from "@/hooks/useMediaQuery";
 // don't wait for light ray to render
 const LightRays = dynamic(() => import("@/app/components/ui/LightRays"), {
 	ssr: false,
@@ -35,6 +36,10 @@ const ISLAND_LIP = "shadow-[inset_0_1px_0_rgba(255,255,255,0.07)]";
 const FOOTER_EDGE = 16;
 const L_SPAN = 4;
 const SHIFT = 0;
+// a phone opens one library's recent
+const PHONE_ROWS = 3;
+const FOLD_MS = 300;
+const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
 
 function StatsSkeleton() {
 	return (
@@ -71,6 +76,71 @@ function RecentSkeleton({ rows }: { rows: number }) {
 	);
 }
 
+function PeekSkeleton() {
+	return (
+		<div className="flex h-15 items-center gap-3 rounded-lg neu-carved pr-10 pl-3.5">
+			<div className="flex">
+				{Array.from({ length: PHONE_ROWS }, (_, i) => (
+					<div
+						key={i}
+						className="-ml-3 h-10 w-7.5 origin-bottom animate-pulse rounded-[0.3rem] bg-zinc-900 shadow-island first:ml-0"
+						style={{
+							zIndex: PHONE_ROWS - i,
+							rotate: `${i * 7}deg`,
+						}}
+					/>
+				))}
+			</div>
+			<div className="h-3.5 w-12 animate-pulse rounded bg-zinc-800/40" />
+		</div>
+	);
+}
+
+// clipped only while it moves or is shut
+function Fold({
+	id,
+	open,
+	duration,
+	children,
+}: {
+	id: string;
+	open: boolean;
+	duration: number;
+	children: React.ReactNode;
+}) {
+	const [settled, setSettled] = useState(open);
+	const [wasOpen, setWasOpen] = useState(open);
+	if (open !== wasOpen) {
+		setWasOpen(open);
+		setSettled(false);
+	}
+	return (
+		<div
+			id={id}
+			inert={!open}
+			onTransitionEnd={(e) => {
+				if (
+					e.target === e.currentTarget &&
+					e.propertyName === "grid-template-rows"
+				)
+					setSettled(true);
+			}}
+			className={`grid transition-[grid-template-rows,opacity,visibility] ease-arrive ${
+				open
+					? "visible grid-rows-[1fr] opacity-100"
+					: "invisible grid-rows-[0fr] opacity-0"
+			}`}
+			style={{ transitionDuration: `${duration}ms` }}
+		>
+			<div
+				className={`min-h-0 ${open && settled ? "" : "overflow-hidden"}`}
+			>
+				{children}
+			</div>
+		</div>
+	);
+}
+
 export default function LandingPage() {
 	const { authFetch } = useAuthFetch();
 	const [isLoading, setIsLoading] = useState(false);
@@ -103,6 +173,30 @@ export default function LandingPage() {
 		getStats();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
+
+	const phone = useMediaQuery(PHONE_QUERY);
+	// 1ms, not 0
+	const fold = useMediaQuery(REDUCED_MOTION) ? 1 : FOLD_MS;
+	const [openKey, setOpenKey] = useState<string | null>(null);
+
+	// the tapped peek holds still while a library above it folds shut
+	const toggleRecent = (key: string, peek: HTMLElement) => {
+		const opening = openKey !== key;
+		setOpenKey(opening ? key : null);
+		const top = peek.getBoundingClientRect().top;
+		const until = performance.now() + fold + 50;
+		const tick = () => {
+			const drift = peek.getBoundingClientRect().top - top;
+			if (drift) window.scrollBy(0, drift);
+			if (performance.now() < until) requestAnimationFrame(tick);
+			else if (opening)
+				peek.closest("section")?.scrollIntoView({
+					block: "nearest",
+					behavior: fold === FOLD_MS ? "smooth" : "auto",
+				});
+		};
+		requestAnimationFrame(tick);
+	};
 
 	// the L hangs under the row
 	const groupRef = useRef<HTMLDivElement>(null);
@@ -198,7 +292,11 @@ export default function LandingPage() {
 
 	// a card per library
 	const renderLibrary = (section: Section, rows: number) => {
-		const recent = recentMedias?.[section.key]?.slice(0, rows);
+		const recent = recentMedias?.[section.key]?.slice(
+			0,
+			phone ? PHONE_ROWS : rows,
+		);
+		const listId = `recent-${section.key}`;
 
 		return (
 			<section
@@ -212,17 +310,55 @@ export default function LandingPage() {
 				{/* ── library ── */}
 				{libraryStats(section)}
 
-				{/* ── what was touched last (sm+ only) ── */}
-				<div className="-mt-1 hidden sm:block">
+				{/* ── what was touched last ── */}
+				<div className="-mt-1">
 					{recent && recent.length > 0 ? (
-						<RecentItems
-							items={recent}
-							mediaType={section.key}
-							href={section.href}
-							onNavigate={() => flash(listingOf(section.href))}
-						/>
+						phone ? (
+							<>
+								<RecentPeek
+									items={recent}
+									label={section.name}
+									open={openKey === section.key}
+									controls={listId}
+									onToggle={(peek) =>
+										toggleRecent(section.key, peek)
+									}
+								/>
+								<Fold
+									id={listId}
+									open={openKey === section.key}
+									duration={fold}
+								>
+									<div className="pt-2">
+										<RecentItems
+											items={recent}
+											mediaType={section.key}
+											href={section.href}
+											onNavigate={() =>
+												flash(listingOf(section.href))
+											}
+										/>
+									</div>
+								</Fold>
+							</>
+						) : (
+							<RecentItems
+								items={recent}
+								mediaType={section.key}
+								href={section.href}
+								onNavigate={() =>
+									flash(listingOf(section.href))
+								}
+							/>
+						)
 					) : (
-						isLoading && !recent && <RecentSkeleton rows={rows} />
+						isLoading &&
+						!recent &&
+						(phone ? (
+							<PeekSkeleton />
+						) : (
+							<RecentSkeleton rows={rows} />
+						))
 					)}
 				</div>
 			</section>

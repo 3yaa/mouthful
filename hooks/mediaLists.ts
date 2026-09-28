@@ -20,7 +20,8 @@ export const SHOW_LIST: MediaDataConfig<ShowProps> = {
 		Watching: 0,
 		"Want to Watch": 1,
 		Completed: 2,
-		Dropped: 3,
+		"On Hold": 3,
+		Dropped: 4,
 	},
 	extraFieldsToUpdate: ["curSeasonIndex", "curEpisode", "franchisePoster"],
 };
@@ -28,7 +29,12 @@ export const SHOW_LIST: MediaDataConfig<ShowProps> = {
 export const BOOK_LIST: MediaDataConfig<BookProps> = {
 	endpoint: "books",
 	requiredFieldsToPost: ["title", "status", "key"],
-	statusOrder: { "Want to Read": 0, Completed: 1, Dropped: 2 },
+	statusOrder: {
+		Reading: 0,
+		"Want to Read": 1,
+		Completed: 2,
+		Dropped: 3,
+	},
 	extraFieldsToUpdate: ["series"],
 };
 

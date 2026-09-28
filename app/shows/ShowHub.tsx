@@ -99,6 +99,7 @@ export default function ShowHub() {
 		tempScore,
 		handleScoreFinal,
 		handleItemAdd,
+		handleWorkAdd,
 	} = useManageMedia<ShowProps>({
 		onAdd: add,
 		items: items,
@@ -214,6 +215,7 @@ export default function ShowHub() {
 						onClose={handleModalClose}
 						existingShows={items}
 						onAddShow={handleItemAdd}
+						onAddWork={handleWorkAdd}
 						onDuplicate={(dup) => {
 							const owned =
 								(dup.tmdbId
@@ -250,7 +252,7 @@ export default function ShowHub() {
 						onUpdatePart={handleUpdatePart}
 						onPartBattle={handlePartBattle}
 						existingShows={items}
-						onAddWork={handleItemAdd}
+						onAddWork={handleWorkAdd}
 						//
 						existingMovies={movies.items}
 						onMovieUpdate={movies.handleUpdates}

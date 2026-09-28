@@ -1,8 +1,9 @@
 @import "tailwindcss";
 
-/* media title display face -- see app/layout.tsx for the loader */
+/* media title faces -- see app/layout.tsx for the loaders */
 @theme {
 	--font-display: var(--font-cinzel), "Times New Roman", serif;
+	--font-lettering: var(--font-fraunces), Georgia, serif;
 	/* watching status */
 	--color-rose-dusk: #c76f95;
 	--color-rose-dusk-lit: #dda0bd;
@@ -69,6 +70,52 @@ input[type="number"] {
 	}
 	50% {
 		transform: translateX(0%);
+	}
+}
+
+@keyframes carving-light {
+	0% {
+		transform: translateY(-63%);
+	}
+	60%,
+	100% {
+		transform: translateY(-3%);
+	}
+}
+
+.carving-light {
+	background: linear-gradient(
+		to bottom,
+		transparent 42%,
+		rgba(255, 238, 214, 0.95) 50%,
+		transparent 58%
+	);
+	transform: translateY(-63%);
+	animation: carving-light 9s linear 0.9s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.carving-light {
+		animation: none;
+	}
+}
+
+@keyframes scribble-in {
+	to {
+		stroke-dashoffset: 0;
+	}
+}
+
+.scribble-in {
+	stroke-dasharray: 1 1.02;
+	stroke-dashoffset: 1.01;
+	animation: scribble-in 1.1s cubic-bezier(0.25, 0.4, 0.45, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.scribble-in {
+		animation: none;
+		stroke-dashoffset: 0;
 	}
 }
 
@@ -180,6 +227,12 @@ input[type="number"] {
 @utility neu-carved-off {
 	background: rgba(0, 0, 0, 0.07);
 	box-shadow: none;
+}
+
+@property --art-ramp {
+	syntax: "<percentage>";
+	inherits: false;
+	initial-value: 42%;
 }
 
 .listing-art-window {

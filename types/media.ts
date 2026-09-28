@@ -6,6 +6,7 @@ export type MediaStatus =
 	| "Reading"
 	| "Playing"
 	| "Watching"
+	| "On Hold"
 	| "Want to Watch"
 	| "Dropped";
 
@@ -61,6 +62,8 @@ export interface SeriesJumpProps extends SeriesTargetProps {
 export interface MediaCoverProps {
 	url: string;
 	color: string;
+	// manga only -- the storyboard page picked at add or reload
+	page?: number;
 }
 
 export interface BaseMediaProps {

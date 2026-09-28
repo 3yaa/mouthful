@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Palette, Loader2 } from "lucide-react";
 import { extractCoverPalette } from "@/utils/extractCoverPalette";
+import { glassBtn } from "./DetailsActionBtn";
 
 // original color
 const defaultColorCache = new Map<string, string>();
@@ -10,6 +11,8 @@ interface CoverColorPickerProps {
 	coverUrl?: string;
 	currentColor?: string;
 	onPick: (color: string) => void;
+	// desktop add/reload wear the art pickers' glass
+	glass?: boolean;
 }
 
 const norm = (c?: string) => c?.toLowerCase();
@@ -18,6 +21,7 @@ export function CoverColorPicker({
 	coverUrl,
 	currentColor,
 	onPick,
+	glass = false,
 }: CoverColorPickerProps) {
 	const [open, setOpen] = useState(false);
 	const [colors, setColors] = useState<string[]>([]);
@@ -103,24 +107,34 @@ export function CoverColorPicker({
 		<div className="relative" onClick={(e) => e.stopPropagation()}>
 			<button
 				onClick={toggle}
-				// intent signal: covers the case where a busy page has delayed
-				// the idle callback past the click
 				onPointerEnter={warm}
 				title="Cover colors"
-				className={`py-1.5 px-2 rounded-lg bg-zinc-800/50 hover:bg-emerald-600/20 hover:cursor-pointer transition-all group ${
-					open ? "bg-emerald-600/20" : ""
-				}`}
+				className={
+					glass
+						? `p-1.5 ${glassBtn({ on: open })}`
+						: `py-1.5 px-2 rounded-lg bg-zinc-800/50 hover:bg-emerald-600/20 hover:cursor-pointer transition-all group ${
+								open ? "bg-emerald-600/20" : ""
+							}`
+				}
 			>
 				<Palette
 					className={`w-5 h-5 transition-colors ${
-						open
-							? "text-emerald-400"
-							: "text-gray-400 group-hover:text-emerald-400"
+						glass
+							? ""
+							: open
+								? "text-emerald-400"
+								: "text-gray-400 group-hover:text-emerald-400"
 					}`}
 				/>
 			</button>
 			{open && (
-				<div className="absolute right-full top-1/2 -translate-y-1/2 mr-1.5 z-20 flex items-center gap-1.5 rounded-lg bg-zinc-900/95 backdrop-blur-md border border-zinc-800/60 px-2 py-1.5 shadow-xl">
+				<div
+					className={`absolute right-full top-1/2 -translate-y-1/2 mr-1.5 z-20 flex items-center gap-1.5 px-2 py-1.5 ${
+						glass
+							? "rounded-full bg-black/45 shadow-[0_2px_8px_rgba(0,0,0,0.45)] backdrop-blur-sm"
+							: "rounded-lg bg-zinc-900/95 backdrop-blur-md border border-zinc-800/60 shadow-xl"
+					}`}
+				>
 					{defaultColor && swatch(defaultColor, true)}
 					{loading ? (
 						<Loader2 className="w-4 h-4 text-zinc-300 animate-spin" />

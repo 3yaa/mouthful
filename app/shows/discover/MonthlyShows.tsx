@@ -3,15 +3,28 @@ import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import { Loader2, Tv, ChevronLeft, ChevronRight, Leaf } from "lucide-react";
 import { useMediaData } from "@/hooks/useMediaData";
-import { SHOW_LIST } from "@/hooks/mediaLists";
+import { useCrossList } from "@/hooks/useCrossList";
+import { MOVIE_LIST, SHOW_LIST } from "@/hooks/mediaLists";
 import { withPartPatch } from "@/app/shows/utils/animePartMarks";
 import { getStatusBorderColor } from "@/utils/styleUtils";
 import { useAuthFetch } from "@/app/auth/hooks/useAuthFetch";
 import type { ShowProps, HollowShowProps } from "@/types/show";
+import type { MovieProps } from "@/types/movie";
 import { AddShow } from "@/app/shows/AddShow";
 import { ShowDetails as ShowDetailsModal } from "@/app/shows/ShowDetailsHub";
 import { BadgeLink } from "@/app/views/mediaListing/ShowsBadge";
 import { useFlash } from "@/app/components/RouteFlash";
+import { AnimatePresence } from "framer-motion";
+import dynamic from "next/dynamic";
+
+// load score dynamically
+const ScoreBattlerHub = dynamic(
+	() =>
+		import("@/app/views/mediaDetails/shared/scoreBattler/ScoreBattlerHub").then(
+			(m) => m.ScoreBattlerHub,
+		),
+	{ ssr: false },
+);
 
 const MONTHS = [
 	"Jan",
@@ -71,6 +84,8 @@ export function MonthlyShows() {
 	//
 	const { items, add, update, updatePart } =
 		useMediaData<ShowProps>(SHOW_LIST);
+	// a show's cast opens into the movie list
+	const movies = useCrossList<MovieProps>(MOVIE_LIST);
 	const { authFetch } = useAuthFetch();
 	const selectAddedShow =
 		selectAddedShowId != null
@@ -391,6 +406,10 @@ export function MonthlyShows() {
 						)
 					}
 					existingShows={items}
+					onAddWork={add}
+					existingMovies={movies.items}
+					onMovieUpdate={movies.handleUpdates}
+					onAddMovie={movies.handleAdd}
 				/>
 			)}
 
@@ -400,9 +419,34 @@ export function MonthlyShows() {
 					titleFromAbove={addingTitle}
 					onClose={() => setAddingTitle(null)}
 					existingShows={items}
-					onAddShow={add}
+					onAddWork={add}
+					existingMovies={movies.items}
+					onMovieUpdate={movies.handleUpdates}
+					onAddMovie={movies.handleAdd}
+					onAddShow={async (s) => {
+						const added = await add(s);
+						if (added) setSelectAddedShowId(added.id);
+					}}
 				/>
 			)}
+
+			{/* SCORE BATTLER */}
+			<AnimatePresence>
+				{movies.battle && (
+					<ScoreBattlerHub
+						key="movie-battler"
+						mediaType="movie"
+						items={movies.items}
+						initialScore={movies.battle.score}
+						selectedItem={movies.battle.item}
+						onClose={movies.closeBattle}
+						onScoreFinal={movies.finishBattle}
+						onOpponentUpdate={(id, score) =>
+							movies.update(id, { score }, true)
+						}
+					/>
+				)}
+			</AnimatePresence>
 		</div>
 	);
 }

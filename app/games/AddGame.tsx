@@ -22,6 +22,7 @@ import { ShowMultGames } from "./components/ShowMultGames";
 import { useGameSearch } from "@/hooks/external/useGameSearch";
 import { buildCover } from "@/utils/coverColor";
 import { findOnlyNamed } from "@/utils/mediaMatch";
+import { useEscapeClose } from "@/hooks/useEscapeClose";
 
 interface AddGameProps {
 	isOpen: boolean;
@@ -292,9 +293,9 @@ export function AddGame({
 				? { logoUrl: logoUrls[logoIndex] ?? null }
 				: {}),
 		};
-		// only close when the battler did not take over
-		const isBattling = await onAddGame(finalGame as GameProps);
-		if (!isBattling) onClose();
+		// the new row's details or battler take over -- closing now would clear it
+		const tookOver = await onAddGame(finalGame as GameProps);
+		if (!tookOver) onClose();
 	};
 
 	const handleGameDetailsClose = () => {
@@ -332,16 +333,7 @@ export function AddGame({
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [titleFromAbove]);
 
-	useEffect(() => {
-		const handleEscape = (e: KeyboardEvent) => {
-			if (e.key === "Escape") {
-				onClose();
-			}
-		};
-		//
-		window.addEventListener("keydown", handleEscape);
-		return () => window.removeEventListener("keydown", handleEscape);
-	}, [onClose]);
+	useEscapeClose(onClose);
 
 	if (!isOpen) return null;
 

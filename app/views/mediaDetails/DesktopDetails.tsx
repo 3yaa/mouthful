@@ -23,6 +23,7 @@ import { slotSubtitle } from "@/app/shows/utils/animeTitles";
 import {
 	Trash2,
 	Plus,
+	X,
 	ChevronsUp,
 	ChevronLeft,
 	ChevronRight,
@@ -41,6 +42,7 @@ import {
 	Leaf,
 	Feather,
 	Hourglass,
+	Clapperboard,
 	BookCheck,
 	Unlink,
 	Type,
@@ -52,7 +54,13 @@ import { tierOptions } from "@/utils/dropDownDetails";
 import { AutoTextarea } from "@/app/components/ui/AutoTextArea";
 import { BookCoverConfig } from "@/app/books/components/BookCoverConfigDetails";
 import { CoverColorPicker } from "@/app/components/ui/CoverColorPicker";
-import { BookBackdropDetails } from "@/app/components/ui/BookBackdrop";
+import {
+	BookBackdropDetails,
+	Fleuron,
+	artInk,
+	bookInk,
+} from "@/app/components/ui/BookBackdrop";
+import { MangaBackdropDetails } from "@/app/components/ui/MangaBackdrop";
 import { SeriesNav } from "./shared/SeriesNav";
 import { activeLogoIndex, isLogoCleared } from "../../../utils/artworkIndex";
 import {
@@ -62,7 +70,7 @@ import {
 	wearsRowPoster,
 } from "@/app/shows/utils/slotRef";
 import { formatVotes, getTier } from "@/app/shows/utils/episodeRatings";
-import { ActionBtn } from "../../components/ui/DetailsActionBtn";
+import { ActionBtn, glassBtn } from "../../components/ui/DetailsActionBtn";
 import {
 	FIELD_LABEL,
 	FIELD_PLATE,
@@ -70,6 +78,7 @@ import {
 	SCORE_SUB_BTN,
 } from "@/utils/styleUtils";
 import { MediaTitle, SERIES_TEXT, TITLE_TEXT } from "./shared/MediaTitle";
+import { PickHalves, PickPosition } from "./shared/PickPosition";
 import { LOGO_SPEC } from "./shared/logoMetrics";
 import { useArtworkPrime } from "@/hooks/useArtworkPrime";
 import { EditProgress } from "@/app/shows/components/EditProgressDetail";
@@ -94,6 +103,7 @@ const ACTION_ROW = "absolute right-3 top-3 flex items-center z-10";
 //
 const POSTER_SPEC = { width: 248, sizes: "(min-width: 2200px) 500px, 250px" };
 const BACKDROP_SPEC = { width: 780, sizes: "40vw" };
+const GENRE_SHORT: Record<string, string> = { "Science Fiction": "Sci-fi" };
 
 // an action held back until it's confirmed
 type PendingConfirm = {
@@ -262,7 +272,7 @@ export function DesktopDetails<T extends BaseMediaProps>({
 		mediaType === "show" && isPicking ? (
 			<ActionBtn
 				icon={BarChart2}
-				tone="green"
+				tone="white"
 				onClick={() => onAction({ type: "openRatings" })}
 				title="Episode ratings"
 			/>
@@ -279,23 +289,21 @@ export function DesktopDetails<T extends BaseMediaProps>({
 	const logoIsCleared = isLogoCleared(logoIndex);
 	const logoPicker =
 		isPicking && logoUrls?.length ? (
-			<div className="flex gap-1 bg-zinc-800/50 rounded-lg">
+			<div className="group/pick relative flex gap-0.5">
 				{logoUrls.length > 1 && (
 					<button
-						className="p-1.5 rounded-lg bg-zinc-800/60 hover:bg-yellow-600/60 hover:cursor-pointer transition-all group"
+						className={`p-1.5 ${glassBtn()}`}
 						onClick={() =>
 							onAction({ type: "changeLogo", payload: "prev" })
 						}
-						title={`Previous title logo (${activeLogoIndex(logoIndex ?? 0) + 1}/${
-							logoUrls.length
-						})`}
+						title="Previous title logo"
 					>
-						<ChevronLeft className="w-5 h-5 text-gray-400 group-hover:text-yellow-500 transition-colors" />
+						<ChevronLeft className="w-5 h-5" />
 					</button>
 				)}
 				{/* TEXT TITLE */}
 				<button
-					className="p-1.5 rounded-lg bg-zinc-800/60 hover:bg-purple-600/25 hover:cursor-pointer transition-all group"
+					className={`p-1.5 ${glassBtn({ on: logoIsCleared })}`}
 					onClick={() => onAction({ type: "clearLogo" })}
 					title={
 						logoIsCleared
@@ -303,24 +311,27 @@ export function DesktopDetails<T extends BaseMediaProps>({
 							: "Use the text title instead"
 					}
 				>
-					<Type
-						className={`w-5 h-5 transition-colors ${
-							logoIsCleared
-								? "text-purple-400"
-								: "text-gray-400 group-hover:text-purple-400"
-						}`}
-					/>
+					<Type className="w-5 h-5" />
 				</button>
 				{logoUrls.length > 1 && (
 					<button
-						className="p-1.5 rounded-lg bg-zinc-800/60 hover:bg-yellow-600/60 hover:cursor-pointer transition-all group"
+						className={`p-1.5 ${glassBtn()}`}
 						onClick={() =>
 							onAction({ type: "changeLogo", payload: "next" })
 						}
-						title={`Next title logo (${activeLogoIndex(logoIndex ?? 0) + 1}/${logoUrls.length})`}
+						title="Next title logo"
 					>
-						<ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-yellow-500 transition-colors" />
+						<ChevronRight className="w-5 h-5" />
 					</button>
+				)}
+				{logoUrls.length > 1 && (
+					<PickPosition
+						index={
+							logoIsCleared ? -1 : activeLogoIndex(logoIndex ?? 0)
+						}
+						count={logoUrls.length}
+						className="absolute top-full left-1/2 mt-1.5 -translate-x-1/2 opacity-0 transition-opacity duration-150 group-hover/pick:opacity-100"
+					/>
 				)}
 			</div>
 		) : null;
@@ -329,6 +340,7 @@ export function DesktopDetails<T extends BaseMediaProps>({
 	const colorPicker = activeCover ? (
 		<CoverColorPicker
 			key={activeCover.url}
+			glass
 			coverUrl={activeCover.url}
 			currentColor={activeCover.color}
 			onPick={(color) =>
@@ -337,22 +349,33 @@ export function DesktopDetails<T extends BaseMediaProps>({
 		/>
 	) : null;
 
+	// manga
+	const pagePicker =
+		mediaType === "manga" && isPicking ? (
+			<ActionBtn
+				icon={Clapperboard}
+				tone="white"
+				onClick={() => onAction({ type: "cyclePage" })}
+				title="Change the cuts"
+			/>
+		) : null;
+
 	// Prequel/sequel stepper
 	const seriesNav = onSeriesNav ? (
-		<div className="flex gap-1 bg-zinc-800/50 rounded-lg">
+		<div className="flex gap-0.5">
 			<button
-				className="p-1.5 rounded-lg bg-zinc-800/60 hover:bg-yellow-600/60 hover:cursor-pointer transition-all group"
+				className={`p-1.5 ${glassBtn()}`}
 				onClick={() => onSeriesNav("left")}
 				title={"Previous series"}
 			>
-				<ChevronLeft className="w-5 h-5 text-gray-400 group-hover:text-yellow-500 transition-colors" />
+				<ChevronLeft className="w-5 h-5" />
 			</button>
 			<button
-				className="p-1.5 rounded-lg bg-zinc-800/60 hover:bg-yellow-600/60 hover:cursor-pointer transition-all group"
+				className={`p-1.5 ${glassBtn()}`}
 				onClick={() => onSeriesNav("right")}
 				title={"Next series"}
 			>
-				<ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-yellow-500 transition-colors" />
+				<ChevronRight className="w-5 h-5" />
 			</button>
 		</div>
 	) : null;
@@ -374,7 +397,7 @@ export function DesktopDetails<T extends BaseMediaProps>({
 				title={title}
 			/>
 		) : (
-			<ActionBtn icon={icon} tone="blue" onClick={pick} title={title} />
+			<ActionBtn icon={icon} tone="white" onClick={pick} title={title} />
 		);
 	};
 
@@ -397,11 +420,11 @@ export function DesktopDetails<T extends BaseMediaProps>({
 	// MORE STUFF -- books and manga
 	const moreResults = isPrint ? (
 		<button
-			className="p-1.5 px-2.5 rounded-lg bg-zinc-800/50 hover:bg-blue-600/20 hover:cursor-pointer transition-all group"
+			className={`p-1.5 ${glassBtn()}`}
 			onClick={() => onAction({ type: "moreResults" })}
 			title={"Other results"}
 		>
-			<List className="w-5 h-5 text-gray-400 group-hover:text-blue-400 transition-colors" />
+			<List className="w-5 h-5" />
 		</button>
 	) : null;
 
@@ -437,6 +460,13 @@ export function DesktopDetails<T extends BaseMediaProps>({
 
 	// ---
 	const hasBackdrop = isPrint ? !!coverColor : !!imageBackdropUrl;
+	const bookBoard = isPrint && mediaType !== "manga" && !!coverColor;
+	const endsAtNotes =
+		mediaType === "show" ||
+		(mediaType === "manga" &&
+			!series.series?.position &&
+			!series.series?.prequel &&
+			!series.series?.sequel);
 	// ---
 	const showLogoTitle = !!displayLogoUrl;
 	// ---
@@ -448,13 +478,18 @@ export function DesktopDetails<T extends BaseMediaProps>({
 			: mediaType === "movie"
 				? null
 				: seriesTitleOf(series);
+	//
+	const genreLine =
+		mediaType === "movie"
+			? (movieItem.genres ?? [])
+					.slice(0, 2)
+					.map((g) => GENRE_SHORT[g] ?? g)
+					.join("/")
+			: "";
 	// ---
-	const underlineColor =
-		mediaType === "show"
-			? undefined
-			: coverColor?.trim()
-				? coverWave(coverColor)
-				: getStatusDetailWaveColor(item.status);
+	const underlineColor = coverColor?.trim()
+		? coverWave(coverColor)
+		: getStatusDetailWaveColor(item.status);
 
 	// source rating
 	const externalRating =
@@ -516,12 +551,17 @@ export function DesktopDetails<T extends BaseMediaProps>({
 	);
 
 	// author section
+	const authorUnderPoster = !isPrint || mediaType === "manga";
 	const metaRow = (
 		<div
-			className={`select-none flex items-center gap-3 text-[0.92rem] font-medium leading-6 text-zinc-200/70 ${
-				isPrint
-					? "justify-center w-[94%] mx-auto -mb-0.5"
-					: "justify-between w-full mt-1.25 mb-0.75"
+			className={`relative select-none flex items-center gap-3 text-[0.92rem] font-medium leading-6 ${
+				bookBoard
+					? "text-(--book-ink)/80 [&_span]:text-inherit [&_svg]:text-(--book-ink)/60 [&_span[aria-hidden]]:bg-(--book-ink)/30 [text-shadow:0_-0.5px_0_rgba(20,12,6,0.35)]"
+					: "text-zinc-200/70"
+			} ${
+				authorUnderPoster
+					? "justify-between w-full mt-1.25 mb-0.75"
+					: `justify-center w-[94%] mx-auto -mb-0.5 ${bookBoard ? "mt-1.5" : ""}`
 			}`}
 		>
 			{/* LEFT -- AUTHOR */}
@@ -556,7 +596,7 @@ export function DesktopDetails<T extends BaseMediaProps>({
 					/>
 				) : (
 					<>
-						{isPrint && (
+						{mediaType === "book" && (
 							<Feather
 								className="w-3.5 h-3.5 shrink-0 text-zinc-400/70 rotate-280"
 								strokeWidth={1.75}
@@ -598,7 +638,9 @@ export function DesktopDetails<T extends BaseMediaProps>({
 						) : creditOpens === "author" ? (
 							<CreditNames
 								names={creditNames}
-								width="max-w-72"
+								width={
+									authorUnderPoster ? "max-w-32" : "max-w-72"
+								}
 								label="Authors"
 								pickTitle="See their manga"
 								onPick={(name) =>
@@ -624,7 +666,9 @@ export function DesktopDetails<T extends BaseMediaProps>({
 						) : creditNames.length > 1 ? (
 							<CreditNames
 								names={creditNames}
-								width={isPrint ? "max-w-72" : "max-w-32"}
+								width={
+									authorUnderPoster ? "max-w-32" : "max-w-72"
+								}
 							/>
 						) : (
 							<span
@@ -641,7 +685,7 @@ export function DesktopDetails<T extends BaseMediaProps>({
 				)}
 			</span>
 			{/* RIGHT -- RELEASE YEAR | RATING/COMPLETE DATE */}
-			{isPrint ? (
+			{!authorUnderPoster ? (
 				<>
 					{authorSectorDivider}
 					{releaseMeta}
@@ -668,7 +712,7 @@ export function DesktopDetails<T extends BaseMediaProps>({
 				{sidePanel}
 				{/* BACKGROUND BORDER GRADIENT */}
 				<ModalPanel
-					className={`rounded-[1.375rem] p-1.5 py-2 ${isPrint ? "lg:min-w-225 lg:max-w-225" : "lg:min-w-230 lg:max-w-230"}`}
+					className={`rounded-[1.375rem] p-1.5 py-2 ${mediaType === "book" ? "lg:min-w-230 lg:max-w-230" : "lg:min-w-235 lg:max-w-235"}`}
 					style={{ background: statusBezel(item.status) }}
 				>
 					{/* ACTUAL DETAIL CARD */}
@@ -684,7 +728,7 @@ export function DesktopDetails<T extends BaseMediaProps>({
 						>
 							{/* ACTION BUTTONS */}
 							{isSelecting ? (
-								<div className={`${ACTION_ROW} gap-1.5`}>
+								<div className={`${ACTION_ROW} gap-2`}>
 									{/* EPISODE RATINGS */}
 									{ratingsBtn}
 									{seriesNav}
@@ -692,6 +736,7 @@ export function DesktopDetails<T extends BaseMediaProps>({
 									{logoPicker}
 									{/* COVER COLORS */}
 									{colorPicker}
+									{pagePicker}
 									{/* POSTER SOURCE */}
 									{posterSourceToggle()}
 									{moreResults}
@@ -699,21 +744,31 @@ export function DesktopDetails<T extends BaseMediaProps>({
 									<ActionBtn
 										icon={Check}
 										tone="green"
-										pad="py-1.5 px-5"
+										wide
 										onClick={() =>
 											onAction({ type: "confirmRefresh" })
 										}
 										title="Apply"
 									/>
+									{/* CANCEL REFRESH */}
+									<ActionBtn
+										icon={X}
+										tone="red"
+										onClick={() =>
+											onAction({ type: "cancelRefresh" })
+										}
+										title="Cancel"
+									/>
 								</div>
 							) : isAdding ? (
-								<div className={`${ACTION_ROW} gap-1.5`}>
+								<div className={`${ACTION_ROW} gap-2`}>
 									{/* EPISODE RATINGS */}
 									{ratingsBtn}
 									{/* CYCLE LOGOS | TEXT TITLE */}
 									{logoPicker}
 									{/* COVER COLORS */}
 									{colorPicker}
+									{pagePicker}
 									{/* POSTER SOURCE */}
 									{posterSourceToggle()}
 									{seriesNav}
@@ -721,7 +776,7 @@ export function DesktopDetails<T extends BaseMediaProps>({
 									<ActionBtn
 										icon={Plus}
 										tone="green"
-										pad="py-1.5 px-5"
+										wide
 										onClick={onAdd}
 										busy={isSubmitting}
 										title={"Add " + mediaType}
@@ -730,8 +785,7 @@ export function DesktopDetails<T extends BaseMediaProps>({
 									{!isPrint && (
 										<ActionBtn
 											icon={ChevronsUp}
-											tone="blue"
-											pad="p-1.5 px-2.5"
+											tone="white"
 											onClick={() =>
 												onAction({
 													type: "needYearField",
@@ -741,6 +795,15 @@ export function DesktopDetails<T extends BaseMediaProps>({
 										/>
 									)}
 									{moreResults}
+									{/* CLOSE */}
+									<ActionBtn
+										icon={X}
+										tone="red"
+										onClick={() =>
+											onAction({ type: "closeModal" })
+										}
+										title="Close"
+									/>
 								</div>
 							) : (
 								<div className={`${ACTION_ROW} gap-1`}>
@@ -818,8 +881,8 @@ export function DesktopDetails<T extends BaseMediaProps>({
 									className={`relative w-69 shrink-0 bg-[#141414] p-3.5 rounded-xl shadow-island select-none transition-all duration-300 ${
 										isPrint
 											? "flex flex-col justify-center"
-											: "pb-0"
-									}`}
+											: ""
+									} ${authorUnderPoster ? "pb-0" : ""}`}
 								>
 									{/* art takes the click*/}
 									<div
@@ -827,7 +890,7 @@ export function DesktopDetails<T extends BaseMediaProps>({
 											canCyclePoster || opensRatings
 												? "hover:cursor-pointer"
 												: ""
-										} ${opensRatings ? "hover:brightness-110" : ""}`}
+										} ${canCyclePoster ? "group/pick" : ""} ${opensRatings ? "hover:brightness-110" : ""}`}
 										onClick={(e) => {
 											if (canCyclePoster)
 												return handleCoverChange(e);
@@ -837,11 +900,9 @@ export function DesktopDetails<T extends BaseMediaProps>({
 												});
 										}}
 										title={
-											canCyclePoster
-												? `${posterPos + 1}/${posterCount}`
-												: opensRatings
-													? "Episode ratings"
-													: ""
+											opensRatings
+												? "Episode ratings"
+												: ""
 										}
 									>
 										{!isPrint ? (
@@ -882,11 +943,21 @@ export function DesktopDetails<T extends BaseMediaProps>({
 													"linear-gradient(to bottom, transparent 0%, rgba(24,24,27,0) 50%, rgba(24,24,27,0.3) 100%)",
 											}}
 										/>
+										{canCyclePoster && (
+											<>
+												<PickHalves />
+												<PickPosition
+													index={posterPos}
+													count={posterCount}
+													className="absolute bottom-2.5 left-1/2 -translate-x-1/2 opacity-0 transition-opacity duration-150 group-hover/pick:opacity-100"
+												/>
+											</>
+										)}
 									</div>
 									{/* inner vignette */}
 									<div className="absolute -inset-1 pointer-events-none rounded-xl shadow-[inset_0_0_12px_rgba(0,0,0,0.4)]" />
 									{/* AUTHOR/STUDIO/DIRECTOR/DATES */}
-									{!isPrint && metaRow}
+									{authorUnderPoster && metaRow}
 								</div>
 
 								{/* RIGHT SIDE -- DETAILS */}
@@ -901,99 +972,171 @@ export function DesktopDetails<T extends BaseMediaProps>({
 											</div>
 										)}
 									{/* BACKDROP */}
-									{isPrint
-										? coverColor && (
-												<BookBackdropDetails
-													color={coverColor}
-												/>
-											)
-										: imageBackdropUrl && (
-												<BackdropImage
-													src={imageBackdropUrl}
-													width={
-														mediaType === "game"
-															? 540
-															: 780
-													}
-													height={
-														mediaType === "game"
-															? 304
-															: 439
-													}
-												/>
-											)}
+									{isPrint ? (
+										mediaType === "manga" && activeCover ? (
+											<MangaBackdropDetails
+												key={activeCover.url}
+												cover={activeCover}
+												anilistId={
+													(printItem as MangaProps)
+														.anilistId
+												}
+											/>
+										) : null
+									) : (
+										imageBackdropUrl && (
+											<BackdropImage
+												src={imageBackdropUrl}
+												width={
+													mediaType === "game"
+														? 540
+														: 780
+												}
+												height={
+													mediaType === "game"
+														? 304
+														: 439
+												}
+											/>
+										)
+									)}
 									{/* backdrop cycling overlay */}
 									{isPicking &&
 										backdropUrls &&
 										backdropUrls.length > 1 && (
 											<div
-												className="absolute top-0 -left-8 -right-8 h-40 hover:cursor-pointer z-5"
+												className="group/pick absolute top-0 -left-8 -right-8 h-40 hover:cursor-pointer z-5"
 												onClick={handleBackdropChange}
-												title={`${(backdropIndex ?? 0) + 1}/${backdropUrls.length}`}
-											/>
+											>
+												<PickHalves inset="px-9" />
+												<PickPosition
+													index={backdropIndex ?? 0}
+													count={backdropUrls.length}
+													className="absolute top-3.75 left-12 -translate-y-1/2 opacity-0 transition-opacity duration-150 group-hover/pick:opacity-100"
+												/>
+											</div>
 										)}
 									{/*  */}
 									<div
-										className={`flex flex-col flex-1 ${
-											mediaType === "show"
-												? "justify-end translate-y-1.5"
-												: seriesLabel
-													? "justify-end"
-													: "justify-end mb-3"
-										} ${
+										className={`flex flex-col flex-1 justify-end ${endsAtNotes ? "" : "mb-3"} ${
 											mediaType === "manga" ? "pt-10" : ""
 										}`}
 									>
-										{/* HEADER -- sat over backdrop */}
+										{/* HEADER */}
 										<div
-											className={`relative flex flex-col items-center w-fit max-w-[94%] mx-auto ${isPrint ? "-mb-1" : `${showLogoTitle ? "mb-0.5" : "-mb-1"}`}`}
+											className={
+												bookBoard
+													? "relative isolate flex flex-1 flex-col justify-end pt-5 pb-1.5 mb-1"
+													: "relative isolate"
+											}
+											style={
+												{
+													[bookBoard
+														? "--book-ink"
+														: "--title-ink"]:
+														bookBoard
+															? bookInk(
+																	coverColor,
+																)
+															: artInk(
+																	coverColor,
+																),
+												} as React.CSSProperties
+											}
 										>
-											{/* washblur */}
-											{hasBackdrop && !isPrint && (
-												<div
-													className="absolute -left-5 -right-10 -top-5 -bottom-2 -z-1 pointer-events-none  backdrop-blur-[3px]"
-													style={{
-														backgroundColor:
-															"rgba(9,9,11,0.16)",
-														maskImage:
-															HEADER_WASH_MASK,
-														WebkitMaskImage:
-															HEADER_WASH_MASK,
-														maskComposite:
-															"intersect",
-														WebkitMaskComposite:
-															"source-in",
-													}}
+											{bookBoard && (
+												<BookBackdropDetails
+													color={coverColor}
+													title={item.title}
 												/>
 											)}
-											{/* SERIES TITLE */}
-											{seriesLabel && (
-												<span
-													className={SERIES_TEXT.lg}
-												>
-													{seriesLabel}
-												</span>
-											)}
-											{/* TITLE */}
-											<MediaTitle
-												title={item.title}
-												subtitle={slotArc}
-												copyTitle={slotCopyTitle}
-												logoUrl={displayLogoUrl}
-												size="lg"
-												className="mx-auto mb-1.5 max-w-full"
-												textClass={
-													!isPrint
-														? TITLE_TEXT.lgScreen
-														: TITLE_TEXT.lg
-												}
-												underlineColor={underlineColor}
-												isBook={isPrint}
-											/>
+											<div
+												className={`group/title relative flex flex-col items-center w-fit ${bookBoard ? "max-w-[76%]" : "max-w-[94%]"} mx-auto ${isPrint ? "-mb-1" : `${showLogoTitle ? "mb-0.5" : "-mb-1"}`}`}
+											>
+												{/* GENRES */}
+												{genreLine && (
+													<span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 translate-y-1 whitespace-nowrap rounded-lg neu-raised-firm backdrop-blur-sm px-3 py-1.5 text-[0.8rem] font-semibold tracking-wide text-zinc-300/85 select-none opacity-0 transition-[opacity,translate] duration-200 group-hover/title:translate-y-0 group-hover/title:opacity-100 group-hover/title:delay-150">
+														{genreLine}
+													</span>
+												)}
+												{/* washblur */}
+												{hasBackdrop && !isPrint && (
+													<div
+														className="absolute -left-5 -right-10 -top-5 -bottom-2 -z-1 pointer-events-none  backdrop-blur-[3px]"
+														style={{
+															backgroundColor:
+																"rgba(9,9,11,0.16)",
+															maskImage:
+																HEADER_WASH_MASK,
+															WebkitMaskImage:
+																HEADER_WASH_MASK,
+															maskComposite:
+																"intersect",
+															WebkitMaskComposite:
+																"source-in",
+														}}
+													/>
+												)}
+												{/* SERIES TITLE */}
+												{seriesLabel && (
+													<span
+														className={
+															bookBoard
+																? SERIES_TEXT.book
+																: SERIES_TEXT.art
+														}
+													>
+														{seriesLabel}
+													</span>
+												)}
+												{/* TITLE */}
+												<MediaTitle
+													title={item.title}
+													subtitle={slotArc}
+													copyTitle={slotCopyTitle}
+													logoUrl={displayLogoUrl}
+													size="lg"
+													className="mx-auto mb-1.5 max-w-full"
+													textClass={
+														bookBoard
+															? TITLE_TEXT.book
+															: TITLE_TEXT.art
+													}
+													underlineColor={
+														bookBoard
+															? undefined
+															: underlineColor
+													}
+													isBook={isPrint}
+													wordFit={
+														bookBoard
+															? 17
+															: undefined
+													}
+													rowCap={
+														bookBoard
+															? undefined
+															: 9.8
+													}
+												/>
+												{bookBoard && (
+													<div className="-mt-1 flex justify-center">
+														<Fleuron
+															ink={bookInk(
+																coverColor,
+															)}
+															width="9rem"
+														/>
+													</div>
+												)}
+											</div>
+											{bookBoard && metaRow}
 										</div>
-										{isPrint && metaRow}
+										{!authorUnderPoster &&
+											!bookBoard &&
+											metaRow}
 										{/* STATUS AND SCORE */}
-										<div className="flex justify-start gap-4 mb-2.5 w-[94%] mx-auto">
+										<div className="relative flex justify-start gap-4 mb-2.5 w-[94%] mx-auto">
 											{/* STAUTS */}
 											<div className="flex-[0.77] lg:min-w-41.25">
 												<label
@@ -1183,7 +1326,9 @@ export function DesktopDetails<T extends BaseMediaProps>({
 											/>
 										)}
 										{/* NOTES */}
-										<div className="space-y-1.5 mb-2 w-[94%] mx-auto">
+										<div
+											className={`space-y-1.5 w-[94%] mx-auto ${endsAtNotes ? "" : "mb-2"}`}
+										>
 											<label className={FIELD_LABEL}>
 												Notes
 											</label>

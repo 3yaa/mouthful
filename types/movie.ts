@@ -24,6 +24,7 @@ export interface MovieProps extends BaseMediaProps, SeriesMediaProps {
 	normalizedTitle: string;
 	director?: string;
 	dateReleased?: number;
+	genres?: string[] | null;
 	imdbRating?: number | null;
 }
 
@@ -33,6 +34,7 @@ export interface MovieAPIProps {
 	title: string;
 	director?: string;
 	released_date?: number;
+	genres?: string[];
 	imdbRating?: number | null;
 	poster_url?: string;
 	backdrop_url?: string;

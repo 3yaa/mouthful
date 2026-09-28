@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Cinzel, Geist } from "next/font/google";
+import { Cinzel, Fraunces, Geist } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/app/auth/AuthContext";
 import { NavMenu } from "./components/NavMenu";
@@ -17,6 +17,16 @@ const cinzel = Cinzel({
 	variable: "--font-cinzel",
 });
 
+// book covers and desktop details titles
+const fraunces = Fraunces({
+	subsets: ["latin"],
+	axes: ["SOFT", "WONK", "opsz"],
+	style: ["normal", "italic"],
+	display: "swap",
+	preload: false,
+	variable: "--font-fraunces",
+});
+
 export const metadata: Metadata = {
 	title: "Mouthful",
 	description: "Manage all your libraries in one place",
@@ -31,7 +41,10 @@ export default function RootLayout({
 	children: React.ReactNode;
 }>) {
 	return (
-		<html lang="en" className={`${geist.className} ${cinzel.variable}`}>
+		<html
+			lang="en"
+			className={`${geist.className} ${cinzel.variable} ${fraunces.variable}`}
+		>
 			{/* so we don't play a cold dns + tcp + tls handshake on first image load */}
 			<link rel="preconnect" href="https://image.tmdb.org" />
 			<link rel="preconnect" href="https://images.igdb.com" />

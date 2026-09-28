@@ -10,6 +10,10 @@ const statusColors: Record<string, { bg: string; shadow: string }> = {
 		bg: "linear-gradient(180deg, color-mix(in srgb, var(--color-rose-dusk) 52%, transparent) 0%, color-mix(in srgb, var(--color-rose-dusk) 42%, transparent) 100%)",
 		shadow: "inset 0 1px 0 color-mix(in srgb, var(--color-rose-dusk-lit) 9%, transparent), inset 0 -1px 0 rgba(0,0,0,0.14)",
 	},
+	"On Hold": {
+		bg: "linear-gradient(180deg, rgba(250, 204, 21, 0.8) 0%, rgba(250, 204, 21, 0.72) 100%)",
+		shadow: "inset 0 1px 0 rgba(254, 240, 138, 0.12), inset 0 -1px 0 rgba(0,0,0,0.14)",
+	},
 	"Want to Watch": {
 		bg: "linear-gradient(180deg, rgba(37, 99, 235, 0.45) 0%, rgba(37, 99, 235, 0.37) 100%)",
 		shadow: "inset 0 1px 0 rgba(96, 165, 250, 0.05), inset 0 -1px 0 rgba(0,0,0,0.14)",
@@ -51,6 +55,7 @@ const statusOrder = [
 	"Want to Read",
 	"Playing",
 	"Completed",
+	"On Hold",
 	"Dropped",
 ];
 

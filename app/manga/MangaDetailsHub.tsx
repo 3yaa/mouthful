@@ -26,6 +26,7 @@ import { useAuthorCatalog } from "./hooks/useAuthorCatalog";
 import { AuthorWork } from "./utils/authorCatalog";
 import { useAuthFetch } from "@/app/auth/hooks/useAuthFetch";
 import { AnimatePresence } from "framer-motion";
+import { PAGE_COUNT, pageFor } from "@/app/components/ui/MangaBackdrop";
 import dynamic from "next/dynamic";
 // author work
 const AuthorCatalogModal = dynamic(
@@ -59,6 +60,7 @@ export type MangaAction =
 	| { type: "confirmRefresh" }
 	| { type: "cancelRefresh" }
 	| { type: "pickCoverColor"; payload: string }
+	| { type: "cyclePage" }
 	| { type: "moreResults" }
 	| { type: "authorClick"; payload: string };
 
@@ -78,6 +80,7 @@ interface MangaDetailsProps {
 	onShowMore?: () => void;
 	onRefresh?: (metadata: Partial<MangaProps>) => Promise<void>;
 	updateCoverColor?: (color: string) => void;
+	updateCoverPage?: (page: number) => void;
 }
 
 // anilist serves one cover, but the reload still stages it to pick a colour off
@@ -100,6 +103,7 @@ export function MangaDetails({
 	onShowMore,
 	onRefresh,
 	updateCoverColor,
+	updateCoverPage,
 }: MangaDetailsProps) {
 	const [localNote, setLocalNote] = useState(manga.note || "");
 	const [isEditingChapter, setIsEditingChapter] = useState(false);
@@ -229,6 +233,9 @@ export function MangaDetails({
 			case "pickCoverColor":
 				handlePickCoverColor(action.payload);
 				break;
+			case "cyclePage":
+				handleCyclePage();
+				break;
 			case "moreResults":
 				if (isSelecting) handleShowRefreshResults();
 				else onShowMore?.();
@@ -270,6 +277,30 @@ export function MangaDetails({
 				},
 			}));
 		});
+	};
+
+	// the next storyboard page, on the cover being staged
+	const handleCyclePage = () => {
+		const next = (cover: MediaCoverProps) =>
+			(pageFor({ anilistId: manga.anilistId, cover }) + 1) % PAGE_COUNT;
+		if (isSelecting) {
+			reload.patch((p) => ({
+				...p,
+				lists: {
+					...p.lists,
+					covers: {
+						...p.lists.covers,
+						items: p.lists.covers.items.map((c, i) =>
+							i === p.lists.covers.index
+								? { ...c, page: next(c) }
+								: c,
+						),
+					},
+				},
+			}));
+		} else if (manga.cover) {
+			updateCoverPage?.(next(manga.cover));
+		}
 	};
 
 	const handlePickCoverColor = (color: string) => {
@@ -389,7 +420,11 @@ export function MangaDetails({
 		commitScoreNudge();
 		onClose();
 	};
-	useEscapeClose(handleModalClose);
+	useEscapeClose(() => {
+		if (multResultsOpen) setMultResultsOpen(false);
+		else if (isSelecting) reload.cancel();
+		else handleModalClose();
+	});
 
 	const { isSubmitting, submit: handleAddManga } = useAddWait(addManga);
 

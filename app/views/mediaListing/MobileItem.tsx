@@ -37,6 +37,7 @@ import { useLogoPrime } from "../mediaDetails/shared/useLogoPrime";
 interface MobileItemProps<T extends BaseMediaProps> {
 	item: T;
 	isNavOpen: boolean;
+	priority: boolean;
 	mediaType: string;
 	differentColumns: [ColumnConfig<T>, ColumnConfig<T>];
 	onClick: (item: T) => void;
@@ -47,6 +48,7 @@ export const MobileItem = React.memo(function MobileItem<
 >({
 	item,
 	isNavOpen,
+	priority,
 	mediaType,
 	differentColumns,
 	onClick,
@@ -152,6 +154,7 @@ export const MobileItem = React.memo(function MobileItem<
 							height={360}
 							sizes="120px"
 							unoptimized={!isResizable(coverSrc)}
+							priority={priority}
 							className="object-fill w-full h-full rounded-md border border-zinc-700/40"
 						/>
 					</>
@@ -165,17 +168,17 @@ export const MobileItem = React.memo(function MobileItem<
 				)}
 			</div>
 			<div className="px-3 pt-3 pb-2.5 flex flex-col w-full min-w-0">
-				{/* BACKDROP */}
-				{item.backdropUrl && (
-					<BackdropImageMobile
-						src={item.backdropUrl}
-						width={540}
-						height={304}
-					/>
-				)}
-				{/* the whole stack rides the bottom of the row */}
-				<div className="mt-auto">
-					{/* SERIES TITLE -- fixed line so rows stay level */}
+				<div className="relative flex flex-1 flex-col justify-end">
+					{/* BACKDROP */}
+					{item.backdropUrl && (
+						<BackdropImageMobile
+							src={item.backdropUrl}
+							width={540}
+							height={304}
+							priority={priority}
+						/>
+					)}
+					{/* SERIES TITLE */}
 					<div className="h-4 flex items-center gap-1 min-w-0 text-[0.65rem] leading-none font-semibold text-zinc-400/70">
 						{seriesSection.label && (
 							<span className="truncate min-w-0">
@@ -219,7 +222,7 @@ export const MobileItem = React.memo(function MobileItem<
 								: "-"}
 						</span>
 						{mediaType === "show" || mediaType === "manga" ? (
-							// shows and manga fill to their progress 
+							// shows and manga fill to their progress
 							<div className="w-full bg-zinc-800/80 h-1 rounded-md overflow-hidden">
 								<div
 									className={`relative h-1 ${getStatusBg(item.status)} rounded-md overflow-hidden transition-all duration-500 ease-out`}
@@ -256,49 +259,49 @@ export const MobileItem = React.memo(function MobileItem<
 							</div>
 						)}
 					</div>
-					{/* PREQUEL | PLACE IN SERIES | SEQUEL */}
-					{mediaType !== "show" &&
-						(seriesSection.prequel ||
-							seriesSection.sequel ||
-							seriesSection.placement) && (
-							<div className="mt-1 grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-[0.60rem] text-zinc-400/80">
-								{/* PREQUEL */}
-								<div className="flex gap-1 items-center min-w-0">
-									{seriesSection.prequel && (
-										<>
-											<span className="shrink-0">←</span>
-											<span className="truncate">
-												{seriesSection.prequel}
-											</span>
-										</>
-									)}
-								</div>
-								{/* PLACE IN SERIES */}
-								<span className="shrink-0 text-[0.65rem] font-medium text-zinc-400/85 tabular-nums">
-									{seriesSection.placement}
-								</span>
-								{/* SEQUEL */}
-								<div className="flex gap-1 items-center justify-end min-w-0">
-									{seriesSection.sequel && (
-										<>
-											<span className="truncate">
-												{seriesSection.sequel}
-											</span>
-											<span className="shrink-0">→</span>
-										</>
-									)}
-								</div>
-							</div>
-						)}
-					{/* NOTE -- one line */}
-					<span className="block mt-1 text-center text-[0.8125rem] font-medium text-zinc-400/90 truncate">
-						{item.note ? (
-							<>&ldquo;{item.note}&rdquo;</>
-						) : (
-							<>&ldquo;{"· · ·"}&rdquo;</>
-						)}
-					</span>
 				</div>
+				{/* PREQUEL | PLACE IN SERIES | SEQUEL */}
+				{mediaType !== "show" &&
+					(seriesSection.prequel ||
+						seriesSection.sequel ||
+						seriesSection.placement) && (
+						<div className="mt-1 grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-[0.60rem] text-zinc-400/80">
+							{/* PREQUEL */}
+							<div className="flex gap-1 items-center min-w-0">
+								{seriesSection.prequel && (
+									<>
+										<span className="shrink-0">←</span>
+										<span className="truncate">
+											{seriesSection.prequel}
+										</span>
+									</>
+								)}
+							</div>
+							{/* PLACE IN SERIES */}
+							<span className="shrink-0 text-[0.65rem] font-medium text-zinc-400/85 tabular-nums">
+								{seriesSection.placement}
+							</span>
+							{/* SEQUEL */}
+							<div className="flex gap-1 items-center justify-end min-w-0">
+								{seriesSection.sequel && (
+									<>
+										<span className="truncate">
+											{seriesSection.sequel}
+										</span>
+										<span className="shrink-0">→</span>
+									</>
+								)}
+							</div>
+						</div>
+					)}
+				{/* NOTE -- one line */}
+				<span className="block mt-1 text-center text-[0.8125rem] font-medium text-zinc-400/90 truncate">
+					{item.note ? (
+						<>&ldquo;{item.note}&rdquo;</>
+					) : (
+						<>&ldquo;{"· · ·"}&rdquo;</>
+					)}
+				</span>
 			</div>
 		</div>
 	);

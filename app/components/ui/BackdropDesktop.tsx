@@ -1,4 +1,5 @@
 import Image from "next/image";
+import type { CSSProperties } from "react";
 
 interface BackdropDesktopProps {
 	src: string;
@@ -7,11 +8,36 @@ interface BackdropDesktopProps {
 	priority?: boolean;
 }
 
-const maskH =
-	"linear-gradient(to right, transparent 0%, rgba(0,0,0,0.05) 5%, rgba(0,0,0,0.2) 11%, rgba(0,0,0,0.45) 18%, rgba(0,0,0,0.72) 26%, rgba(0,0,0,0.92) 34%, black 42%, black 58%, rgba(0,0,0,0.92) 66%, rgba(0,0,0,0.72) 74%, rgba(0,0,0,0.45) 82%, rgba(0,0,0,0.2) 89%, rgba(0,0,0,0.05) 95%, transparent 100%)";
+const RAMP: [number, number][] = [
+	[0, 0],
+	[0.05, 0.119],
+	[0.2, 0.262],
+	[0.45, 0.429],
+	[0.72, 0.619],
+	[0.92, 0.81],
+	[1, 1],
+];
+
+const maskH = `linear-gradient(to right, ${[
+	...RAMP.map(([a, f]) => `rgba(0,0,0,${a}) calc(var(--art-ramp) * ${f})`),
+	...[...RAMP]
+		.reverse()
+		.map(
+			([a, f]) => `rgba(0,0,0,${a}) calc(100% - var(--art-ramp) * ${f})`,
+		),
+].join(", ")})`;
 
 const maskV =
 	"linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.5) 8%, black 20%, black 80%, rgba(0,0,0,0.5) 92%, transparent 100%)";
+
+// every listing backdrop fades the same way
+export const ART_MASK: CSSProperties = {
+	maskImage: `${maskH}, ${maskV}`,
+	WebkitMaskImage: `${maskH}, ${maskV}`,
+	maskComposite: "intersect",
+	WebkitMaskComposite: "source-in",
+	transitionProperty: "--art-ramp",
+};
 
 export const BackdropDesktop = ({
 	src,
@@ -19,13 +45,8 @@ export const BackdropDesktop = ({
 	priority = false,
 }: BackdropDesktopProps) => (
 	<div
-		className="relative overflow-hidden select-none h-full"
-		style={{
-			maskImage: `${maskH}, ${maskV}`,
-			WebkitMaskImage: `${maskH}, ${maskV}`,
-			maskComposite: "intersect",
-			WebkitMaskComposite: "source-in",
-		}}
+		className="relative overflow-hidden select-none h-full duration-420 ease-leave live:[--art-ramp:15%] live:duration-800 live:ease-arrive live:delay-200"
+		style={ART_MASK}
 	>
 		<Image
 			src={src}

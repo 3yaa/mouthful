@@ -114,7 +114,7 @@ export type ShowAction =
 	| { type: "needYearField" }
 	| {
 			type: "changeStatus";
-			payload: "Completed" | "Want to Watch" | "Dropped" | "Watching";
+			payload: ShowProps["status"];
 	  }
 	| { type: "resetScore" }
 	| { type: "nudgeScore"; payload: "up" | "down" }
@@ -160,16 +160,16 @@ export interface ShowDetailsProps {
 		takeAction?: boolean,
 	) => void;
 	addShow?: () => void | Promise<unknown>;
-	existingShows?: ShowProps[];
-	onAddWork?: (show: ShowProps) => Promise<unknown>;
+	existingShows: ShowProps[];
+	onAddWork: (show: ShowProps) => Promise<ShowProps | undefined>;
 	//
-	existingMovies?: MovieProps[];
-	onMovieUpdate?: (
+	existingMovies: MovieProps[];
+	onMovieUpdate: (
 		movieId: number,
 		updates?: Partial<MovieProps>,
 		takeAction?: boolean,
 	) => void;
-	onAddMovie?: (movie: MovieProps) => Promise<unknown>;
+	onAddMovie: (movie: MovieProps) => Promise<MovieProps | undefined>;
 	//
 	existingManga?: MangaProps[];
 	onMangaUpdate?: (
@@ -177,7 +177,7 @@ export interface ShowDetailsProps {
 		updates?: Partial<MangaProps>,
 		takeAction?: boolean,
 	) => void;
-	onAddManga?: (manga: MangaProps) => Promise<unknown>;
+	onAddManga?: (manga: MangaProps) => Promise<MangaProps | undefined>;
 	// reload metadata from source (poster/backdrop, seasons, studio)
 	onRefresh?: (metadata: Partial<ShowProps>) => Promise<void>;
 	// a slot: score | note | skip
@@ -215,8 +215,8 @@ export function ShowDetails({
 	onUpdate,
 	addShow,
 	isLoading,
-	existingShows = [],
-	existingMovies = [],
+	existingShows,
+	existingMovies,
 	onAddWork,
 	onMovieUpdate,
 	onAddMovie,
@@ -883,7 +883,7 @@ export function ShowDetails({
 		: {};
 
 	const handleStatusChange = (value: string) => {
-		const newStatus = value as "Completed" | "Want to Watch";
+		const newStatus = value as ShowProps["status"];
 		const updatesViaStatus: Partial<ShowProps> = {
 			status: newStatus,
 		};
@@ -934,7 +934,7 @@ export function ShowDetails({
 		marks.commitNudge();
 		onClose();
 	};
-	useEscapeClose(handleModalClose);
+	useEscapeClose(() => (isSelecting ? reload.cancel() : handleModalClose()));
 
 	const { isSubmitting, submit: handleAddShow } = useAddWait(addShow);
 
@@ -1382,17 +1382,17 @@ export function ShowDetails({
 					titleFromAbove={pendingWork.title}
 					onClose={() => setPendingWork(null)}
 					existingShows={existingShows}
+					onAddWork={onAddWork}
+					existingMovies={existingMovies}
+					onMovieUpdate={onMovieUpdate}
+					onAddMovie={onAddMovie}
+					existingManga={existingManga}
+					onMangaUpdate={onMangaUpdate}
+					onAddManga={onAddManga}
 					onAddShow={async (s) => {
-						// route through the parent's data hook
-						if (onAddWork) {
-							await onAddWork(s);
-						} else {
-							await authFetch("/api/shows", {
-								method: "POST",
-								headers: { "Content-Type": "application/json" },
-								body: JSON.stringify(s),
-							});
-						}
+						const added = await onAddWork(s);
+						if (added)
+							setSelectedWorkItem({ type: "tv", id: added.id });
 						setPendingWork(null);
 					}}
 				/>
@@ -1415,7 +1415,7 @@ export function ShowDetails({
 				/>
 			)}
 			{/* MOVIE DETAILS */}
-			{selectedMovie && onMovieUpdate && (
+			{selectedMovie && (
 				<MovieDetails
 					movie={selectedMovie}
 					onClose={() => setSelectedWorkItem(null)}
@@ -1445,6 +1445,10 @@ export function ShowDetails({
 						})
 					}
 					existingShows={existingShows}
+					onAddWork={onAddMovie}
+					onShowUpdate={onUpdate}
+					onShowUpdatePart={onUpdatePart}
+					onAddShow={onAddWork}
 					onSeriesNav={(target) => {
 						setPendingWork(null);
 						handleWorkSeriesNav(target);
@@ -1472,12 +1476,11 @@ export function ShowDetails({
 						return true;
 					}}
 					onAddMovie={async (m) => {
-						if (onAddMovie) await onAddMovie(m);
-						else
-							await authFetch("/api/movies", {
-								method: "POST",
-								headers: { "Content-Type": "application/json" },
-								body: JSON.stringify(m),
+						const added = await onAddMovie(m);
+						if (added)
+							setSelectedWorkItem({
+								type: "movie",
+								id: added.id,
 							});
 						setPendingWork(null);
 					}}
@@ -1517,7 +1520,12 @@ export function ShowDetails({
 						return true;
 					}}
 					onAddManga={async (m) => {
-						await onAddManga?.(m);
+						const added = await onAddManga?.(m);
+						if (added)
+							setSelectedWorkItem({
+								type: "manga",
+								id: added.id,
+							});
 						setPendingWork(null);
 					}}
 				/>
