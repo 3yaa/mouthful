@@ -190,6 +190,7 @@ export function MovieDetails({
 			// reload can clear series
 			meta.series = reloaded.series ?? null;
 			meta.genres = reloaded.genres;
+			meta.runtime = reloaded.runtime;
 			if (reloaded.title) meta.title = reloaded.title;
 			return {
 				meta,

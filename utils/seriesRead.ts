@@ -5,6 +5,7 @@ import {
 	SeriesProps,
 	SeriesTargetProps,
 } from "@/types/media";
+import { GameProps } from "@/types/game";
 
 export const seriesTitleOf = (row: SeriesMediaProps): string | null =>
 	row.series?.title ?? null;
@@ -25,6 +26,20 @@ export function seriesPlace(row: SeriesMediaProps): string | null {
 	if (!where) return null;
 	const total = row.series?.total;
 	return total ? `${where}/${total}` : where;
+}
+
+// a dlc's number; the base game says so when it has dlcs
+export function dlcPlace(
+	game: Pick<GameProps, "dlcIndex" | "dlcs">,
+): string | null {
+	if (game.dlcIndex !== 0) return String(game.dlcIndex);
+	// dlcs lists the base game first
+	return (game.dlcs?.length ?? 0) > 1 ? "Base Game" : null;
+}
+
+export function dlcCount(game: Pick<GameProps, "dlcs">): string {
+	const count = Math.max(0, (game.dlcs?.length ?? 1) - 1);
+	return `${count} DLC${count === 1 ? "" : "s"}`;
 }
 
 // anything to show at all -- a name, a place, or somewhere to step

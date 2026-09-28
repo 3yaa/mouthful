@@ -1,6 +1,12 @@
 import { MediaStatus } from "@/types/media";
 
 // completed date
+export const formatDateMedium = (value: string | Date): string =>
+	(value instanceof Date ? value : new Date(value)).toLocaleDateString(
+		"en-US",
+		{ month: "short", day: "numeric", year: "numeric" },
+	);
+
 export const formatDateShort = (value?: string | Date | null): string => {
 	if (!value) return "";
 	const date = value instanceof Date ? value : new Date(value);

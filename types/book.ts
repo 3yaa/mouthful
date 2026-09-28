@@ -24,7 +24,7 @@ export interface BookProps extends BaseMediaProps, SeriesMediaProps {
 	author: string;
 	datePublished: number;
 	cover: MediaCoverProps;
-	numPages: number;
+	timeSpent?: number | null;
 	rating: number;
 }
 
@@ -34,7 +34,7 @@ export interface BookAPIProps {
 	subtitle: string | null;
 	author_name: string[];
 	first_publish_year: number | null;
-	num_pages: number | null;
+	time_spent: number | null;
 	rating: number | null;
 	covers: MediaCoverProps[];
 	series: SeriesProps[];

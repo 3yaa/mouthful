@@ -61,6 +61,8 @@ import { MovieProps } from "@/types/movie";
 import { MobileAutoTextarea } from "@/app/components/ui/MobileAutoTextArea";
 import { BookCoverConfig } from "@/app/books/components/BookCoverConfigDetails";
 import { CoverColorPicker } from "@/app/components/ui/CoverColorPicker";
+import { TimeField } from "./shared/TimeField";
+import { ChapterLengthField } from "./shared/ChapterLengthField";
 import { MobileProgressPicker } from "@/app/components/ui/MobileSeasonEpPicker";
 import { MobileSeriesNav } from "./shared/MobileSeriesNav";
 import { LOGO_SPEC } from "./shared/logoMetrics";
@@ -724,6 +726,41 @@ export function MobileDetails<T extends BaseMediaProps>({
 							<div className="flex items-center gap-2">
 								{/* COVER COLORS */}
 								{colorPicker}
+								{/* TIME */}
+								{mediaType === "manga" && (
+									<ChapterLengthField
+										mobile
+										value={
+											(item as unknown as MangaProps)
+												.chapterLength ?? "medium"
+										}
+										onChange={(length) =>
+											onAction({
+												type: "setChapterLength",
+												payload: length,
+											})
+										}
+									/>
+								)}
+								{(mediaType === "book" ||
+									mediaType === "game") && (
+									<TimeField
+										mobile
+										minutes={
+											(mediaType === "book"
+												? (item as unknown as BookProps)
+														.timeSpent
+												: (item as unknown as GameProps)
+														.timeToBeat) ?? null
+										}
+										onChange={(minutes) =>
+											onAction({
+												type: "setTime",
+												payload: minutes,
+											})
+										}
+									/>
+								)}
 								{/* POSTER <-> BACKDROP */}
 								{backdropCount > 0 && (
 									<button

@@ -33,6 +33,7 @@ export type GameAction =
 	| { type: "confirmRefresh" }
 	| { type: "cancelRefresh" }
 	| { type: "pickCoverColor"; payload: string }
+	| { type: "setTime"; payload: number }
 	| { type: "changeBackdrop"; payload: "next" | "prev" }
 	| { type: "changeLogo"; payload: "next" | "prev" }
 	| { type: "clearLogo" };
@@ -95,12 +96,14 @@ export function GameDetails({
 				const mapped = mapIGDBDataToGame(data);
 				meta.cover = await buildCover(mapped.cover?.url);
 				meta.dlcs = mapped.dlcs;
+				meta.timeToBeat = mapped.timeToBeat;
 			} else {
 				const mapped = mapIGDBDlcsDataToGame(
 					data,
 					game.mainTitle || "",
 				);
 				meta.cover = await buildCover(mapped.cover?.url);
+				meta.timeToBeat = mapped.timeToBeat;
 				// reorder dlc based on reload
 				const mainIgdbId = game.dlcs?.[0]?.id;
 				if (mainIgdbId) {
@@ -215,6 +218,15 @@ export function GameDetails({
 				break;
 			case "pickCoverColor":
 				handlePickCoverColor(action.payload);
+				break;
+			case "setTime":
+				if (isSelecting)
+					reload.patchMeta((meta) => ({
+						...meta,
+						timeToBeat: action.payload,
+					}));
+				else if (addGame)
+					onUpdate(game.id, { timeToBeat: action.payload });
 				break;
 			case "cancelRefresh":
 				reload.cancel();

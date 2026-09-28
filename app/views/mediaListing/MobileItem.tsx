@@ -11,6 +11,7 @@ import { BackdropImageMobile } from "../../components/ui/BackdropMobile";
 import { formatDateShort, splitCredits } from "@/utils/formattingUtils";
 import { CreditNames } from "../mediaDetails/shared/CreditNames";
 import {
+	dlcPlace,
 	seriesNeighbours,
 	seriesPlace,
 	seriesTitleOf,
@@ -63,10 +64,7 @@ export const MobileItem = React.memo(function MobileItem<
 					return {
 						// dlc sits under the base game's name
 						label: game.dlcIndex !== 0 ? game.mainTitle : undefined,
-						placement:
-							game.dlcIndex !== 0
-								? String(game.dlcIndex)
-								: undefined,
+						placement: dlcPlace(game) ?? undefined,
 						prequel: game.dlcs?.[game.dlcIndex - 1]?.name, //prev
 						sequel: game.dlcs?.[game.dlcIndex + 1]?.name, //next
 					};

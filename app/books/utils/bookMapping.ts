@@ -10,7 +10,7 @@ export function mapBookAPIDatatoBook(
 		author: dataAPI.author_name?.[0],
 		status: "Want to Read",
 		datePublished: dataAPI.first_publish_year ?? undefined,
-		numPages: dataAPI.num_pages ?? undefined,
+		timeSpent: dataAPI.time_spent ?? undefined,
 		rating: dataAPI.rating ?? undefined,
 	};
 }

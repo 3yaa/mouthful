@@ -5,7 +5,7 @@ import {
 	SeriesTargetProps,
 } from "@/types/media";
 import { GameProps } from "@/types/game";
-import { seriesNeighbours, seriesPlace } from "@/utils/seriesRead";
+import { dlcPlace, seriesNeighbours, seriesPlace } from "@/utils/seriesRead";
 import { NotInListBadge } from "./SeriesNav";
 
 interface MobileSeriesNavProps {
@@ -36,7 +36,7 @@ export function MobileSeriesNav({
 										},
 									}
 								: null,
-						center: g.dlcIndex !== 0 ? String(g.dlcIndex) : null,
+						center: dlcPlace(g),
 						next:
 							g.dlcs && g.dlcIndex + 1 < g.dlcs.length
 								? {

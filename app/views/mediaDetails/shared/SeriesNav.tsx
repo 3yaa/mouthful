@@ -7,7 +7,12 @@ import {
 	SeriesTargetProps,
 } from "@/types/media";
 import { GameProps } from "@/types/game";
-import { seriesNeighbours, seriesPlace } from "@/utils/seriesRead";
+import {
+	dlcCount,
+	dlcPlace,
+	seriesNeighbours,
+	seriesPlace,
+} from "@/utils/seriesRead";
 
 interface SeriesNavProps {
 	item: BaseMediaProps;
@@ -244,7 +249,8 @@ export function SeriesNav({
 										},
 									}
 								: null,
-						center: g.dlcIndex !== 0 ? String(g.dlcIndex) : null,
+						center: dlcPlace(g),
+						centerLabel: g.dlcIndex !== 0 ? "DLC" : dlcCount(g),
 						next:
 							g.dlcs && g.dlcIndex + 1 < g.dlcs.length
 								? {
@@ -275,6 +281,7 @@ export function SeriesNav({
 								}
 							: null,
 						center: seriesPlace(row),
+						centerLabel: "Position",
 						next: next
 							? {
 									label: "Sequel",
@@ -432,7 +439,7 @@ export function SeriesNav({
 					{nav.center && (
 						<div className="flex flex-col items-center">
 							<label className="text-xs font-medium text-zinc-500 block">
-								{mediaType === "game" ? "DLC" : "Position"}
+								{nav.centerLabel}
 							</label>
 							<span className="text-[0.8125rem] leading-5 font-medium text-zinc-300/70 tabular-nums">
 								{nav.center}

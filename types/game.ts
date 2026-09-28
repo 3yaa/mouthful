@@ -20,6 +20,7 @@ export interface GameProps extends BaseMediaProps {
 	dlcIndex: number;
 	mainTitle?: string;
 	dlcs?: IGDBInitProps[];
+	timeToBeat?: number | null; // minutes
 }
 
 export interface IGDBInitProps {
@@ -35,6 +36,7 @@ export interface IGDBProps {
 	developer?: { name: string }[];
 	expansions?: IGDBInitProps[];
 	screenshot_urls?: { ss_url: string }[];
+	time_to_beat?: number | null;
 	logo_url?: string | null;
 	logos?: string[];
 }
@@ -46,4 +48,5 @@ export interface IGDBDlcProps {
 	cover_url?: string;
 	developer?: { name: string }[];
 	screenshot_urls?: { ss_url: string }[];
+	time_to_beat?: number | null;
 }

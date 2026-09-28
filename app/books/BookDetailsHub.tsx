@@ -40,6 +40,7 @@ export type BookAction =
 	| { type: "confirmRefresh" }
 	| { type: "cancelRefresh" }
 	| { type: "pickCoverColor"; payload: string }
+	| { type: "setTime"; payload: number }
 	| { type: "moreResults" };
 
 interface BookDetailsProps {
@@ -113,7 +114,7 @@ export function BookDetails({
 			if (!response) return null;
 			const mapped = mapBookAPIDatatoBook(response);
 			const meta: Partial<BookProps> = {
-				numPages: mapped.numPages,
+				timeSpent: mapped.timeSpent,
 				rating: mapped.rating,
 				series: pickBookSeries(response.series),
 			};
@@ -213,6 +214,15 @@ export function BookDetails({
 			case "pickCoverColor":
 				handlePickCoverColor(action.payload);
 				break;
+			case "setTime":
+				if (isSelecting)
+					reload.patchMeta((meta) => ({
+						...meta,
+						timeSpent: action.payload,
+					}));
+				else if (addBook)
+					onUpdate(book.id, { timeSpent: action.payload });
+				break;
 			case "moreResults":
 				if (isSelecting) handleShowRefreshResults();
 				else onShowMore?.();
@@ -240,7 +250,7 @@ export function BookDetails({
 					title: mapped.title,
 					author: mapped.author,
 					datePublished: mapped.datePublished,
-					numPages: mapped.numPages,
+					timeSpent: mapped.timeSpent,
 					rating: mapped.rating,
 					series: pickBookSeries(full.series),
 				},

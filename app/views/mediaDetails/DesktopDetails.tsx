@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { ReactNode, useState } from "react";
+import { Fragment, ReactNode, useState } from "react";
 import { Loading } from "@/app/components/ui/Loading";
 import { CreditNames } from "./shared/CreditNames";
 import { ModalBackdrop, ModalPanel } from "@/app/components/ui/ModalMotion";
@@ -12,11 +12,12 @@ import {
 	isPrintMedia,
 } from "@/types/media";
 import { GameProps } from "@/types/game";
-import { formatDateShort, splitCredits } from "@/utils/formattingUtils";
+import { formatDateMedium, splitCredits } from "@/utils/formattingUtils";
 import { hasSeries, seriesTitleOf } from "@/utils/seriesRead";
 import {
 	coverWave,
 	getStatusDetailWaveColor,
+	getStatusTextColor,
 	statusBezel,
 } from "@/utils/styleUtils";
 import { slotSubtitle } from "@/app/shows/utils/animeTitles";
@@ -43,7 +44,6 @@ import {
 	Feather,
 	Hourglass,
 	Clapperboard,
-	BookCheck,
 	Unlink,
 	Type,
 } from "lucide-react";
@@ -79,6 +79,9 @@ import {
 } from "@/utils/styleUtils";
 import { MediaTitle, SERIES_TEXT, TITLE_TEXT } from "./shared/MediaTitle";
 import { PickHalves, PickPosition } from "./shared/PickPosition";
+import { TimeField } from "./shared/TimeField";
+import { ChapterLengthField } from "./shared/ChapterLengthField";
+import { timeLine, timeSpentOf } from "@/utils/timeSpent";
 import { LOGO_SPEC } from "./shared/logoMetrics";
 import { useArtworkPrime } from "@/hooks/useArtworkPrime";
 import { EditProgress } from "@/app/shows/components/EditProgressDetail";
@@ -349,6 +352,27 @@ export function DesktopDetails<T extends BaseMediaProps>({
 		/>
 	) : null;
 
+	// set by hand while previewing
+	const timeField = !isPicking ? null : mediaType === "manga" ? (
+		<ChapterLengthField
+			value={(printItem as MangaProps).chapterLength ?? "medium"}
+			onChange={(length) =>
+				onAction({ type: "setChapterLength", payload: length })
+			}
+		/>
+	) : mediaType === "book" || mediaType === "game" ? (
+		<TimeField
+			minutes={
+				(mediaType === "book"
+					? (printItem as BookProps).timeSpent
+					: gameItem.timeToBeat) ?? null
+			}
+			onChange={(minutes) =>
+				onAction({ type: "setTime", payload: minutes })
+			}
+		/>
+	) : null;
+
 	// manga
 	const pagePicker =
 		mediaType === "manga" && isPicking ? (
@@ -436,6 +460,8 @@ export function DesktopDetails<T extends BaseMediaProps>({
 	const imageBackdropUrl =
 		(isPicking ? backdropUrls?.[backdropIndex ?? 0] : undefined) ??
 		item.backdropUrl;
+	const cyclesBackdrop =
+		isPicking && !!backdropUrls && backdropUrls.length > 1;
 	const displayLogoUrl =
 		isPicking && logoUrls?.length ? logoUrls[logoIndex ?? 0] : item.logoUrl;
 
@@ -486,6 +512,30 @@ export function DesktopDetails<T extends BaseMediaProps>({
 					.map((g) => GENRE_SHORT[g] ?? g)
 					.join("/")
 			: "";
+	const chipBelow = isPicking && mediaType === "book";
+	const time = timeLine(timeSpentOf(mediaType, item));
+	const titleHint = [
+		genreLine && <span key="genres">{genreLine}</span>,
+		time && (
+			<span key="time">
+				{time.of ? (
+					<>
+						<span
+							className={`underline underline-offset-[3px] ${getStatusTextColor(item.status)}`}
+						>
+							{time.figure}
+						</span>
+						{` of ${time.of}`}
+					</>
+				) : (
+					time.figure
+				)}
+			</span>
+		),
+		item.status === "Completed" && item.dateCompleted && (
+			<span key="finished">{formatDateMedium(item.dateCompleted)}</span>
+		),
+	].filter(Boolean);
 	// ---
 	const underlineColor = coverColor?.trim()
 		? coverWave(coverColor)
@@ -499,7 +549,7 @@ export function DesktopDetails<T extends BaseMediaProps>({
 				? printItem.rating
 				: null;
 
-	// COMPLETED DATE | RATING
+	// RATING
 	const trailingMeta =
 		externalRating != null ? (
 			<span
@@ -513,19 +563,6 @@ export function DesktopDetails<T extends BaseMediaProps>({
 				<span className="font-semibold tabular-nums text-zinc-300/80 tracking-tight">
 					{externalRating.toFixed(1)}
 				</span>
-			</span>
-		) : item.status === "Completed" && item.dateCompleted ? (
-			<span
-				className="shrink-0 flex items-center gap-1.5 tabular-nums"
-				title="Date Completed"
-			>
-				{isPrint && (
-					<BookCheck
-						className="w-3.5 h-3.5 shrink-0 text-zinc-400/70"
-						strokeWidth={1.75}
-					/>
-				)}
-				{formatDateShort(item.dateCompleted)}
 			</span>
 		) : null;
 
@@ -729,6 +766,8 @@ export function DesktopDetails<T extends BaseMediaProps>({
 							{/* ACTION BUTTONS */}
 							{isSelecting ? (
 								<div className={`${ACTION_ROW} gap-2`}>
+									{/* TIME */}
+									{timeField}
 									{/* EPISODE RATINGS */}
 									{ratingsBtn}
 									{seriesNav}
@@ -762,6 +801,8 @@ export function DesktopDetails<T extends BaseMediaProps>({
 								</div>
 							) : isAdding ? (
 								<div className={`${ACTION_ROW} gap-2`}>
+									{/* TIME */}
+									{timeField}
 									{/* EPISODE RATINGS */}
 									{ratingsBtn}
 									{/* CYCLE LOGOS | TEXT TITLE */}
@@ -1001,21 +1042,21 @@ export function DesktopDetails<T extends BaseMediaProps>({
 										)
 									)}
 									{/* backdrop cycling overlay */}
-									{isPicking &&
-										backdropUrls &&
-										backdropUrls.length > 1 && (
-											<div
-												className="group/pick absolute top-0 -left-8 -right-8 h-40 hover:cursor-pointer z-5"
-												onClick={handleBackdropChange}
-											>
-												<PickHalves inset="px-9" />
-												<PickPosition
-													index={backdropIndex ?? 0}
-													count={backdropUrls.length}
-													className="absolute top-3.75 left-12 -translate-y-1/2 opacity-0 transition-opacity duration-150 group-hover/pick:opacity-100"
-												/>
-											</div>
-										)}
+									{cyclesBackdrop && (
+										<div
+											className="group/pick absolute top-0 -left-8 -right-8 h-40 hover:cursor-pointer z-5"
+											onClick={handleBackdropChange}
+										>
+											<PickHalves inset="px-9" />
+											<PickPosition
+												index={backdropIndex ?? 0}
+												count={
+													backdropUrls?.length ?? 0
+												}
+												className="absolute top-3.75 left-12 -translate-y-1/2 opacity-0 transition-opacity duration-150 group-hover/pick:opacity-100"
+											/>
+										</div>
+									)}
 									{/*  */}
 									<div
 										className={`flex flex-col flex-1 justify-end ${endsAtNotes ? "" : "mb-3"} ${
@@ -1024,11 +1065,11 @@ export function DesktopDetails<T extends BaseMediaProps>({
 									>
 										{/* HEADER */}
 										<div
-											className={
+											className={`relative isolate ${
 												bookBoard
-													? "relative isolate flex flex-1 flex-col justify-end pt-5 pb-1.5 mb-1"
-													: "relative isolate"
-											}
+													? "flex flex-1 flex-col justify-end pt-5 pb-1.5 mb-1"
+													: ""
+											} ${cyclesBackdrop ? "z-6 pointer-events-none" : ""}`}
 											style={
 												{
 													[bookBoard
@@ -1051,12 +1092,28 @@ export function DesktopDetails<T extends BaseMediaProps>({
 												/>
 											)}
 											<div
-												className={`group/title relative flex flex-col items-center w-fit ${bookBoard ? "max-w-[76%]" : "max-w-[94%]"} mx-auto ${isPrint ? "-mb-1" : `${showLogoTitle ? "mb-0.5" : "-mb-1"}`}`}
+												className={`group/title pointer-events-auto relative flex flex-col items-center w-fit ${bookBoard ? "max-w-[76%]" : "max-w-[94%]"} mx-auto ${isPrint ? "-mb-1" : `${showLogoTitle ? "mb-0.5" : "-mb-1"}`}`}
 											>
-												{/* GENRES */}
-												{genreLine && (
-													<span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 translate-y-1 whitespace-nowrap rounded-lg neu-raised-firm backdrop-blur-sm px-3 py-1.5 text-[0.8rem] font-semibold tracking-wide text-zinc-300/85 select-none opacity-0 transition-[opacity,translate] duration-200 group-hover/title:translate-y-0 group-hover/title:opacity-100 group-hover/title:delay-150">
-														{genreLine}
+												{/* GENRES | TIME | FINISHED */}
+												{titleHint.length > 0 && (
+													<span
+														className={`pointer-events-none absolute left-1/2 z-10 flex -translate-x-1/2 items-center gap-2.5 whitespace-nowrap rounded-full bg-black/45 px-3.5 text-[0.8rem] font-semibold tracking-wide text-zinc-300/85 tabular-nums shadow-[0_2px_8px_rgba(0,0,0,0.45)] backdrop-blur-sm select-none opacity-0 transition-[opacity,translate] duration-200 group-hover/title:translate-y-0 group-hover/title:opacity-100 group-hover/title:delay-150 ${
+															chipBelow
+																? "top-full mt-7 py-1 -translate-y-1"
+																: "bottom-full mb-2 py-1.5 translate-y-1"
+														}`}
+													>
+														{titleHint.map(
+															(part, i) => (
+																<Fragment
+																	key={i}
+																>
+																	{i > 0 &&
+																		authorSectorDivider}
+																	{part}
+																</Fragment>
+															),
+														)}
 													</span>
 												)}
 												{/* washblur */}

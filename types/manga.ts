@@ -18,6 +18,8 @@ export const DIFF_COLUMNS_MANGA: [
 	},
 ];
 
+export type ChapterLength = "short" | "medium" | "long";
+
 export interface MangaProps extends BaseMediaProps, SeriesMediaProps {
 	status: "Reading" | "Want to Read" | "Completed" | "Dropped";
 	anilistId: number;
@@ -27,6 +29,7 @@ export interface MangaProps extends BaseMediaProps, SeriesMediaProps {
 	// null while the serial is still running
 	chapters: number | null;
 	curChapter: number;
+	chapterLength?: ChapterLength | null;
 	rating: number;
 }
 

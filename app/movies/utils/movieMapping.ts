@@ -9,6 +9,7 @@ export function mapMetaToMovie(dataMeta: MovieAPIProps): Partial<MovieProps> {
 		status: "Want to Watch",
 		dateReleased: dataMeta.released_date,
 		genres: dataMeta.genres,
+		runtime: dataMeta.runtime,
 		imdbRating: dataMeta.imdbRating,
 		cover: dataMeta.poster_url
 			? { url: dataMeta.poster_url, color: "" }

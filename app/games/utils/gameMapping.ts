@@ -11,6 +11,7 @@ export function mapIGDBDataToGame(dataGame: IGDBProps): Partial<GameProps> {
       : undefined,
     logoUrl: dataGame.logo_url ?? undefined,
     studio: dataGame.developer?.[0]?.name,
+    timeToBeat: dataGame.time_to_beat,
     dlcs: [
       { id: dataGame.igdbId, name: dataGame.title },
       ...(dataGame.expansions?.map((dlc) => ({
@@ -34,5 +35,6 @@ export function mapIGDBDlcsDataToGame(
       ? { url: dataDlc.cover_url, color: "" }
       : undefined,
     studio: dataDlc.developer?.[0]?.name,
+    timeToBeat: dataDlc.time_to_beat,
   };
 }

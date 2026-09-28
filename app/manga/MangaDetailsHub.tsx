@@ -1,5 +1,6 @@
 "use client";
 import {
+	ChapterLength,
 	MangaProps,
 	MangaSearchResult,
 	DIFF_COLUMNS_MANGA,
@@ -60,6 +61,7 @@ export type MangaAction =
 	| { type: "confirmRefresh" }
 	| { type: "cancelRefresh" }
 	| { type: "pickCoverColor"; payload: string }
+	| { type: "setChapterLength"; payload: ChapterLength }
 	| { type: "cyclePage" }
 	| { type: "moreResults" }
 	| { type: "authorClick"; payload: string };
@@ -235,6 +237,15 @@ export function MangaDetails({
 				break;
 			case "cyclePage":
 				handleCyclePage();
+				break;
+			case "setChapterLength":
+				if (isSelecting)
+					reload.patchMeta((meta) => ({
+						...meta,
+						chapterLength: action.payload,
+					}));
+				else if (addManga)
+					onUpdate(manga.id, { chapterLength: action.payload });
 				break;
 			case "moreResults":
 				if (isSelecting) handleShowRefreshResults();
