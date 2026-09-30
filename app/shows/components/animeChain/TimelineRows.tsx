@@ -14,6 +14,7 @@ import {
 	episodeCountOf,
 	episodeTotalLabel,
 	isMovieSlot,
+	isUnreleased,
 	slotName,
 } from "@/app/shows/utils/slotRef";
 import { titleCase } from "@/app/shows/utils/animeTitles";
@@ -26,6 +27,7 @@ import {
 	PlantButton,
 	RowWash,
 	type SlotState,
+	UnreleasedTag,
 	Weight,
 	branchElbow,
 	branchLink,
@@ -125,6 +127,7 @@ function RowBody({
 	current,
 	browsing,
 	weight,
+	unreleased,
 	reduced,
 	box,
 	onPick,
@@ -137,6 +140,7 @@ function RowBody({
 	current: boolean;
 	browsing: boolean;
 	weight: ReactNode;
+	unreleased?: boolean;
 	reduced: boolean | null;
 	// the lane it sits in
 	box: string;
@@ -172,6 +176,7 @@ function RowBody({
 				</span>
 				<Meta
 					value={weight}
+					tag={unreleased ? <UnreleasedTag /> : undefined}
 					pinned={current || browsing}
 					action={
 						onPlant ? <PlantButton onPlant={onPlant} /> : undefined
@@ -374,6 +379,7 @@ export function SlotRow({
 								<Weight share={shareOf(index)} of={mostShare} />
 							) : null
 						}
+						unreleased={isUnreleased(slot)}
 						reduced={reduced}
 						box={side ? "ml-4 w-[calc(100%-1rem)]" : "w-full"}
 						onPick={() => onPickSlot(index)}
@@ -522,6 +528,7 @@ export function MovieRow({
 						<Weight share={shareOf(index)} of={mostShare} />
 					) : null
 				}
+				unreleased={isUnreleased(movie)}
 				reduced={reduced}
 				box="w-full"
 				onPick={pick}
@@ -643,6 +650,7 @@ export function ExtraRows({
 									/>
 								) : null
 							}
+							unreleased={isUnreleased(extra)}
 							reduced={reduced}
 							box="ml-4 w-[calc(100%-1rem)]"
 							onPick={() => onPickSlot(index)}

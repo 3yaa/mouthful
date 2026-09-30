@@ -326,6 +326,14 @@ export const isOpenEnded = (slot?: ShowSeasonProps) =>
 export const episodeTotalLabel = (slot?: ShowSeasonProps) =>
 	isOpenEnded(slot) ? "???" : episodeCountOf(slot);
 
+// no date yet means unannounced
+export function isUnreleased(node?: Pick<ShowSeasonProps, "startDate">) {
+	if (!node) return false;
+	const date = node.startDate;
+	if (!date) return true;
+	return date > new Date().toISOString().slice(0, date.length);
+}
+
 // parent where walk starts -- side that aired first come between
 export function movieIndex(
 	line: ShowSeasonProps[],

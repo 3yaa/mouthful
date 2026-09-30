@@ -311,18 +311,39 @@ export function Weight({ share, of }: { share: number; of: number }) {
 	);
 }
 
+export const UnreleasedTag = () => (
+	<span className="flex h-4 items-center rounded px-1.5 neu-carved text-[0.62rem] tracking-[0.06em] indent-[0.06em] text-zinc-400/80">
+		unreleased
+	</span>
+);
+
 // one slot holding both the weight and the control
 export const Meta = ({
 	value,
+	tag,
 	action,
 	pinned,
 }: {
 	value: React.ReactNode;
+	tag?: React.ReactNode;
 	action?: React.ReactNode;
 	// the row you are on and the row you are looking at
 	pinned?: boolean;
 }) => (
-	<span className="relative mr-1.5 flex h-5 w-7 shrink-0 items-center justify-end">
+	<span className="relative mr-1.5 flex h-5 min-w-7 shrink-0 items-center justify-end">
+		{tag && (
+			<span
+				className={`flex items-center pr-0.5 transition-opacity duration-200 ${
+					action
+						? pinned
+							? "opacity-0"
+							: "group-hover:opacity-0"
+						: ""
+				}`}
+			>
+				{tag}
+			</span>
+		)}
 		{value && (!pinned || !action) && (
 			<span
 				className={`absolute inset-y-0 right-0.5 flex w-6 items-center justify-center transition-opacity duration-200 ${
