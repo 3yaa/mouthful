@@ -65,8 +65,6 @@ export interface Rail {
 	lineIndexOf: Map<number | null | undefined, SlotIndex>;
 	movieOf: Map<number, AnimeMovieProps>;
 	movieExtras: Map<number, AnimeSideStoryProps[]>;
-	moviesBySlot: Map<number, AnimeMovieProps[]>;
-	moviesBeforeSlot: Map<number, AnimeMovieProps[]>;
 	underMovieIds: Set<number>;
 	lastMain: number;
 	reduced: boolean | null;
@@ -210,9 +208,6 @@ export function SlotRow({
 		mostShare,
 		linked,
 		movieOf,
-		moviesBySlot,
-		moviesBeforeSlot,
-		underMovieIds,
 		lastMain,
 		reduced,
 		rowVariants,
@@ -229,8 +224,8 @@ export function SlotRow({
 	const current = state === "current";
 	const side = !!slot.isSide;
 	// refused ones never reach here -- timelineOf dropped them
-	const onLine =
-		!side && isMovieSlot(slot) && slot.anilistId != null
+	const movie =
+		isMovieSlot(slot) && slot.anilistId != null
 			? movieOf.get(slot.anilistId)
 			: undefined;
 	const color = colorOf(slot.posterColor);
@@ -240,8 +235,6 @@ export function SlotRow({
 		episodeCountOf(slot) === 1 && slot.duration
 			? `${slot.duration} min`
 			: `${episodeTotalLabel(slot)} ep`;
-	const before = moviesBeforeSlot.get(index) ?? [];
-	const after = moviesBySlot.get(index) ?? [];
 	const previous = line[index - 1];
 	const browsing = !current && viewIndex === index;
 	const litRun = state === "ahead" ? null : mix(hereColor, 55);
@@ -251,14 +244,7 @@ export function SlotRow({
 	const runToBead = `${index === 0 ? 0.5 : 1 + gapAbove}rem`;
 	const runEnd = index === lastMain ? { height: runToBead } : { bottom: 0 };
 	//
-	const shownAbove =
-		index > 0 &&
-		!!line[index - 1]?.isSide &&
-		!underMovieIds.has(line[index - 1].anilistId!);
-	const linkedAbove =
-		side &&
-		index > 0 &&
-		(shownAbove || (moviesBySlot.get(index - 1)?.length ?? 0) > 0);
+	const linkedAbove = side && !!previous?.isSide;
 	//
 	const shownName = side ? `${name} \u00b7 ${kindOf(slot.format)}` : name;
 	const hideFromNode = side && slot.anilistId != null && !!onHide;
@@ -304,24 +290,14 @@ export function SlotRow({
 				</>
 			)}
 
-			{before.map((movie, at) => (
-				<Fragment key={`movie-before-${movie.anilistId}`}>
-					<MovieRow rail={rail} movie={movie} linkedAbove={at > 0} />
-					<ExtraRows rail={rail} movie={movie} />
-					<CutPicker
-						current={movie}
-						variants={movie.variants ?? []}
-						color={colorOf(movie.posterColor)}
-						hang
-						canPick={canPickCut}
-						onPick={onPickCut}
-					/>
-				</Fragment>
-			))}
-			{onLine ? (
+			{movie ? (
 				<>
-					<MovieRow rail={rail} movie={onLine} />
-					<ExtraRows rail={rail} movie={onLine} />
+					<MovieRow
+						rail={rail}
+						movie={movie}
+						linkedAbove={linkedAbove}
+					/>
+					<ExtraRows rail={rail} movie={movie} />
 				</>
 			) : (
 				<div
@@ -396,25 +372,6 @@ export function SlotRow({
 				canPick={canPickCut}
 				onPick={onPickCut}
 			/>
-
-			{after.map((movie, at) => (
-				<Fragment key={`movie-${movie.anilistId}`}>
-					<MovieRow
-						rail={rail}
-						movie={movie}
-						linkedAbove={at > 0 || side}
-					/>
-					<ExtraRows rail={rail} movie={movie} />
-					<CutPicker
-						current={movie}
-						variants={movie.variants ?? []}
-						color={colorOf(movie.posterColor)}
-						hang
-						canPick={canPickCut}
-						onPick={onPickCut}
-					/>
-				</Fragment>
-			))}
 		</motion.li>
 	);
 }

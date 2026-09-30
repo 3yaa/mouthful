@@ -1,6 +1,6 @@
 "use client";
 import Image from "next/image";
-import { Fragment, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
 	AnimatePresence,
 	LayoutGroup,
@@ -9,16 +9,9 @@ import {
 	Variants,
 } from "framer-motion";
 import { ArrowUpRight, ChevronDown, Plus, X } from "lucide-react";
+import { ShowProps, ShowSeasonProps, SlotIndex } from "@/types/show";
 import {
-	AnimeMovieProps,
-	ShowProps,
-	ShowSeasonProps,
-	SlotIndex,
-} from "@/types/show";
-import {
-	parentIndex,
 	franchiseRomajiOf,
-	movieIndex,
 	movieExtrasOf,
 	orderMoviesOf,
 	hiddenExtrasOf,
@@ -45,14 +38,7 @@ import {
 	rowName,
 	runtimeOf,
 } from "./RowChrome";
-import {
-	CutPicker,
-	ExtraRows,
-	MovieRow,
-	type Rail,
-	SlotRow,
-	listVariants,
-} from "./TimelineRows";
+import { type Rail, SlotRow, listVariants } from "./TimelineRows";
 
 export interface AnimeChainProps {
 	show: ShowProps;
@@ -259,47 +245,18 @@ function ChainRows({
 	// the row the details card is showing
 	const linked = viewIndex ?? curIndex;
 
-	// mark main movie
-	const movies = orderMoviesOf(show);
 	const movieOf = new Map(
-		movies.map((movie) => [movie.anilistId, movie] as const),
+		orderMoviesOf(show).map((movie) => [movie.anilistId, movie] as const),
 	);
-	const hangingIds = new Set(
-		movies
-			.filter((movie) => !movie.isMainLine)
-			.map((movie) => movie.anilistId),
-	);
-	// still positions -- this changes only where the rail draws
 	const movieExtras = movieExtrasOf(show);
 	const underMovieIds = new Set(
-		[...movieExtras.values()].flat().map((extra) => extra.anilistId),
+		[...movieExtras]
+			.filter(([movieId]) => movieOf.has(movieId))
+			.flatMap(([, extras]) => extras.map((extra) => extra.anilistId)),
 	);
 	const lineIndexOf = new Map(
 		line.map((slot, at) => [slot.anilistId, slotIndexAt(at)] as const),
 	);
-	const moviesBySlot = new Map<number, AnimeMovieProps[]>();
-	const moviesBeforeSlot = new Map<number, AnimeMovieProps[]>();
-	const looseMovies: AnimeMovieProps[] = [];
-	for (const movie of movies) {
-		// drawn at its own index
-		if (!hangingIds.has(movie.anilistId)) continue;
-		// a declared prequel belongs before its parent even when it was released later
-		const before = movie.placement === "before";
-		const at = before ? parentIndex(line, movie) : movieIndex(line, movie);
-		if (at === -1) {
-			looseMovies.push(movie);
-			continue;
-		}
-		const bucket = before ? moviesBeforeSlot : moviesBySlot;
-		const list = bucket.get(at);
-		if (list) list.push(movie);
-		else bucket.set(at, [movie]);
-	}
-	const byRelease = (a: AnimeMovieProps, z: AnimeMovieProps) =>
-		(a.startDate ?? "9999").localeCompare(z.startDate ?? "9999");
-	for (const list of moviesBySlot.values()) list.sort(byRelease);
-	for (const list of moviesBeforeSlot.values()) list.sort(byRelease);
-	looseMovies.sort(byRelease);
 
 	//
 	const lastMain = line.reduce(
@@ -385,8 +342,6 @@ function ChainRows({
 		lineIndexOf,
 		movieOf,
 		movieExtras,
-		moviesBySlot,
-		moviesBeforeSlot,
 		underMovieIds,
 		lastMain,
 		reduced,
@@ -451,50 +406,17 @@ function ChainRows({
 				initial="hidden"
 				animate="visible"
 			>
-				{line.map((slot, index) => {
-					if (
-						slot.anilistId != null &&
-						underMovieIds.has(slot.anilistId)
-					)
-						return null;
-					if (
-						slot.anilistId != null &&
-						hangingIds.has(slot.anilistId)
-					)
-						return null;
-					return (
+				{line.map((slot, index) =>
+					// an extra is drawn under its movie
+					slot.anilistId != null &&
+					underMovieIds.has(slot.anilistId) ? null : (
 						<SlotRow
 							key={slot.anilistId ?? `slot-${index}`}
 							rail={rail}
 							slot={slot}
 							index={slotIndexAt(index)}
 						/>
-					);
-				})}
-
-				{/* an unannounced date, or a parent the last rebuild renumbered away */}
-				{looseMovies.length > 0 && (
-					<motion.li variants={rowVariants} className="mt-2">
-						{looseMovies.map((movie, at) => (
-							<Fragment key={`movie-loose-${movie.anilistId}`}>
-								<MovieRow
-									rail={rail}
-									movie={movie}
-									linkedAbove={at > 0}
-								/>
-								<ExtraRows rail={rail} movie={movie} />
-								{/* no parent, but the same cuts a placed one has */}
-								<CutPicker
-									current={movie}
-									variants={movie.variants ?? []}
-									color={colorOf(movie.posterColor)}
-									hang
-									canPick={canPickCut}
-									onPick={onPickCut}
-								/>
-							</Fragment>
-						))}
-					</motion.li>
+					),
 				)}
 			</motion.ul>
 			<SetAside show={show} onUnhide={onUnhide} />

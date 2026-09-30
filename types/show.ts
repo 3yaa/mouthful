@@ -54,11 +54,11 @@ export interface ShowSeasonProps extends Partial<AnimeNodeProps> {
 	episode_count: number | null;
 	// --- anime slots only ---
 	number?: string | null; // season number, ie: 3 or 3-2
-	position?: number; // spine position, 1-based
 	sourceManga?: SourceMediaProps | null;
 	variants?: AnimeVariantProps[]; // cuts
 	isSide?: boolean; // derived, never persisted
 	kind?: "film" | "sideStory"; // derived, never persisted
+	underMovie?: number | null; // derived -- an extra shipped with
 	subNodes?: AnimeSubNodeProps[]; // side stories
 	droppedNodes?: { anilistId: number }[] | null;
 }

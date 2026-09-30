@@ -236,6 +236,7 @@ const asSlot = (item: AnimeSubNodeProps): ShowSeasonProps => ({
 	isSide: item.kind === "film" ? !item.isMainLine : true,
 	isMainLine: item.kind === "film" ? item.isMainLine : false,
 	kind: item.kind,
+	underMovie: item.underMovie,
 	// cuts
 	variants: item.variants,
 });
@@ -332,30 +333,6 @@ export function isUnreleased(node?: Pick<ShowSeasonProps, "startDate">) {
 	const date = node.startDate;
 	if (!date) return true;
 	return date > new Date().toISOString().slice(0, date.length);
-}
-
-// parent where walk starts -- side that aired first come between
-export function movieIndex(
-	line: ShowSeasonProps[],
-	movie: Pick<
-		AnimeSubNodeProps,
-		"parentSlot" | "parentSlotAnilistId" | "startDate"
-	>,
-): SlotIndex {
-	const at = parentIndex(line, movie);
-	if (at === -1) return at;
-	let out: SlotIndex = at;
-	for (
-		let next = at + 1;
-		// side only -- movie cannot come after itself and two off one part draw side by side
-		next < line.length && line[next].isSide && !isMovieSlot(line[next]);
-		next++
-	) {
-		const when = line[next].startDate;
-		if (!when || !movie.startDate || when > movie.startDate) break;
-		out = pos(next);
-	}
-	return out;
 }
 
 // where the row is on this chain | -1 when nothing on it accounts for the row
