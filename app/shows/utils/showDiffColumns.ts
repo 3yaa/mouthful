@@ -16,9 +16,10 @@ export const DIFF_COLUMNS_SHOW: [
 	{
 		label: "Released",
 		sortKey: "dateReleased",
-		getValue: (s) =>
-			(s.anilistId != null
-				? airSeasonLabel(slotOf(s)?.startDate)
-				: null) ?? s.dateReleased,
+		getValue: (s) => {
+			const slot = s.anilistId != null ? slotOf(s) : undefined;
+			if (!slot) return s.dateReleased;
+			return airSeasonLabel(slot.startDate) ?? "TBA";
+		},
 	},
 ];
