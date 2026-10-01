@@ -9,6 +9,8 @@ function lock() {
 	if (locks++ > 0) return;
 
 	const body = document.body;
+	const root = document.documentElement;
+	const prevOverscroll = root.style.overscrollBehavior;
 	const prev = {
 		overflow: body.style.overflow,
 		position: body.style.position,
@@ -20,9 +22,9 @@ function lock() {
 	const isPhone = !window.matchMedia("(min-width: 1024px)").matches;
 
 	body.style.overflow = "hidden";
+	// pinning sits the page at the top, where any pull reads as pull-to-refresh
+	root.style.overscrollBehavior = "none";
 	if (isPhone) {
-		// phones scroll the page behind the modal regardless of overflow, so the
-		// body has to be pinned at the offset it is sitting at
 		body.style.position = "fixed";
 		body.style.top = `-${scrollY}px`;
 		body.style.width = "100%";
@@ -39,6 +41,7 @@ function lock() {
 		body.style.top = prev.top;
 		body.style.width = prev.width;
 		body.style.paddingRight = prev.paddingRight;
+		root.style.overscrollBehavior = prevOverscroll;
 		// pinning the body sent the window to the top -- put it back
 		if (isPhone) window.scrollTo(0, scrollY);
 	};

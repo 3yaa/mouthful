@@ -366,6 +366,7 @@ export function ShowDetails({
 	const hasChain = isAnimeRow(row) && seasonCount > 0;
 	const isWideCard = useWideCard();
 	const [ratingsOpen, setRatingsOpen] = useState(false);
+	const closeRatings = useCallback(() => setRatingsOpen(false), []);
 	const [chainOpen, setChainOpen] = useState(false);
 	const [seriesInfo, setSeriesInfo] = useState<SeriesInfo | null>(null);
 	// cast and creators
@@ -454,7 +455,8 @@ export function ShowDetails({
 		switch (action.type) {
 			// =========modal actions=============
 			case "closeModal":
-				handleModalClose();
+				if (isWideCard && ratingsOpen) setRatingsOpen(false);
+				else handleModalClose();
 				break;
 			case "delete":
 				handleDelete();
@@ -1224,6 +1226,7 @@ export function ShowDetails({
 										show={show}
 										authFetch={authFetch}
 										onSeries={setSeriesInfo}
+										onClose={closeRatings}
 									/>
 								)}
 								{/* WATCH ORDER RAIL */}

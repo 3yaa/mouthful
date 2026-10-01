@@ -67,6 +67,7 @@ import {
 	franchiseRomajiOf,
 	isAnimeRow,
 	slotOf,
+	timelineOf,
 	wearsRowPoster,
 } from "@/app/shows/utils/slotRef";
 import { formatVotes, getTier } from "@/app/shows/utils/episodeRatings";
@@ -269,16 +270,24 @@ export function DesktopDetails<T extends BaseMediaProps>({
 	//
 	const canCyclePoster = isPicking && posterCount > 1 && franchisePoster;
 
-	//
-	const opensRatings = mediaType === "show" && !isPicking;
+	const hasOrder = isAnimeShow && timelineOf(showRow).length > 0;
+	const posterOpens = canCyclePoster
+		? null
+		: hasOrder
+			? "openChain"
+			: mediaType === "show" && !isPicking
+				? "openRatings"
+				: null;
 	const ratingsBtn =
 		mediaType === "show" && isPicking ? (
-			<ActionBtn
-				icon={BarChart2}
-				tone="white"
-				onClick={() => onAction({ type: "openRatings" })}
-				title="Episode ratings"
-			/>
+			<span data-ratings-toggle className="contents">
+				<ActionBtn
+					icon={BarChart2}
+					tone="white"
+					onClick={() => onAction({ type: "openRatings" })}
+					title="Episode ratings"
+				/>
+			</span>
 		) : null;
 	// season title
 	const slotTitle =
@@ -603,6 +612,18 @@ export function DesktopDetails<T extends BaseMediaProps>({
 		>
 			{/* LEFT -- AUTHOR */}
 			<span className="flex items-center gap-1.5 min-w-0">
+				{isAnimeShow && !isPicking && (
+					<button
+						data-ratings-toggle
+						onClick={() => onAction({ type: "openRatings" })}
+						title="Episode ratings"
+						className={`cursor-pointer transition-all duration-200 shrink-0 hover:scale-105 hover:text-zinc-200 ${
+							ratingsDocked ? "text-zinc-200" : "text-zinc-400/70"
+						}`}
+					>
+						<BarChart2 className="w-3.5 h-3.5" strokeWidth={1.75} />
+					</button>
+				)}
 				{(mediaType === "movie" ||
 					// not used for anime since it will only return va
 					(mediaType === "show" && !isAnimeShow)) && (
@@ -742,6 +763,7 @@ export function DesktopDetails<T extends BaseMediaProps>({
 	return (
 		<ModalBackdrop className="fixed inset-0 bg-linear-to-br from-black/50 via-black/60 to-black/80 backdrop-blur-md flex items-center justify-center z-20">
 			<div
+				data-modal-backdrop
 				className="fixed inset-0"
 				onClick={() => onAction({ type: "closeModal" })}
 			/>
@@ -928,22 +950,26 @@ export function DesktopDetails<T extends BaseMediaProps>({
 									{/* art takes the click*/}
 									<div
 										className={`relative flex items-center justify-center max-w-62 max-h-93 overflow-hidden rounded-lg bg-linear-to-br from-zinc-800 to-zinc-900 transition-all duration-300 ${
-											canCyclePoster || opensRatings
+											canCyclePoster || posterOpens
 												? "hover:cursor-pointer"
 												: ""
-										} ${canCyclePoster ? "group/pick" : ""} ${opensRatings ? "hover:brightness-110" : ""}`}
+										} ${canCyclePoster ? "group/pick" : ""} ${posterOpens ? "hover:brightness-110" : ""}`}
+										data-ratings-toggle={
+											posterOpens === "openRatings" ||
+											undefined
+										}
 										onClick={(e) => {
 											if (canCyclePoster)
 												return handleCoverChange(e);
-											if (opensRatings)
-												onAction({
-													type: "openRatings",
-												});
+											if (posterOpens)
+												onAction({ type: posterOpens });
 										}}
 										title={
-											opensRatings
-												? "Episode ratings"
-												: ""
+											posterOpens === "openChain"
+												? "Watch order"
+												: posterOpens === "openRatings"
+													? "Episode ratings"
+													: ""
 										}
 									>
 										{!isPrint ? (

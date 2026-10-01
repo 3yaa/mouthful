@@ -111,8 +111,6 @@ export function EditProgress({
 	const movieRuntime = runtimeOf(curSlot);
 	//
 	const isAnime = isAnimeRow(item);
-	// only an anilist row has an order
-	const hasOrder = isAnime && slotLine.length > 0;
 	const canHide = isBrowsing && onSide && curSlot?.anilistId != null;
 	const slotCount = mainCount(slotLine);
 	const slotOrdinal = mainOrdinalAt(slotLine, slotAt);
@@ -232,15 +230,11 @@ export function EditProgress({
 				className={`mt-0.5 text-[0.9375rem] text-zinc-300/70 font-bold hover:cursor-pointer ${RING}`}
 				role={editingMode.season ? undefined : "button"}
 				tabIndex={editingMode.season ? undefined : 0}
-				onClick={(e) => {
-					e.stopPropagation();
-					onAction({ type: "clickSeasonInput" });
-				}}
+				onClick={() => onAction({ type: "clickSeasonInput" })}
 				onKeyDown={(e) => {
 					if (editingMode.season) return;
 					if (e.key !== "Enter" && e.key !== " ") return;
 					e.preventDefault();
-					e.stopPropagation();
 					onAction({ type: "clickSeasonInput" });
 				}}
 			>
@@ -275,10 +269,7 @@ export function EditProgress({
 	);
 
 	const seasonControls = (
-		<div
-			className="flex gap-1.5 shrink-0"
-			onClick={(e) => e.stopPropagation()}
-		>
+		<div className="flex gap-1.5 shrink-0">
 			<button
 				className={navBtnClass}
 				onClick={() =>
@@ -374,33 +365,7 @@ export function EditProgress({
 				{/* SEASON */}
 				<div
 					ref={seasonBoxRef}
-					onClick={
-						hasOrder
-							? (e) => {
-									e.stopPropagation();
-									onAction({ type: "openChain" });
-								}
-							: undefined
-					}
-					role={hasOrder ? "button" : undefined}
-					tabIndex={hasOrder ? 0 : undefined}
-					onKeyDown={
-						hasOrder
-							? (e) => {
-									if (e.key !== "Enter" && e.key !== " ")
-										return;
-									e.preventDefault();
-									e.stopPropagation();
-									onAction({ type: "openChain" });
-								}
-							: undefined
-					}
-					title={hasOrder ? "Watch order" : undefined}
-					className={`relative flex items-center gap-2 rounded-lg neu-raised-firm py-1.5 px-3 select-none min-w-0 ${
-						hasOrder
-							? `hover:cursor-pointer hover:brightness-110 transition-all duration-300 ${RING}`
-							: ""
-					}`}
+					className="relative flex items-center gap-2 rounded-lg neu-raised-firm py-1.5 px-3 select-none min-w-0"
 				>
 					{seasonLabel}
 					{seasonControls}

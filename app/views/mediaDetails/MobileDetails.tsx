@@ -238,6 +238,11 @@ export function MobileDetails<T extends BaseMediaProps>({
 	// the control waiting on its confirmation sheet
 	const [pending, setPending] = useState<Control | null>(null);
 	const [isDragging, setIsDragging] = useState(false);
+	const draggingRef = useRef(false);
+	const setDragging = (on: boolean) => {
+		draggingRef.current = on;
+		setIsDragging(on);
+	};
 	const [isVisible, setIsVisible] = useState(false);
 	const startY = useRef(0);
 	const startScrollY = useRef(0);
@@ -629,7 +634,7 @@ export function MobileDetails<T extends BaseMediaProps>({
 			lastTime.current = Date.now();
 			startScrollY.current = modal.scrollTop;
 			dragVelocity.current = 0;
-			setIsDragging(true);
+			setDragging(true);
 		}
 	};
 
@@ -657,7 +662,7 @@ export function MobileDetails<T extends BaseMediaProps>({
 			// written straight to the node
 			setSheetY(deltaY * resistance);
 		} else if (deltaY < 0) {
-			setIsDragging(false);
+			setDragging(false);
 			setSheetY(0, "snap");
 		}
 	};
@@ -677,7 +682,7 @@ export function MobileDetails<T extends BaseMediaProps>({
 			setSheetY(0, "snap");
 		}
 
-		setIsDragging(false);
+		setDragging(false);
 		dragVelocity.current = 0;
 	};
 
@@ -688,6 +693,22 @@ export function MobileDetails<T extends BaseMediaProps>({
 
 	// hold the page still behind the sheet
 	useScrollLock();
+
+	useEffect(() => {
+		const modal = modalRef.current;
+		if (!modal) return;
+		const claimPull = (e: TouchEvent) => {
+			if (
+				draggingRef.current &&
+				modal.scrollTop < 3 &&
+				e.touches[0].clientY > startY.current &&
+				e.cancelable
+			)
+				e.preventDefault();
+		};
+		modal.addEventListener("touchmove", claimPull, { passive: false });
+		return () => modal.removeEventListener("touchmove", claimPull);
+	}, []);
 
 	useEffect(() => {
 		// trigger mount animation
@@ -710,6 +731,7 @@ export function MobileDetails<T extends BaseMediaProps>({
 				onTouchStart={handleTouchStart}
 				onTouchMove={handleTouchMove}
 				onTouchEnd={handleTouchEnd}
+				onTouchCancel={handleTouchEnd}
 			>
 				{isLoading?.isTrue && (
 					<Loading

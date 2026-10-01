@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Disc, Film, Leaf } from "lucide-react";
 import { ShowProps } from "@/types/show";
@@ -143,14 +143,31 @@ interface EpisodeRatingsRailProps {
 	show: ShowProps;
 	authFetch: AuthFetch;
 	onSeries: (series: SeriesInfo | null) => void;
+	onClose: () => void;
 }
 
 export function EpisodeRatingsRail({
 	show,
 	authFetch,
 	onSeries,
+	onClose,
 }: EpisodeRatingsRailProps) {
 	const reduced = useReducedMotion();
+	const railRef = useRef<HTMLElement>(null);
+
+	useEffect(() => {
+		const away = (e: PointerEvent) => {
+			const target = e.target as Element;
+			if (
+				railRef.current?.contains(target) ||
+				target.closest("[data-ratings-toggle], [data-modal-backdrop]")
+			)
+				return;
+			onClose();
+		};
+		document.addEventListener("pointerdown", away);
+		return () => document.removeEventListener("pointerdown", away);
+	}, [onClose]);
 	const [ratings, setRatings] = useState<EpisodeRating[]>([]);
 	// a movie or an ova
 	const [extraScores, setExtraScores] = useState<ExtraScores>({});
@@ -183,6 +200,7 @@ export function EpisodeRatingsRail({
 
 	return (
 		<motion.aside
+			ref={railRef}
 			initial={reduced ? { opacity: 0 } : { opacity: 0, x: 22 }}
 			animate={{
 				opacity: 1,
