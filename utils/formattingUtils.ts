@@ -48,3 +48,10 @@ const STATUS_LABELS: Partial<Record<MediaStatus, string>> = {
 // stats bar | listing status filters | status dropdowns
 export const statusLabel = (status: string) =>
 	STATUS_LABELS[status as MediaStatus] ?? status;
+
+const GENRE_SHORT: Record<string, string> = { "Science Fiction": "Sci-fi" };
+export const genreLineOf = (genres?: string[] | null) =>
+	(genres ?? [])
+		.slice(0, 2)
+		.map((g) => GENRE_SHORT[g] ?? g)
+		.join("/");

@@ -394,10 +394,10 @@ export function DesktopListing<T extends BaseMediaProps>({
 					onSortConfig={onSortConfig}
 					subset={subset}
 					badge={
-						mediaType === "show" && (
+						(mediaType === "show" || mediaType === "movie") && (
 							<BadgeLink
-								href="/shows/discover"
-								title="Browse shows"
+								href={`/${pluralOf(mediaType)}/discover`}
+								title={`Browse ${pluralOf(mediaType)}`}
 								className="absolute -right-14 top-0"
 								onClick={() => flash()}
 							/>

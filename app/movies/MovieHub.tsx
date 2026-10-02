@@ -254,7 +254,7 @@ export default function MoviesHub() {
 					<AddShow
 						key="chain-show"
 						isOpen
-						titleFromAbove={chainShowTitle}
+						targetFromAbove={{ title: chainShowTitle }}
 						existingShows={shows.items}
 						onAddWork={shows.handleAdd}
 						existingMovies={items}

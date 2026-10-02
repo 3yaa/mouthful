@@ -1382,7 +1382,7 @@ export function ShowDetails({
 			{pendingWork?.media_type === "tv" && (
 				<AddShow
 					isOpen={true}
-					titleFromAbove={pendingWork.title}
+					targetFromAbove={{ title: pendingWork.title }}
 					onClose={() => setPendingWork(null)}
 					existingShows={existingShows}
 					onAddWork={onAddWork}

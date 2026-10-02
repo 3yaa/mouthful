@@ -15,6 +15,8 @@ export function useShowSearch() {
 		title: string,
 		year?: number,
 		detect?: "anime" | "show",
+		// skips the title search -- the title still names a duplicate
+		knownTmdbId?: string,
 	): Promise<
 		| ShowAPIResult
 		| null
@@ -27,7 +29,10 @@ export function useShowSearch() {
 			const url =
 				`/api/shows-api/external?title=${encodeURIComponent(title)}` +
 				(year ? `&year=${year}` : "") +
-				(detect ? `&forceAnime=${detect === "anime" ? 1 : 0}` : "");
+				(detect ? `&forceAnime=${detect === "anime" ? 1 : 0}` : "") +
+				(knownTmdbId
+					? `&tmdbId=${encodeURIComponent(knownTmdbId)}`
+					: "");
 			const response = await authFetch(url);
 			// if duplicate
 			if (response.status === 409) {

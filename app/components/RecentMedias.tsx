@@ -1,7 +1,9 @@
 import { BaseMediaProps, MediaStatus } from "@/types/media";
 import Image from "next/image";
 import Link from "next/link";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { useEffect, useId, useState } from "react";
+import { useReducedMotion } from "framer-motion";
+import { ChevronDown, ChevronRight, type LucideIcon } from "lucide-react";
 import { isResizable } from "@/utils/image-loader";
 import { getStatusBg, getStatusWaveColor } from "@/utils/styleUtils";
 import { getDisplayScore } from "@/lib/tierConfig";
@@ -26,22 +28,23 @@ const scoreLabel = (mu?: number) => {
 	return score === 10 ? "10" : score.toFixed(1);
 };
 
-function timeAgo(date: Date): string {
+function timeAgo(date: Date, short = false): string {
+	const ago = short ? "" : " ago";
 	const diff = Date.now() - new Date(date).getTime();
 	const mins = Math.floor(diff / 60000);
-	if (mins < 1) return "just now";
-	if (mins < 60) return `${mins}m ago`;
+	if (mins < 1) return short ? "now" : "just now";
+	if (mins < 60) return `${mins}m${ago}`;
 	const hrs = Math.floor(mins / 60);
-	if (hrs < 24) return `${hrs}h ago`;
+	if (hrs < 24) return `${hrs}h${ago}`;
 	const days = Math.floor(hrs / 24);
-	if (days < 30) return `${days}d ago`;
+	if (days < 30) return `${days}d${ago}`;
 	const months = Math.floor(days / 30);
-	return `${months}mo ago`;
+	return `${months}mo${ago}`;
 }
 
 function Poster({ item }: { item: BaseMediaProps }) {
 	return (
-		<div className="relative h-16 w-12 shrink-0 overflow-hidden rounded-md bg-zinc-900 p-0.5 shadow-island sm:h-18 sm:w-14">
+		<div className="relative h-18 w-12 shrink-0 overflow-hidden rounded-md bg-zinc-900 p-0.5 shadow-island sm:h-20 sm:w-14">
 			{item.imageUrl ? (
 				<Image
 					src={item.imageUrl}
@@ -76,23 +79,21 @@ function StatusWave({ status }: { status: MediaStatus }) {
 function StatusTrack({
 	status,
 	progress,
+	shape = "relative mt-0.5 h-0.75 w-full rounded-full",
 }: {
 	status: MediaStatus;
 	progress: number | null;
+	shape?: string;
 }) {
 	if (progress == null)
 		return (
-			<div
-				className={`relative mt-0.5 h-0.75 w-full overflow-hidden rounded-full ${getStatusBg(
-					status,
-				)}`}
-			>
+			<div className={`overflow-hidden ${shape} ${getStatusBg(status)}`}>
 				<StatusWave status={status} />
 			</div>
 		);
 
 	return (
-		<div className="mt-0.5 h-0.75 w-full overflow-hidden rounded-full bg-zinc-800/80">
+		<div className={`overflow-hidden bg-zinc-800/80 ${shape}`}>
 			<div
 				className={`relative h-full overflow-hidden rounded-full transition-all duration-500 ease-out ${getStatusBg(
 					status,
@@ -120,6 +121,18 @@ function showProgressOf(item: BaseMediaProps) {
 			: 100,
 		label: progressLabel(line, at, show.curEpisode),
 	};
+}
+
+function progressOf(item: BaseMediaProps, mediaType: string) {
+	if (mediaType === "shows") return showProgressOf(item);
+	if (mediaType === "manga") {
+		const manga = item as unknown as MangaProps;
+		return {
+			progress: chapterProgress(manga),
+			label: chapterLabel(manga),
+		};
+	}
+	return { progress: null, label: null };
 }
 
 // a phone's folded recents
@@ -209,28 +222,23 @@ export function RecentItems({
 }) {
 	if (!items || items.length === 0) return null;
 
-	const isShow = mediaType === "shows";
-	const isManga = mediaType === "manga";
-
 	return (
 		<ul className="flex flex-col gap-2">
-			{items.map((item) => {
-				const manga = item as unknown as MangaProps;
-				const { progress, label } = isShow
-					? showProgressOf(item)
-					: isManga
-						? {
-								progress: chapterProgress(manga),
-								label: chapterLabel(manga),
-							}
-						: { progress: null, label: null };
+			{items.map((item, i) => {
+				const { progress, label } = progressOf(item, mediaType);
 
 				return (
-					<li key={item.id}>
+					<li key={item.id} className="relative">
+						{i > 0 && (
+							<span
+								aria-hidden
+								className="absolute inset-x-2 -top-1 h-px bg-linear-to-r from-transparent via-zinc-700/50 to-transparent"
+							/>
+						)}
 						<Link
 							href={item.id ? `${href}?open=${item.id}` : href}
 							onNavigate={onNavigate}
-							className="group/card relative flex items-center gap-3 rounded-lg neu-carved p-2 transition-[background-color,box-shadow,transform] duration-200 ease-out hover:neu-carved-hi hover:cursor-pointer active:translate-y-px active:neu-carved-in active:duration-75 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-400"
+							className="group/card relative flex items-center gap-3 rounded-lg p-2 transition-[background-color,box-shadow,transform] duration-200 ease-out hover:neu-carved-hi hover:cursor-pointer active:translate-y-px active:neu-carved-in active:duration-75 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-400"
 						>
 							<Poster item={item} />
 							{/* title | score */}
@@ -274,5 +282,207 @@ export function RecentItems({
 				);
 			})}
 		</ul>
+	);
+}
+
+export type PosterTone = "rest" | "lit" | "dim";
+const TONE: Record<PosterTone, string> = {
+	rest: "brightness(0.74) saturate(0.85)",
+	lit: "brightness(0.9) saturate(0.95)",
+	dim: "brightness(0.62) saturate(0.78)",
+};
+const REFLECTION: Record<PosterTone, number> = {
+	rest: 0.32,
+	lit: 0.38,
+	dim: 0.26,
+};
+//
+function WaterFilter({ id, still }: { id: string; still: boolean }) {
+	return (
+		<svg aria-hidden className="absolute h-0 w-0">
+			<filter id={id} x="-5%" y="-5%" width="110%" height="110%">
+				<feTurbulence
+					type="fractalNoise"
+					baseFrequency="0.006 0.09"
+					numOctaves="2"
+					seed="3"
+					result="ripple"
+				>
+					{!still && (
+						<animate
+							attributeName="baseFrequency"
+							dur="9s"
+							values="0.006 0.09;0.008 0.11;0.006 0.09"
+							repeatCount="indefinite"
+						/>
+					)}
+				</feTurbulence>
+				<feDisplacementMap in="SourceGraphic" in2="ripple" scale="8" />
+			</filter>
+		</svg>
+	);
+}
+export function RecentPoster({
+	item,
+	mediaType,
+	href,
+	onNavigate,
+	icon: Icon,
+	priority,
+	tone = "rest",
+	onHover,
+	revealed = true,
+	revealDelay = 0,
+	onReady,
+}: {
+	item: BaseMediaProps;
+	mediaType: string;
+	href: string;
+	onNavigate?: () => void;
+	// which library it came from
+	icon?: LucideIcon;
+	priority?: boolean;
+	tone?: PosterTone;
+	onHover?: (over: boolean) => void;
+	// held as a dark frame until the row is ready
+	revealed?: boolean;
+	revealDelay?: number;
+	onReady?: () => void;
+}) {
+	const { progress, label } = progressOf(item, mediaType);
+	const still = useReducedMotion() ?? false;
+	const waterId = `water-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
+	const [loaded, setLoaded] = useState(!item.imageUrl);
+	const shown = revealed && loaded;
+	// the stagger is for the first fill only
+	const [settled, setSettled] = useState(false);
+	useEffect(() => {
+		if (!shown || settled) return;
+		const id = setTimeout(() => setSettled(true), revealDelay + 800);
+		return () => clearTimeout(id);
+	}, [shown, settled, revealDelay]);
+	const fill = {
+		opacity: shown ? 1 : 0,
+		transition: "opacity 800ms cubic-bezier(0.16, 1, 0.3, 1)",
+		transitionDelay: settled ? "0ms" : `${revealDelay}ms`,
+	};
+	useEffect(() => {
+		if (!item.imageUrl) onReady?.();
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, []);
+
+	const chip =
+		"rounded-md bg-black/65 px-2 py-0.75 text-[0.8125rem] leading-none font-bold tracking-wide text-zinc-100 tabular-nums backdrop-blur-sm";
+	return (
+		<Link
+			href={item.id ? `${href}?open=${item.id}` : href}
+			onNavigate={onNavigate}
+			onMouseEnter={() => onHover?.(true)}
+			onMouseLeave={() => onHover?.(false)}
+			onFocus={() => onHover?.(true)}
+			onBlur={() => onHover?.(false)}
+			className="group/poster flex min-w-0 flex-col gap-3.5 rounded-xl focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-zinc-400"
+		>
+			<div className="relative isolate transition-[translate] duration-700 ease-arrive group-hover/poster:-translate-y-1.5">
+				<div className="relative aspect-2/3 overflow-hidden rounded-xl bg-zinc-900 shadow-island transition-shadow duration-700 ease-arrive group-hover/poster:shadow-[0_28px_50px_-14px_rgba(0,0,0,0.85)]">
+					<div
+						className="absolute inset-0 transition-[filter] duration-700 ease-arrive"
+						style={{ filter: TONE[tone] }}
+					>
+						<div className="absolute inset-0" style={fill}>
+							{item.imageUrl ? (
+								<Image
+									src={item.imageUrl}
+									alt={item.title}
+									fill
+									onLoad={() => {
+										setLoaded(true);
+										onReady?.();
+									}}
+									className="object-cover"
+									sizes="(min-width: 80rem) 15rem, 11rem"
+									priority={priority}
+									unoptimized={!isResizable(item.imageUrl)}
+								/>
+							) : (
+								<div className="h-full w-full neu-carved" />
+							)}
+							{item.score?.mu ? (
+								<span
+									className={`absolute top-2.5 right-2.5 ${chip}`}
+								>
+									{scoreLabel(item.score.mu)}
+								</span>
+							) : null}
+							{label && (
+								<span
+									className={`absolute bottom-3 left-2.5 ${chip}`}
+								>
+									{label}
+								</span>
+							)}
+							{/* status along the art's bottom edge */}
+							<StatusTrack
+								status={item.status}
+								progress={progress}
+								shape="absolute inset-x-0 bottom-0 h-1"
+							/>
+						</div>
+					</div>
+				</div>
+				{item.imageUrl && <WaterFilter id={waterId} still={still} />}
+				{item.imageUrl && (
+					<div
+						aria-hidden
+						className="pointer-events-none absolute inset-x-0 top-full -z-10 h-[42%] overflow-hidden transition-opacity duration-700 ease-arrive mask-[linear-gradient(to_bottom,transparent_0,transparent_2.75rem,black_3.75rem,transparent_100%)]"
+						style={{
+							opacity: shown ? REFLECTION[tone] : 0,
+							transitionDelay: settled
+								? "0ms"
+								: `${revealDelay}ms`,
+						}}
+					>
+						<div
+							className="absolute inset-x-0 top-0 aspect-2/3 -scale-y-100"
+							style={{
+								filter: `url(#${waterId}) blur(1px) ${TONE[tone]}`,
+							}}
+						>
+							<Image
+								src={item.imageUrl}
+								alt=""
+								fill
+								className="rounded-xl object-cover"
+								sizes="(min-width: 80rem) 15rem, 11rem"
+								unoptimized={!isResizable(item.imageUrl)}
+							/>
+						</div>
+					</div>
+				)}
+			</div>
+			<div
+				className="relative flex min-w-0 items-center gap-2 px-0.5 transition-opacity duration-700 ease-arrive"
+				style={{
+					opacity: shown ? (tone === "dim" ? 0.8 : 1) : 0,
+					transitionDelay: settled ? "0ms" : `${revealDelay}ms`,
+				}}
+			>
+				{Icon && (
+					<Icon
+						className="h-4 w-4 shrink-0 text-zinc-500"
+						strokeWidth={1.75}
+					/>
+				)}
+				<p
+					className="min-w-0 flex-1 truncate text-[0.9375rem] font-semibold text-zinc-300 transition-colors duration-200 group-hover/poster:text-zinc-100"
+					title={item.title}
+				>
+					{item.title}
+				</p>
+				<span className="shrink-0 text-[0.9375rem] font-medium text-zinc-500 tabular-nums">
+					{item.lastUpdated ? timeAgo(item.lastUpdated, true) : "–"}
+				</span>
+			</div>
+		</Link>
 	);
 }

@@ -12,7 +12,11 @@ import {
 	isPrintMedia,
 } from "@/types/media";
 import { GameProps } from "@/types/game";
-import { formatDateMedium, splitCredits } from "@/utils/formattingUtils";
+import {
+	formatDateMedium,
+	genreLineOf,
+	splitCredits,
+} from "@/utils/formattingUtils";
 import { hasSeries, seriesTitleOf } from "@/utils/seriesRead";
 import {
 	coverWave,
@@ -46,6 +50,7 @@ import {
 	Clapperboard,
 	Unlink,
 	Type,
+	ListTree,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { BackdropImage } from "@/app/components/ui/Backdrop";
@@ -107,7 +112,6 @@ const ACTION_ROW = "absolute right-3 top-3 flex items-center z-10";
 //
 const POSTER_SPEC = { width: 248, sizes: "(min-width: 2200px) 500px, 250px" };
 const BACKDROP_SPEC = { width: 780, sizes: "40vw" };
-const GENRE_SHORT: Record<string, string> = { "Science Fiction": "Sci-fi" };
 
 // an action held back until it's confirmed
 type PendingConfirm = {
@@ -278,16 +282,15 @@ export function DesktopDetails<T extends BaseMediaProps>({
 			: mediaType === "show" && !isPicking
 				? "openRatings"
 				: null;
-	const ratingsBtn =
-		mediaType === "show" && isPicking ? (
-			<span data-ratings-toggle className="contents">
-				<ActionBtn
-					icon={BarChart2}
-					tone="white"
-					onClick={() => onAction({ type: "openRatings" })}
-					title="Episode ratings"
-				/>
-			</span>
+	//
+	const chainBtn =
+		hasOrder && isPicking ? (
+			<ActionBtn
+				icon={ListTree}
+				tone="white"
+				onClick={() => onAction({ type: "openChain" })}
+				title="Watch order"
+			/>
 		) : null;
 	// season title
 	const slotTitle =
@@ -515,12 +518,7 @@ export function DesktopDetails<T extends BaseMediaProps>({
 				: seriesTitleOf(series);
 	//
 	const genreLine =
-		mediaType === "movie"
-			? (movieItem.genres ?? [])
-					.slice(0, 2)
-					.map((g) => GENRE_SHORT[g] ?? g)
-					.join("/")
-			: "";
+		mediaType === "movie" ? genreLineOf(movieItem.genres) : "";
 	const chipBelow = isPicking && mediaType === "book";
 	const time = timeLine(timeSpentOf(mediaType, item));
 	const titleHint = [
@@ -612,7 +610,7 @@ export function DesktopDetails<T extends BaseMediaProps>({
 		>
 			{/* LEFT -- AUTHOR */}
 			<span className="flex items-center gap-1.5 min-w-0">
-				{isAnimeShow && !isPicking && (
+				{mediaType === "show" && (isAnimeShow || isPicking) && (
 					<button
 						data-ratings-toggle
 						onClick={() => onAction({ type: "openRatings" })}
@@ -791,7 +789,7 @@ export function DesktopDetails<T extends BaseMediaProps>({
 									{/* TIME */}
 									{timeField}
 									{/* EPISODE RATINGS */}
-									{ratingsBtn}
+									{chainBtn}
 									{seriesNav}
 									{/* CYCLE LOGOS | TEXT TITLE */}
 									{logoPicker}
@@ -826,7 +824,7 @@ export function DesktopDetails<T extends BaseMediaProps>({
 									{/* TIME */}
 									{timeField}
 									{/* EPISODE RATINGS */}
-									{ratingsBtn}
+									{chainBtn}
 									{/* CYCLE LOGOS | TEXT TITLE */}
 									{logoPicker}
 									{/* COVER COLORS */}

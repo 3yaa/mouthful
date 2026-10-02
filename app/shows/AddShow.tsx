@@ -3,7 +3,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { ModalBackdrop } from "@/app/components/ui/ModalMotion";
 import { Tv } from "lucide-react";
 import { SearchCard, SearchFields } from "@/app/components/ui/SearchCard";
-import { ShowProps } from "@/types/show";
+import { ShowProps, ShowTargetProps } from "@/types/show";
 import { FIRST_SLOT, slotRefFor } from "./utils/slotRef";
 import { mapNewShow, mapShowMeta } from "@/app/shows/utils/showMapping";
 import { ShowDetails, type ShowDetailsProps } from "./ShowDetailsHub";
@@ -28,7 +28,7 @@ interface AddShowProps extends CrossMedia {
 	existingShows: ShowProps[];
 	onAddShow: (item: ShowProps) => void | Promise<boolean | void>;
 	onDuplicate?: (dup: { title: string; tmdbId?: string }) => boolean;
-	titleFromAbove?: string;
+	targetFromAbove?: ShowTargetProps | null;
 }
 
 export function AddShow({
@@ -37,7 +37,7 @@ export function AddShow({
 	onAddShow,
 	onDuplicate,
 	existingShows,
-	titleFromAbove,
+	targetFromAbove,
 	...crossMedia
 }: AddShowProps) {
 	const [needYear, setNeedYear] = useState(false);
@@ -80,62 +80,68 @@ export function AddShow({
 		}
 	}, []);
 
-	const handleTitleSearch = useCallback(async (): Promise<
-		| { isDuplicate: true; title: string; tmdbId?: string }
-		| { tmdbId: string }
-		| null
-	> => {
-		const titleSearching = titleToSearch.current?.value.trim();
-		if (!titleSearching) return null;
-		const yearSearchingStr = yearToSearch.current?.value.trim();
-		const yearSearching = yearSearchingStr
-			? parseInt(yearSearchingStr, 10)
-			: undefined;
-		//
-		if (!titleFromAbove && !needYear) {
-			const owned = findOnlyNamed(existingShows, titleSearching);
-			if (owned) {
+	const handleTitleSearch = useCallback(
+		async (
+			target?: ShowTargetProps,
+		): Promise<
+			| { isDuplicate: true; title: string; tmdbId?: string }
+			| { tmdbId: string }
+			| null
+		> => {
+			const titleSearching = titleToSearch.current?.value.trim();
+			if (!titleSearching) return null;
+			const yearSearchingStr = yearToSearch.current?.value.trim();
+			const yearSearching = yearSearchingStr
+				? parseInt(yearSearchingStr, 10)
+				: (target?.year ?? undefined);
+			//
+			if (!targetFromAbove && !needYear) {
+				const owned = findOnlyNamed(existingShows, titleSearching);
+				if (owned) {
+					return {
+						isDuplicate: true,
+						title: owned.title,
+						tmdbId: isRealTmdbId(owned.tmdbId)
+							? owned.tmdbId
+							: undefined,
+					};
+				}
+			}
+			//
+			const showBare = await searchForShow(
+				titleSearching,
+				yearSearching,
+				(needYear && anime) || target?.anime ? "anime" : undefined,
+				target?.tmdbId ?? undefined,
+			);
+			if (showBare && "isDuplicate" in showBare) {
 				return {
 					isDuplicate: true,
-					title: owned.title,
-					tmdbId: isRealTmdbId(owned.tmdbId)
-						? owned.tmdbId
-						: undefined,
+					title: showBare.title,
+					tmdbId: showBare.tmdbId,
 				};
 			}
-		}
-		//
-		const showBare = await searchForShow(
-			titleSearching,
-			yearSearching,
-			needYear && anime ? "anime" : undefined,
-		);
-		if (showBare && "isDuplicate" in showBare) {
-			return {
-				isDuplicate: true,
-				title: showBare.title,
-				tmdbId: showBare.tmdbId,
+			if (!showBare) return null;
+			//
+			const mapped = {
+				...mapNewShow(showBare),
+				...mapShowMeta(showBare),
 			};
-		}
-		if (!showBare) return null;
-		//
-		const mapped = {
-			...mapNewShow(showBare),
-			...mapShowMeta(showBare),
-		};
-		setNewShow({
-			...mapped,
-			...slotRefFor(mapped, FIRST_SLOT),
-			status: "Want to Watch",
-		});
-		setLogoUrls(showBare.logos ?? []);
-		setLogoIndex(0);
-		setPosterUrls(showBare.posters ?? []);
-		setPosterIndex(0);
-		setBackdropUrls(showBare.backdrops ?? []);
-		setBackdropIndex(0);
-		return { tmdbId: showBare.tmdbId };
-	}, [searchForShow, anime, existingShows, titleFromAbove, needYear]);
+			setNewShow({
+				...mapped,
+				...slotRefFor(mapped, FIRST_SLOT),
+				status: "Want to Watch",
+			});
+			setLogoUrls(showBare.logos ?? []);
+			setLogoIndex(0);
+			setPosterUrls(showBare.posters ?? []);
+			setPosterIndex(0);
+			setBackdropUrls(showBare.backdrops ?? []);
+			setBackdropIndex(0);
+			return { tmdbId: showBare.tmdbId };
+		},
+		[searchForShow, anime, existingShows, targetFromAbove, needYear],
+	);
 
 	// read poster color
 	useEffect(() => {
@@ -144,24 +150,27 @@ export function AddShow({
 		setNewShow((prev) => ({ ...prev, posterUrl: url }));
 	}, [posterUrls, posterIndex]);
 
-	const handleShowSearch = useCallback(async () => {
-		if (titleFromAbove) setActiveModal("showDetails");
-		const bareShow = await handleTitleSearch();
-		//
-		if (bareShow && "isDuplicate" in bareShow) {
-			setActiveModal(null);
-			if (onDuplicate?.(bareShow)) return;
-			onClose();
-			return;
-		}
-		// nothing found
-		if (!bareShow?.tmdbId) {
-			setNeedYear(true);
-			setActiveModal(null);
-			return;
-		}
-		setActiveModal("showDetails");
-	}, [handleTitleSearch, onDuplicate, onClose, titleFromAbove]);
+	const handleShowSearch = useCallback(
+		async (target?: ShowTargetProps) => {
+			if (targetFromAbove) setActiveModal("showDetails");
+			const bareShow = await handleTitleSearch(target);
+			//
+			if (bareShow && "isDuplicate" in bareShow) {
+				setActiveModal(null);
+				if (onDuplicate?.(bareShow)) return;
+				onClose();
+				return;
+			}
+			// nothing found
+			if (!bareShow?.tmdbId) {
+				setNeedYear(true);
+				setActiveModal(null);
+				return;
+			}
+			setActiveModal("showDetails");
+		},
+		[handleTitleSearch, onDuplicate, onClose, targetFromAbove],
+	);
 
 	const handleShowDetailsUpdates = useCallback(
 		async (
@@ -206,7 +215,7 @@ export function AddShow({
 	const handleShowDetailsClose = () => {
 		reset();
 		setActiveModal(null);
-		if (titleFromAbove) {
+		if (targetFromAbove) {
 			onClose();
 		}
 	};
@@ -240,14 +249,14 @@ export function AddShow({
 
 	// for when to search show without modal
 	useEffect(() => {
-		if (titleFromAbove) {
+		if (targetFromAbove) {
 			if (titleToSearch.current) {
-				titleToSearch.current.value = titleFromAbove;
+				titleToSearch.current.value = targetFromAbove.title;
 			}
-			handleShowSearch();
+			handleShowSearch(targetFromAbove);
 		}
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [titleFromAbove]);
+	}, [targetFromAbove?.title, targetFromAbove?.tmdbId]);
 
 	useEscapeClose(onClose);
 
@@ -256,7 +265,7 @@ export function AddShow({
 	return (
 		<ModalBackdrop className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-30">
 			<div className="fixed inset-0" onClick={onClose} />
-			{!titleFromAbove || needYear ? (
+			{!targetFromAbove || needYear ? (
 				<SearchCard
 					icon={Tv}
 					label="Search for New Show"

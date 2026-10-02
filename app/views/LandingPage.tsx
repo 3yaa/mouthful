@@ -4,13 +4,15 @@ import Link from "next/link";
 import { Book, BookOpen, Film, Tv, Gamepad2, ChevronRight } from "lucide-react";
 import dynamic from "next/dynamic";
 import { BaseMediaProps } from "@/types/media";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuthFetch } from "../auth/hooks/useAuthFetch";
 import { StatsBar } from "../components/StatsBar";
 import { RecentItems, RecentPeek } from "../components/RecentMedias";
 import { useFlash } from "../components/RouteFlash";
 import { listingOf } from "./mediaListing/ListingSkeleton";
 import { PHONE_QUERY, useMediaQuery } from "@/hooks/useMediaQuery";
+import { FOCUS_POSTERS, LandingFocus } from "./LandingFocus";
+import { Wordmark } from "./Wordmark";
 // don't wait for light ray to render
 const LightRays = dynamic(() => import("@/app/components/ui/LightRays"), {
 	ssr: false,
@@ -30,12 +32,6 @@ const COLUMNS = [["movies"], ["shows"], ["books"], ["games", "manga"]].map(
 		keys.map((key) => sections.find((section) => section.key === key)!),
 );
 
-const ISLAND_DROP =
-	"drop-shadow(0 2px 3px rgba(0,0,0,0.4)) drop-shadow(0 8px 10px rgba(0,0,0,0.35)) drop-shadow(0 16px 20px rgba(0,0,0,0.2))";
-const ISLAND_LIP = "shadow-[inset_0_1px_0_rgba(255,255,255,0.07)]";
-const FOOTER_EDGE = 16;
-const L_SPAN = 4;
-const SHIFT = 0;
 // a phone opens one library's recent
 const PHONE_ROWS = 3;
 const FOLD_MS = 300;
@@ -57,11 +53,8 @@ function RecentSkeleton({ rows }: { rows: number }) {
 	return (
 		<ul className="flex flex-col gap-2">
 			{Array.from({ length: rows }, (_, i) => (
-				<li
-					key={i}
-					className="flex items-center gap-3 rounded-lg neu-carved p-2"
-				>
-					<div className="h-16 w-12 shrink-0 animate-pulse rounded-md bg-zinc-800/40 p-0.5 shadow-island sm:h-18 sm:w-14" />
+				<li key={i} className="flex items-center gap-3 p-2">
+					<div className="h-18 w-12 shrink-0 animate-pulse rounded-md bg-zinc-800/40 p-0.5 shadow-island sm:h-20 sm:w-14" />
 					<div className="flex min-w-0 flex-1 flex-col justify-center gap-1.5">
 						<div className="flex items-start justify-between gap-2">
 							<div className="h-3.5 w-3/5 animate-pulse rounded bg-zinc-800/40" />
@@ -157,7 +150,9 @@ export default function LandingPage() {
 	const getStats = async () => {
 		try {
 			setIsLoading(true);
-			const response = await authFetch(`/api/stats?recentLimit=4`);
+			const response = await authFetch(
+				`/api/stats?recentLimit=${FOCUS_POSTERS}`,
+			);
 			if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
 			const resJson = await response.json();
 			setStats(resJson.data);
@@ -197,58 +192,6 @@ export default function LandingPage() {
 		};
 		requestAnimationFrame(tick);
 	};
-
-	// the L hangs under the row
-	const groupRef = useRef<HTMLDivElement>(null);
-	const gridRef = useRef<HTMLDivElement>(null);
-	const tailRef = useRef<HTMLDivElement>(null);
-	const footerRef = useRef<HTMLElement>(null);
-	const reserveRef = useRef(0);
-	const [reserve, setReserve] = useState(0);
-	useLayoutEffect(() => {
-		const group = groupRef.current;
-		const grid = gridRef.current;
-		const tail = tailRef.current;
-		const footer = footerRef.current;
-		if (!group || !grid || !tail || !footer) return;
-		const measure = () => {
-			let next = 0;
-			if (tail.offsetParent) {
-				const hang =
-					tail.getBoundingClientRect().bottom -
-					grid.getBoundingClientRect().bottom;
-				const body = group.offsetHeight - 2 * reserveRef.current;
-				const room = window.innerHeight - footer.offsetHeight;
-				const shift =
-					SHIFT *
-					parseFloat(
-						getComputedStyle(document.documentElement).fontSize,
-					);
-				// centred
-				const lands = (room + body) / 2 + hang + shift;
-				const top = (room - body) / 2 + shift;
-				if (lands > window.innerHeight - FOOTER_EDGE || top < 0)
-					next = Math.ceil(
-						Math.max(
-							(room - body) / 2,
-							hang + shift - footer.offsetHeight + FOOTER_EDGE,
-							-shift,
-						),
-					);
-			}
-			reserveRef.current = next;
-			setReserve(next);
-		};
-		measure();
-		const observer = new ResizeObserver(measure);
-		observer.observe(grid);
-		observer.observe(tail);
-		window.addEventListener("resize", measure);
-		return () => {
-			observer.disconnect();
-			window.removeEventListener("resize", measure);
-		};
-	}, []);
 
 	const libraryButton = (section: Section) => (
 		<Link
@@ -302,7 +245,7 @@ export default function LandingPage() {
 			<section
 				key={section.name}
 				aria-label={section.name}
-				className="flex flex-col gap-4 rounded-2xl bg-[#121212] p-4 shadow-island"
+				className="flex flex-col gap-4 rounded-2xl bg-[#121212] p-4 shadow-island sm:p-5"
 			>
 				{/* ── button ── */}
 				{libraryButton(section)}
@@ -365,94 +308,6 @@ export default function LandingPage() {
 		);
 	};
 
-	// a reverse L
-	const renderLibraryL = (section: Section) => {
-		const recent = recentMedias?.[section.key]?.slice(0, L_SPAN);
-		return (
-			<div
-				aria-label={section.name}
-				className="relative -mb-5 hidden flex-1 lg:block"
-				style={{ filter: ISLAND_DROP }}
-			>
-				{/* ── upright, just the button -- a pixel over the foot hides the seam ── */}
-				<div
-					className={`absolute inset-x-0 top-0 -bottom-px z-10 rounded-t-2xl bg-[#121212] p-4 ${ISLAND_LIP}`}
-				>
-					{libraryButton(section)}
-				</div>
-				{/* ── foot ── */}
-				<div
-					className={`absolute top-full right-0 w-[calc(400%+3.75rem)] rounded-2xl rounded-r-none bg-[#121212] p-4 ${ISLAND_LIP}`}
-				>
-					<div className="grid grid-cols-4 gap-x-13">
-						{Array.from({ length: L_SPAN }, (_, i) => {
-							const item = recent?.[i];
-							if (recent ? !item : !isLoading) return null;
-							return (
-								<div key={i} className="relative">
-									{i > 0 && (
-										<span
-											aria-hidden
-											className="absolute inset-y-0 -left-6.5 w-px bg-linear-to-b from-transparent via-zinc-700/75 to-transparent"
-										/>
-									)}
-									{item ? (
-										<RecentItems
-											items={[item]}
-											mediaType={section.key}
-											href={section.href}
-											onNavigate={() =>
-												flash(listingOf(section.href))
-											}
-										/>
-									) : (
-										<RecentSkeleton rows={1} />
-									)}
-								</div>
-							);
-						})}
-					</div>
-					{/* ── tail, the stats under the last item -- one column wide ── */}
-					<div
-						ref={tailRef}
-						className="absolute top-full right-0 w-[calc(25%-0.9375rem)] rounded-b-2xl bg-[#121212] px-4 pb-4"
-					>
-						<div className="-mt-2">{libraryStats(section)}</div>
-						{/* ── the lower inside corner ── */}
-						<div
-							aria-hidden
-							className="absolute top-0 right-full size-4"
-							style={{
-								background:
-									"radial-gradient(circle at bottom left, transparent calc(1rem - 0.5px), #121212 calc(1rem + 0.5px))",
-							}}
-						/>
-					</div>
-				</div>
-				<div
-					aria-hidden
-					className="absolute right-full -bottom-px z-10 h-4.25 w-4"
-					style={{
-						background:
-							"radial-gradient(circle at top left, transparent calc(1rem - 0.5px), #121212 calc(1rem + 0.5px))",
-					}}
-				>
-					<div
-						className="absolute inset-0"
-						style={{
-							background:
-								"radial-gradient(circle at top left, transparent calc(1rem - 0.5px), rgba(255,255,255,0.07) calc(1rem + 0.5px), rgba(255,255,255,0.07) calc(1rem + 1px), transparent calc(1rem + 1.5px))",
-							maskImage:
-								"linear-gradient(to top, black, transparent)",
-							WebkitMaskImage:
-								"linear-gradient(to top, black, transparent)",
-						}}
-					/>
-				</div>
-			</div>
-		);
-	};
-
 	return (
 		<main className="relative flex min-h-screen w-full flex-col items-center justify-center overflow-hidden bg-black text-white">
 			{/* hollow nit nit */}
@@ -473,24 +328,21 @@ export default function LandingPage() {
 				/>
 			</div>
 
-			{/* even on both sides, so the centre never moves */}
-			<div
-				ref={groupRef}
-				className="relative z-10 my-auto flex w-full flex-col items-center"
-				style={{ paddingBlock: reserve, translate: `0 ${SHIFT}rem` }}
-			>
+			<div className="relative z-10 my-auto flex w-full flex-col items-center">
 				{/* HEADER */}
-				<header className="mt-8 shrink-0 text-center lg:mt-0">
-					<h1 className="font-display text-xl leading-none font-semibold tracking-[0.28em] text-zinc-100 select-none sm:text-4xl sm:tracking-[0.22em]">
-						MOUTHFUL
-					</h1>
-				</header>
+				<Wordmark />
 
 				{/* THE LIBRARIES */}
-				<div
-					ref={gridRef}
-					className="mt-6 grid w-full max-w-425 grid-cols-1 items-start gap-5 px-4 sm:mt-10 sm:grid-cols-2 sm:px-6 lg:grid-cols-4 lg:items-stretch"
-				>
+				<div className="mt-14 hidden w-full justify-center lg:flex">
+					<LandingFocus
+						sections={sections}
+						stats={stats}
+						recent={recentMedias}
+						isLoading={isLoading}
+						onNavigate={(href) => flash(listingOf(href))}
+					/>
+				</div>
+				<div className="mt-6 grid w-full max-w-425 grid-cols-1 items-start gap-5 px-4 sm:mt-10 sm:grid-cols-2 sm:gap-6 sm:px-6 lg:hidden">
 					{COLUMNS.map((column) =>
 						column.length === 1 ? (
 							renderLibrary(column[0], 4)
@@ -499,13 +351,10 @@ export default function LandingPage() {
 								key={column
 									.map((section) => section.key)
 									.join("+")}
-								className="flex flex-col gap-5"
+								className="flex flex-col gap-5 sm:gap-6"
 							>
 								{renderLibrary(column[0], 3)}
-								<div className="lg:hidden">
-									{renderLibrary(column[1], 2)}
-								</div>
-								{renderLibraryL(column[1])}
+								{renderLibrary(column[1], 2)}
 							</div>
 						),
 					)}
@@ -513,10 +362,7 @@ export default function LandingPage() {
 			</div>
 
 			{/* FOOTER */}
-			<footer
-				ref={footerRef}
-				className="relative z-10 shrink-0 pt-10 pb-4 text-sm tracking-wide text-zinc-600"
-			>
+			<footer className="relative z-10 shrink-0 pt-10 pb-4 text-sm tracking-wide text-zinc-600">
 				© {new Date().getFullYear()} Mouthful
 			</footer>
 		</main>

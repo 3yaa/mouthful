@@ -1,5 +1,5 @@
-import { MonthlyShows } from "./MonthlyShows";
+import { DiscoverShows } from "./DiscoverShows";
 
 export default function Page() {
-  return <MonthlyShows />;
+  return <DiscoverShows />;
 }

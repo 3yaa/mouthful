@@ -126,4 +126,38 @@ export type HollowShowProps = {
 	//
 	airDays: string | null;
 	first_air_date: string;
+	originCountry?: string[];
 };
+
+// what a hand-off into the show search already knows
+export interface ShowTargetProps {
+	title: string;
+	tmdbId?: string | null;
+	year?: number | null;
+	anime?: boolean;
+}
+
+// === for the seasonal anime discover
+export type AnimeSeason = "WINTER" | "SPRING" | "SUMMER" | "FALL";
+
+export interface SeasonalAnimeProps {
+	anilistId: number;
+	title: string;
+	titleRomaji: string | null;
+	format: AnimeFormat;
+	status: string | null;
+	episodes: number | null;
+	duration: number | null;
+	posterUrl: string | null;
+	posterColor: string | null;
+	studio: string | null;
+	source: string | null;
+	genres: string[];
+	score: number | null; // anilist 0-100
+	startDate: string | null; // YYYY | YYYY-MM | YYYY-MM-DD
+	nextEpisode: { episode: number; airingAt: number } | null; // unix seconds
+	sequel: { season: number | null; part: number | null } | null;
+	//
+	tmdbId: string | null;
+	imdbId: string | null;
+}

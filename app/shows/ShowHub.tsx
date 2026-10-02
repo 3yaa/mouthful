@@ -230,7 +230,7 @@ export default function ShowHub() {
 							handleItemClicked(owned);
 							return true;
 						}}
-						titleFromAbove={titleToUse?.title}
+						targetFromAbove={titleToUse ? { title: titleToUse.title } : null}
 						existingMovies={movies.items}
 						onMovieUpdate={movies.handleUpdates}
 						onAddMovie={movies.handleAdd}

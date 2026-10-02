@@ -63,6 +63,69 @@ input[type="number"] {
 	appearance: textfield;
 }
 
+/* the landing wordmark, found by the spotlight */
+@keyframes wordmark-window {
+	from {
+		translate: -100% 0;
+	}
+}
+@keyframes wordmark-hold {
+	from {
+		translate: 100% 0;
+	}
+}
+@keyframes wordmark-glint {
+	0%,
+	88% {
+		opacity: 0.8;
+	}
+	100% {
+		opacity: 0;
+	}
+}
+.wordmark-sweep {
+	--pad: 0.3em;
+	--edge: 2.2em;
+	position: absolute;
+	top: calc(var(--pad) * -1);
+	bottom: calc(var(--pad) * -1);
+	left: calc(var(--pad) * -1);
+	width: calc(100% + var(--pad) * 2 + var(--edge));
+	overflow: hidden;
+	will-change: translate;
+	animation: wordmark-window 1.4s cubic-bezier(0.45, 0, 0.2, 1) 0.25s backwards;
+}
+.wordmark-sweep > span {
+	display: block;
+	padding: var(--pad);
+	/* the h1 centres its text; this copy has to start exactly where the faint word does */
+	text-align: left;
+	white-space: nowrap;
+	will-change: translate;
+	animation: wordmark-hold 1.4s cubic-bezier(0.45, 0, 0.2, 1) 0.25s backwards;
+}
+.wordmark-lit {
+	mask-image: linear-gradient(90deg, black calc(100% - var(--edge)), transparent);
+}
+.wordmark-glint {
+	mask-image: linear-gradient(
+		90deg,
+		transparent calc(100% - var(--edge)),
+		black calc(100% - var(--edge) * 0.55),
+		transparent calc(100% - var(--edge) * 0.1)
+	);
+	opacity: 0;
+	animation:
+		wordmark-window 1.4s cubic-bezier(0.45, 0, 0.2, 1) 0.25s backwards,
+		wordmark-glint 1.4s linear 0.25s backwards;
+}
+@media (prefers-reduced-motion: reduce) {
+	.wordmark-sweep,
+	.wordmark-sweep > span {
+		animation: none;
+	}
+}
+
 @keyframes wave {
 	0%,
 	100% {

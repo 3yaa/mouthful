@@ -63,3 +63,16 @@ export type AnimeMovieResolve =
 			anilistId: number;
 			parts: number;
 	  };
+
+// === for the discover movies
+export type HollowMovieProps = {
+	tmdbId: string;
+	imdbId: string | null;
+	title: string;
+	poster_url: string | null;
+	release_date: string | null;
+	originCountry: string[];
+	runtime: number | null; // minutes
+	genres: string[];
+	imdbRating: number | null;
+};
