@@ -296,28 +296,54 @@ const REFLECTION: Record<PosterTone, number> = {
 	lit: 0.38,
 	dim: 0.26,
 };
-//
+const RIPPLE_TILE = { w: 256, h: 64 };
+const RIPPLE_LOOP_S = 3.2;
+
 function WaterFilter({ id, still }: { id: string; still: boolean }) {
 	return (
 		<svg aria-hidden className="absolute h-0 w-0">
-			<filter id={id} x="-5%" y="-5%" width="110%" height="110%">
+			<filter
+				id={id}
+				primitiveUnits="userSpaceOnUse"
+				x="-5%"
+				y="-5%"
+				width="110%"
+				height="110%"
+			>
 				<feTurbulence
 					type="fractalNoise"
 					baseFrequency="0.006 0.09"
 					numOctaves="2"
 					seed="3"
-					result="ripple"
+					stitchTiles="stitch"
+					x="0"
+					y="0"
+					width={RIPPLE_TILE.w}
+					height={RIPPLE_TILE.h}
+					result="tile"
+				/>
+				<feTile in="tile" result="water" />
+				<feOffset
+					in="water"
+					dy="0"
+					x="0"
+					y="0"
+					width={RIPPLE_TILE.w}
+					height={RIPPLE_TILE.h}
+					result="slid"
 				>
 					{!still && (
 						<animate
-							attributeName="baseFrequency"
-							dur="9s"
-							values="0.006 0.09;0.008 0.11;0.006 0.09"
+							attributeName="dy"
+							from="0"
+							to={-RIPPLE_TILE.h}
+							dur={`${RIPPLE_LOOP_S}s`}
 							repeatCount="indefinite"
 						/>
 					)}
-				</feTurbulence>
-				<feDisplacementMap in="SourceGraphic" in2="ripple" scale="8" />
+				</feOffset>
+				<feTile in="slid" result="flow" />
+				<feDisplacementMap in="SourceGraphic" in2="flow" scale="8" />
 			</filter>
 		</svg>
 	);
