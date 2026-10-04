@@ -29,12 +29,21 @@ const ScoreBattlerHub = dynamic(
 
 export default function MangaHub() {
 	// GET DATA FROM DB
-	const { items, add, update, refresh, remove, isProcessing } =
-		useMediaData<MangaProps>(MANGA_LIST);
+	const {
+		items,
+		add,
+		update,
+		updateSoon,
+		stage,
+		unstage,
+		refresh,
+		remove,
+		isProcessing,
+	} = useMediaData<MangaProps>(MANGA_LIST);
 
 	// MANAGEMENT OF STATES
 	const {
-		tempScore,
+		battle,
 		filteredItems,
 		sortConfig,
 		statusFilter,
@@ -55,12 +64,17 @@ export default function MangaHub() {
 		handleItemUpdates,
 		handleItemRefresh,
 		handleScoreFinal,
+		closeBattle,
+		handleOpponentUpdate,
 		handleItemAdd,
 	} = useManageMedia<MangaProps>({
 		onAdd: add,
 		items: items,
 		onRemove: remove,
 		onUpdate: update,
+		onUpdateSoon: updateSoon,
+		onStage: stage,
+		onUnstage: unstage,
 		onRefresh: refresh,
 	});
 
@@ -194,24 +208,18 @@ export default function MangaHub() {
 			</AnimatePresence>
 			{/* SCORE BATTLER */}
 			<AnimatePresence>
-				{activeModal === "scoreBattlerModal" &&
-					selectedItem &&
-					tempScore && (
-						<ScoreBattlerHub
-							key="battler"
-							mediaType="manga"
-							items={items}
-							initialScore={tempScore}
-							onClose={() => {
-								setActiveModal("detailsModal");
-							}}
-							selectedItem={selectedItem}
-							onScoreFinal={handleScoreFinal}
-							onOpponentUpdate={(id, score) =>
-								handleItemUpdates(id, { score })
-							}
-						/>
-					)}
+				{battle && (
+					<ScoreBattlerHub
+						key={`battler-${battle.item.id}`}
+						mediaType="manga"
+						items={items}
+						initialScore={battle.score}
+						selectedItem={battle.item}
+						onClose={closeBattle}
+						onScoreFinal={handleScoreFinal}
+						onOpponentUpdate={handleOpponentUpdate}
+					/>
+				)}
 			</AnimatePresence>
 		</div>
 	);

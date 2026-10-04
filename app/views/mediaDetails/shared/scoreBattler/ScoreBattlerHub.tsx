@@ -1,5 +1,5 @@
 import { BaseMediaProps } from "@/types/media";
-import { useMemo, useState, useCallback, useEffect } from "react";
+import { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import { updateRatings, updateRatingsDraw } from "@/lib/glicko";
 
 import { ScoreBattlerDesktop } from "./ScoreBattlerDesktop";
@@ -10,13 +10,9 @@ import {
 	getNextOpponent,
 	recordResult,
 } from "@/lib/battleSession";
-import {
-	getDisplayScore,
-	getTierFromMu,
-	Score,
-	TIER_THRESHOLDS,
-} from "@/lib/tierConfig";
+import { getTierFromMu, Score, TIER_THRESHOLDS } from "@/lib/tierConfig";
 import { ItemScore } from "@/lib/comparison";
+import { useEscapeClose } from "@/hooks/useEscapeClose";
 
 interface ScoreBattlerHubProps<T extends BaseMediaProps> {
 	items: T[];
@@ -60,27 +56,28 @@ export function ScoreBattlerHub<T extends BaseMediaProps>({
 		},
 	);
 
+	const opponentScores = useRef(new Map<number, Score>());
+
 	const finalizeScore = useCallback(
 		(finalScore: Score) => {
+			for (const [id, score] of opponentScores.current)
+				onOpponentUpdate(id, score);
+			opponentScores.current.clear();
 			onScoreFinal(finalScore);
 			onClose();
 		},
-		[onScoreFinal, onClose],
+		[onOpponentUpdate, onScoreFinal, onClose],
 	);
 
 	useEffect(() => {
 		if (!currentOpponent || !session || session.done) {
-			// TEMP DIAGNOSTIC -- remove once the add-with-score path is settled
-			console.log(
-				"[battler] self-closing |",
-				"opponent:", currentOpponent?.id,
-				"| done:", session?.done,
-			);
 			if (session?.selectedItem.score)
-				onScoreFinal(session?.selectedItem.score);
-			onClose();
+				finalizeScore(session.selectedItem.score);
+			else onClose();
 		}
-	}, [onClose, currentOpponent, session, onScoreFinal]);
+	}, [onClose, currentOpponent, session, finalizeScore]);
+
+	useEscapeClose(onClose);
 
 	// ── Comparison pick ───────────────────────────────────────────────────
 	const muCap = useMemo(
@@ -137,7 +134,7 @@ export function ScoreBattlerHub<T extends BaseMediaProps>({
 				},
 			};
 			// update opponent
-			onOpponentUpdate(currentOpponent.id, updatedOpponent);
+			opponentScores.current.set(currentOpponent.id, updatedOpponent);
 			// update battle session
 			const nextSession = recordResult(
 				updatedSession,
@@ -146,8 +143,6 @@ export function ScoreBattlerHub<T extends BaseMediaProps>({
 				currentOpponent.score.mu,
 				won,
 			);
-			console.log("OLD OP: ", getDisplayScore(currentOpponent.score.mu));
-			console.group("NEW OP: ", getDisplayScore(updatedOpponent.mu));
 			// find next opponent
 			const next = getNextOpponent(nextSession, allScored);
 			if (nextSession.done || !next) {
@@ -158,14 +153,7 @@ export function ScoreBattlerHub<T extends BaseMediaProps>({
 			setSession(nextSession);
 			setCurrentOpponent(next);
 		},
-		[
-			session,
-			currentOpponent,
-			finalizeScore,
-			onOpponentUpdate,
-			allScored,
-			muCap,
-		],
+		[session, currentOpponent, finalizeScore, allScored, muCap],
 	);
 
 	const opponentItem = useMemo(
@@ -183,6 +171,7 @@ export function ScoreBattlerHub<T extends BaseMediaProps>({
 					itemFacing={opponentItem as T}
 					mediaType={mediaType}
 					onPick={handlePick}
+					onCancel={onClose}
 				/>
 			</div>
 			<div className="block lg:hidden">
@@ -191,6 +180,7 @@ export function ScoreBattlerHub<T extends BaseMediaProps>({
 					itemFacing={opponentItem as T}
 					mediaType={mediaType}
 					onPick={handlePick}
+					onCancel={onClose}
 				/>
 			</div>
 		</>

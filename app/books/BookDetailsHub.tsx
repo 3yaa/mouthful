@@ -20,6 +20,7 @@ import { useBookSearch } from "@/hooks/external/useBookSearch";
 import { mapBookAPIDatatoBook, pickBookSeries } from "./utils/bookMapping";
 import { ShowMultBooks } from "./components/ShowMultBooks";
 import { AnimatePresence } from "framer-motion";
+import { useCommitOnUnmount } from "@/hooks/useManageMedia";
 
 export type BookAction =
 	| { type: "closeModal" }
@@ -349,10 +350,11 @@ export function BookDetails({
 	};
 
 	const handleSaveNote = () => {
-		if (localNote !== book.note) {
+		if (localNote !== (book.note || "")) {
 			onUpdate(book.id, { note: localNote });
 		}
 	};
+	useCommitOnUnmount(handleSaveNote);
 
 	const handleDelete = () => {
 		onClose();

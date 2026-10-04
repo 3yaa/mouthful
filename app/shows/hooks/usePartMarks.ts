@@ -5,6 +5,7 @@ import { Score, Tier, TIER_PHI_THRESHOLD, getSeedMu } from "@/lib/tierConfig";
 import { markOf, PartPatch } from "@/app/shows/utils/animePartMarks";
 import {
 	isAnimeRow,
+	slotIndexAt,
 	slotName,
 	slotRefFor,
 	stepWatchIndex,
@@ -13,6 +14,13 @@ import { useScoreNudge } from "@/hooks/useScoreNudge";
 import type { useSlotCursor } from "./useSlotCursor";
 
 type Cursor = ReturnType<typeof useSlotCursor>;
+
+// a part's first score
+export type PartBattle = {
+	item: ShowProps;
+	seed: Score;
+	onFinal: (score: Score) => void;
+};
 
 export interface UsePartMarksOptions {
 	show: ShowProps;
@@ -29,7 +37,7 @@ export interface UsePartMarksOptions {
 		patch: PartPatch,
 	) => void | Promise<unknown>;
 	// seeds a part score and hand it to the battler
-	onPartBattle?: (showId: number, anilistId: number, seed: Score) => void;
+	onPartBattle?: (battle: PartBattle) => void;
 	addShow?: boolean;
 }
 
@@ -80,9 +88,19 @@ export function usePartMarks({
 
 	// part's own score
 	const setTier = (anilistId: number, tier: Tier) => {
-		onPartBattle?.(show.id, anilistId, {
-			mu: getSeedMu(tier),
-			phi: TIER_PHI_THRESHOLD[tier],
+		const at = slotIndexAt(
+			line.findIndex((s) => s.anilistId === anilistId),
+		);
+		if (at === -1) return;
+		const slot = line[at];
+		onPartBattle?.({
+			item: {
+				...show,
+				title: slotName(show, slot, at),
+				posterUrl: slot.posterUrl ?? show.posterUrl,
+			},
+			seed: { mu: getSeedMu(tier), phi: TIER_PHI_THRESHOLD[tier] },
+			onFinal: (score) => write(anilistId, { score }),
 		});
 	};
 

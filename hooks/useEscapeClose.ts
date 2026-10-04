@@ -16,6 +16,9 @@ const handleEscape = (event: KeyboardEvent) => {
 	registrations.at(-1)?.closeRef.current();
 };
 
+// something is open over the page
+export const hasEscapeLayers = () => registrations.length > 0;
+
 export function useEscapeClose(onClose: () => void) {
 	const closeRef = useRef(onClose);
 	closeRef.current = onClose;

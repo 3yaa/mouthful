@@ -42,6 +42,9 @@ export interface UseReloadPreviewOptions<
 	) => Promise<void> | void;
 }
 
+// how long Apply waits on artwork still being read
+const APPLY_WAIT_MS = 4_000;
+
 const EMPTY_ITEMS: unknown[] = [];
 Object.freeze(EMPTY_ITEMS);
 const EMPTY_LIST: PickList<unknown> = Object.freeze({
@@ -61,9 +64,19 @@ export function useReloadPreview<
 	const [isRefreshing, setIsRefreshing] = useState(false);
 	const optsRef = useRef(options);
 	optsRef.current = options;
-	const previewRef = useRef<Preview | null>(preview);
-	previewRef.current = preview;
+	// always the latest preview, ahead of the render that shows it
+	const previewRef = useRef<Preview | null>(null);
 	const busyRef = useRef(false);
+	// work still changing the preview
+	const working = useRef(new Set<Promise<unknown>>());
+	const confirming = useRef(false);
+
+	const track = useCallback(<R>(work: Promise<R>): Promise<R> => {
+		working.current.add(work);
+		const done = () => working.current.delete(work);
+		work.then(done, done);
+		return work;
+	}, []);
 
 	const setBusy = useCallback((value: boolean) => {
 		busyRef.current = value;
@@ -81,12 +94,12 @@ export function useReloadPreview<
 			if (busyRef.current) return undefined;
 			setBusy(true);
 			try {
-				return await fn();
+				return await track(fn());
 			} finally {
 				setBusy(false);
 			}
 		},
-		[setBusy],
+		[setBusy, track],
 	);
 
 	const refresh = useCallback(async () => {
@@ -126,6 +139,19 @@ export function useReloadPreview<
 	}, [commit]);
 
 	const confirm = useCallback(async () => {
+		if (confirming.current || !previewRef.current) return;
+		confirming.current = true;
+		try {
+			// a stuck image load must not leave Apply doing nothing
+			const giveUp = Date.now() + APPLY_WAIT_MS;
+			while (working.current.size && Date.now() < giveUp)
+				await Promise.race([
+					Promise.allSettled([...working.current]),
+					new Promise((r) => setTimeout(r, giveUp - Date.now())),
+				]);
+		} finally {
+			confirming.current = false;
+		}
 		const { onRefresh, toMeta, onConfirmed } = optsRef.current;
 		const staged = previewRef.current;
 		if (!onRefresh || !staged) return;
@@ -137,35 +163,35 @@ export function useReloadPreview<
 		await onConfirmed?.(staged);
 	}, [commit]);
 
-	const patch = useCallback((fn: (p: Preview) => Preview) => {
-		setPreviewState((p) => (p ? fn(p) : p));
-	}, []);
+	const patch = useCallback(
+		(fn: (p: Preview) => Preview) => {
+			const p = previewRef.current;
+			if (p) commit(fn(p));
+		},
+		[commit],
+	);
 
 	const patchMeta = useCallback(
 		(fn: (meta: Partial<TMeta>) => Partial<TMeta>) => {
-			setPreviewState((p) => (p ? { ...p, meta: fn(p.meta) } : p));
+			const p = previewRef.current;
+			if (p) commit({ ...p, meta: fn(p.meta) });
 		},
-		[],
+		[commit],
 	);
 
 	const setListIndex = useCallback(
 		<K extends keyof TLists>(key: K, next: (index: number) => number) => {
-			setPreviewState((p) =>
-				p
-					? {
-							...p,
-							lists: {
-								...p.lists,
-								[key]: {
-									...p.lists[key],
-									index: next(p.lists[key].index),
-								},
-							},
-						}
-					: p,
-			);
+			const p = previewRef.current;
+			if (!p) return;
+			commit({
+				...p,
+				lists: {
+					...p.lists,
+					[key]: { ...p.lists[key], index: next(p.lists[key].index) },
+				},
+			});
 		},
-		[],
+		[commit],
 	);
 
 	//
@@ -186,5 +212,6 @@ export function useReloadPreview<
 		patchMeta,
 		setListIndex,
 		runBusy,
+		track,
 	};
 }

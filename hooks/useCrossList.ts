@@ -7,7 +7,8 @@ import { MediaDataConfig, useMediaData } from "./useMediaData";
 export function useCrossList<T extends BaseMediaProps>(
 	config: MediaDataConfig<T>,
 ) {
-	const { items, add, update, updatePart, remove } = useMediaData<T>(config);
+	const { items, add, update, updateSoon, updatePart, remove } =
+		useMediaData<T>(config);
 	// a first score goes through the ringer
 	const [battle, setBattle] = useState<{ item: T; score: Score } | null>(
 		null,
@@ -22,12 +23,16 @@ export function useCrossList<T extends BaseMediaProps>(
 			if (!updates) return;
 			const target = items.find((item) => item.id === itemId);
 			if (updates.score && target && !target.score) {
-				setBattle({ item: target, score: updates.score });
+				const { score, ...rest } = updates;
+				if (Object.keys(rest).length)
+					updateSoon(itemId, rest as Partial<T>);
+				setBattle({ item: target, score });
 				return;
 			}
-			update(itemId, updates, true);
+			// the user's own edit, wherever the card was opened -- it counts as recent
+			updateSoon(itemId, updates);
 		},
-		[items, update, remove],
+		[items, updateSoon, remove],
 	);
 
 	// resolves to the new row for the card to open -- a scored one gets the battler
@@ -42,10 +47,16 @@ export function useCrossList<T extends BaseMediaProps>(
 	);
 
 	const closeBattle = useCallback(() => setBattle(null), []);
+	// the items a battle was decided against no update
+	const handleOpponentUpdate = useCallback(
+		(itemId: number, score: Score) =>
+			update(itemId, { score } as Partial<T>, true),
+		[update],
+	);
 
 	const finishBattle = useCallback(
 		(score: Score) => {
-			if (battle) update(battle.item.id, { score } as Partial<T>, true);
+			if (battle) update(battle.item.id, { score } as Partial<T>);
 			setBattle(null);
 		},
 		[battle, update],
@@ -58,6 +69,7 @@ export function useCrossList<T extends BaseMediaProps>(
 		battle,
 		closeBattle,
 		finishBattle,
+		handleOpponentUpdate,
 		handleUpdates,
 		handleAdd,
 	};

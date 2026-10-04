@@ -37,9 +37,15 @@ import { ShowProps } from "@/types/show";
 import { ShowDetails } from "../shows/ShowDetailsHub";
 import { MediaStatus, SeriesJumpProps, SeriesTargetProps } from "@/types/media";
 import { useMovieSearch } from "@/hooks/external/useMovieSearch";
-import { buildCover } from "@/utils/coverColor";
+import {
+	buildCover,
+	cachedCover,
+	extractCoverPalette,
+} from "@/utils/extractCoverPalette";
 import { isRealTmdbId } from "@/utils/mediaMatch";
 import { seriesJump } from "@/utils/seriesRead";
+import { useCommitOnUnmount } from "@/hooks/useManageMedia";
+import { CardStack, useCardLayer } from "@/hooks/useCardStack";
 // load actor modal dynamically
 const ActorItemsModal = dynamic(
 	() => import("../components/ActorModal").then((m) => m.ActorItemsModal),
@@ -213,7 +219,7 @@ export function MovieDetails({
 				: {}),
 		}),
 	});
-	const { isRefreshing, isSelecting, patchMeta } = reload;
+	const { isRefreshing, isSelecting, patchMeta, track } = reload;
 	const setArtIndex = reload.setListIndex;
 	const art = isSelecting
 		? {
@@ -228,6 +234,7 @@ export function MovieDetails({
 			};
 	// actor related
 	const castPanel = useCastPanel();
+	const closeCast = castPanel.close;
 	// director related
 	const [isDirectorView, setIsDirectorView] = useState(false);
 	const [clickedDirector, setClickedDirector] = useState<string | null>(null);
@@ -241,6 +248,13 @@ export function MovieDetails({
 		{ type: "movie"; id: number } | { type: "tv"; id: number } | null
 	>(null);
 	const { authFetch } = useAuthFetch();
+	// cards opened from this one, and the way back to it
+	const stack = useCardLayer("movie", movie.id, () => {
+		closeCast();
+		setSelectedWorkItem(null);
+		setPendingWork(null);
+	});
+	const openWork = stack.open;
 
 	const addedStatusById = useMemo(() => {
 		const map = new Map<string, MediaStatus>();
@@ -300,23 +314,23 @@ export function MovieDetails({
 					(m) => m.tmdbId === String(work.id),
 				);
 				if (existing)
-					return setSelectedWorkItem({
-						type: "movie",
-						id: existing.id,
-					});
+					return openWork(
+						{ type: "movie", id: existing.id },
+						setSelectedWorkItem,
+					);
 			} else {
 				const existing = existingShows.find(
 					(s) => s.tmdbId === String(work.id),
 				);
 				if (existing)
-					return setSelectedWorkItem({
-						type: "tv",
-						id: existing.id,
-					});
+					return openWork(
+						{ type: "tv", id: existing.id },
+						setSelectedWorkItem,
+					);
 			}
 			setPendingWork(work);
 		},
-		[existingMovies, existingShows],
+		[existingMovies, existingShows, openWork],
 	);
 
 	// manual +/- 0.1 score tweaks -- phi tightens once, on close
@@ -444,20 +458,44 @@ export function MovieDetails({
 	const stagedPoster = isSelecting
 		? art.posters.items?.[art.posters.index ?? 0]
 		: undefined;
+	// every poster on offer has its colour read up front
+	const offeredPosters = isSelecting ? art.posters.items : undefined;
+	useEffect(() => {
+		offeredPosters?.forEach((url) => extractCoverPalette(url));
+	}, [offeredPosters]);
+	// a colour picked while the new poster's own is still being read wins over it
+	const pickedColor = useRef(false);
 	useEffect(() => {
 		if (!stagedPoster) return;
+		pickedColor.current = false;
+		// the picker reads the poster on screen, not the one being left
+		const known = cachedCover(stagedPoster);
+		patchMeta((prev) =>
+			prev.cover?.url === stagedPoster
+				? prev
+				: { ...prev, cover: known ?? { url: stagedPoster, color: "" } },
+		);
+		if (known) return;
 		let alive = true;
-		buildCover(stagedPoster).then((cover) => {
-			if (alive && cover) patchMeta((prev) => ({ ...prev, cover }));
+		track(buildCover(stagedPoster)).then((cover) => {
+			if (!alive || !cover) return;
+			patchMeta((prev) => ({
+				...prev,
+				cover:
+					pickedColor.current && prev.cover?.url === cover.url
+						? prev.cover
+						: cover,
+			}));
 		});
 		return () => {
 			alive = false;
 		};
-	}, [stagedPoster, patchMeta]);
+	}, [stagedPoster, patchMeta, track]);
 
 	// the picker only shows while adding or previewing a reload
 	const handlePickCoverColor = (color: string) => {
 		if (isSelecting) {
+			pickedColor.current = true;
 			patchMeta((prev) =>
 				prev.cover
 					? { ...prev, cover: { ...prev.cover, color } }
@@ -537,10 +575,11 @@ export function MovieDetails({
 	};
 
 	const handleSaveNote = () => {
-		if (localNote !== movie.note) {
+		if (localNote !== (movie.note || "")) {
 			onUpdate(movie.id, { note: localNote });
 		}
 	};
+	useCommitOnUnmount(handleSaveNote);
 
 	const handleDelete = () => {
 		onClose();
@@ -569,6 +608,10 @@ export function MovieDetails({
 		reload.cancel();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [movie.id]);
+	// another card open on the same movie
+	useEffect(() => {
+		setLocalNote(movie.note || "");
+	}, [movie.note]);
 
 	useEffect(() => {
 		const handleLeave = (e: KeyboardEvent) => {
@@ -600,7 +643,7 @@ export function MovieDetails({
 		: isLoading;
 
 	return (
-		<>
+		<CardStack value={stack.layer}>
 			<div className="lg:block hidden">
 				<DesktopDetails
 					item={previewMovie}
@@ -747,6 +790,6 @@ export function MovieDetails({
 					}}
 				/>
 			)}
-		</>
+		</CardStack>
 	);
 }

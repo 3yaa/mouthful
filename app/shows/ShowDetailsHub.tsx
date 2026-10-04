@@ -2,7 +2,13 @@
 import { ShowProps, SlotIndex } from "@/types/show";
 import { DIFF_COLUMNS_SHOW } from "@/app/shows/utils/showDiffColumns";
 import type { SeriesInfo } from "@/app/shows/utils/episodeRatings";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { DesktopDetails } from "@/app/views/mediaDetails/DesktopDetails";
 import { showStatusOptions } from "@/utils/dropDownDetails";
 import { MobileDetails } from "@/app/views/mediaDetails/MobileDetails";
@@ -30,11 +36,16 @@ import {
 	episodeCountOf,
 	isOpenEnded,
 	mangaSourceOf,
+	timelineOf,
 } from "@/app/shows/utils/slotRef";
-import { markOf } from "@/app/shows/utils/animePartMarks";
+import {
+	markOf,
+	PartPatch,
+	withPartPatch,
+} from "@/app/shows/utils/animePartMarks";
 import { useStudioCatalog } from "./hooks/useStudioCatalog";
 import { useSlotCursor } from "./hooks/useSlotCursor";
-import { usePartMarks } from "./hooks/usePartMarks";
+import { PartBattle, usePartMarks } from "./hooks/usePartMarks";
 import { useCastPanel } from "@/hooks/useCastPanel";
 import { useScoreNudge } from "@/hooks/useScoreNudge";
 import { useAddWait } from "@/hooks/useAddWait";
@@ -63,6 +74,8 @@ import { useShowSearch } from "@/hooks/external/useShowSearch";
 import { mapShowMeta } from "./utils/showMapping";
 import { isRealTmdbId, isSameName, normName } from "@/utils/mediaMatch";
 import type { StudioWork } from "./utils/studioCatalog";
+import { useCommitOnUnmount } from "@/hooks/useManageMedia";
+import { CardStack, useCardLayer } from "@/hooks/useCardStack";
 // load actor modal dynamically
 const ActorItemsModal = dynamic(
 	() => import("../components/ActorModal").then((m) => m.ActorItemsModal),
@@ -187,7 +200,7 @@ export interface ShowDetailsProps {
 		patch: { score?: Score | null; note?: string | null; hidden?: boolean },
 	) => void | Promise<unknown>;
 	// seed a part's score and hand it to the battler
-	onPartBattle?: (showId: number, anilistId: number, seed: Score) => void;
+	onPartBattle?: (battle: PartBattle) => void;
 	logoUrls?: string[];
 	logoIndex?: number;
 	updateLogoIndex?: (newIndex: number) => void;
@@ -286,22 +299,44 @@ export function ShowDetails({
 			for (const [from, to] of moves) {
 				const mark = markOf(show, from);
 				if (!mark) continue;
-				await marks.write(to, {
+				await onUpdatePart?.(show.id, to, {
 					score: mark.score ?? null,
 					note: mark.note ?? null,
 					hidden: !!mark.hidden,
 				});
-				await marks.write(from, {
+				await onUpdatePart?.(show.id, from, {
 					score: null,
 					note: null,
 					hidden: false,
 				});
 			}
+			// marks made in the preview, on parts only it has
+			for (const [anilistId, patch] of heldMarks)
+				await onUpdatePart?.(show.id, anilistId, patch);
+		},
+		onExit: () => {
+			setHeldMarks(new Map());
+			heldCursor.current = false;
 		},
 	});
 	const { isRefreshing, isSelecting, patchMeta } = reload;
+	// marks on parts the saved chain doesn't have yet
+	const [heldMarks, setHeldMarks] = useState<Map<number, PartPatch>>(
+		() => new Map(),
+	);
+	const heldCursor = useRef(false);
+	const savedChain = useMemo(
+		() => new Set(timelineOf(show).map((slot) => slot.anilistId)),
+		[show],
+	);
 	// a reload preview owns the position until applied
-	const row = isSelecting ? { ...show, ...reload.meta } : show;
+	const row = useMemo(() => {
+		if (!isSelecting) return show;
+		let next: ShowProps = { ...show, ...reload.meta };
+		for (const [anilistId, patch] of heldMarks)
+			next = withPartPatch(next, anilistId, patch);
+		return next;
+	}, [isSelecting, show, reload.meta, heldMarks]);
 	const writeRow: typeof onUpdate = (showId, updates, takeAction) => {
 		if (!isSelecting || !updates || takeAction)
 			return onUpdate(showId, updates, takeAction);
@@ -310,8 +345,34 @@ export function ShowDetails({
 			...(curSeasonIndex !== undefined ? { curSeasonIndex } : {}),
 			...(curEpisode !== undefined ? { curEpisode } : {}),
 		};
-		if (Object.keys(held).length) patchMeta((m) => ({ ...m, ...held }));
+		if (Object.keys(held).length) {
+			heldCursor.current = true;
+			patchMeta((m) => ({ ...m, ...held }));
+		}
 		if (Object.keys(rest).length) onUpdate(showId, rest);
+	};
+	const writePart: typeof onUpdatePart =
+		onUpdatePart &&
+		((showId, anilistId, patch) => {
+			if (!isSelecting || savedChain.has(anilistId))
+				return onUpdatePart(showId, anilistId, patch);
+			setHeldMarks((was) =>
+				new Map(was).set(anilistId, {
+					...was.get(anilistId),
+					...patch,
+				}),
+			);
+		});
+	// backing out of a preview keeps what was ticked in it
+	const cancelPreview = () => {
+		if (heldCursor.current) {
+			const back = cursorOnRebuilt(row, {
+				...show,
+				curSeasonIndex: row.curSeasonIndex,
+			});
+			if (Object.keys(back).length) onUpdate(show.id, back);
+		}
+		reload.cancel();
 	};
 	// the timeline, and the two positions on it
 	const cursor = useSlotCursor({ show: row, onUpdate: writeRow });
@@ -328,7 +389,7 @@ export function ShowDetails({
 		show: row,
 		cursor,
 		onUpdate: writeRow,
-		onUpdatePart,
+		onUpdatePart: writePart,
 		onPartBattle,
 		addShow: !!addShow,
 	});
@@ -371,6 +432,7 @@ export function ShowDetails({
 	const [seriesInfo, setSeriesInfo] = useState<SeriesInfo | null>(null);
 	// cast and creators
 	const castPanel = useCastPanel();
+	const closeCast = castPanel.close;
 	const [isCreatorView, setIsCreatorView] = useState(false);
 	const [clickedCreator, setClickedCreator] = useState<string | null>(null);
 	// handing off to another list
@@ -386,6 +448,13 @@ export function ShowDetails({
 	} | null>(null);
 	// handing over to another list
 	const handedOff = !!selectedWorkItem || !!pendingWork?.handsOff;
+	// cards opened from this one, and the way back to it
+	const stack = useCardLayer("tv", show.id, () => {
+		closeCast();
+		setSelectedWorkItem(null);
+		setPendingWork(null);
+	});
+	const openWork = stack.open;
 	//
 	const { loadShowChain } = useShowSearch();
 	const { authFetch } = useAuthFetch();
@@ -422,19 +491,19 @@ export function ShowDetails({
 					(m) => m.tmdbId === String(work.id),
 				);
 				if (existing)
-					return setSelectedWorkItem({
-						type: "movie",
-						id: existing.id,
-					});
+					return openWork(
+						{ type: "movie", id: existing.id },
+						setSelectedWorkItem,
+					);
 			} else {
 				const existing = existingShows.find(
 					(s) => s.tmdbId === String(work.id),
 				);
 				if (existing)
-					return setSelectedWorkItem({
-						type: "tv",
-						id: existing.id,
-					});
+					return openWork(
+						{ type: "tv", id: existing.id },
+						setSelectedWorkItem,
+					);
 			}
 			// work.id = the tmdb one
 			setPendingWork({
@@ -443,7 +512,7 @@ export function ShowDetails({
 				id: String(work.id),
 			});
 		},
-		[existingMovies, existingShows],
+		[existingMovies, existingShows, openWork],
 	);
 
 	// manual +/- 0.1 score tweaks -- phi tightens once, on close
@@ -544,7 +613,7 @@ export function ShowDetails({
 				reload.confirm();
 				break;
 			case "cancelRefresh":
-				reload.cancel();
+				cancelPreview();
 				break;
 			case "clearLogo":
 				handleClearLogo();
@@ -633,7 +702,11 @@ export function ShowDetails({
 			return;
 		}
 		const owned = resolveMovie(target);
-		if (owned) return setSelectedWorkItem({ type: "movie", id: owned.id });
+		if (owned)
+			return openWork(
+				{ type: "movie", id: owned.id },
+				setSelectedWorkItem,
+			);
 		setSelectedWorkItem(null);
 		setPendingWork({
 			title: target.title,
@@ -836,10 +909,10 @@ export function ShowDetails({
 	const handleStudioPick = (work: StudioWork) => {
 		const owned = studio.ownedWork(work);
 		if (owned)
-			return setSelectedWorkItem({
-				type: owned.type,
-				id: owned.row.id,
-			});
+			return openWork(
+				{ type: owned.type, id: owned.row.id },
+				setSelectedWorkItem,
+			);
 		setPendingWork({
 			title: work.base,
 			media_type: work.format === "MOVIE" ? "movie" : "tv",
@@ -868,7 +941,7 @@ export function ShowDetails({
 		const filled = jump.hop && backfillRuns(owned.series, jump.hop)[0];
 		if (filled) onMangaUpdate?.(owned.id, { series: filled });
 		setPendingWork(null);
-		setSelectedWorkItem({ type: "manga", id: owned.id });
+		openWork({ type: "manga", id: owned.id }, setSelectedWorkItem);
 	};
 
 	// light novels live in books, so only a manga source opens
@@ -923,6 +996,7 @@ export function ShowDetails({
 		if (partId != null) marks.setNote(partId, localNote);
 		else onUpdate(show.id, { note: localNote });
 	};
+	useCommitOnUnmount(handleSaveNote);
 
 	const handleDelete = () => {
 		onClose();
@@ -931,12 +1005,14 @@ export function ShowDetails({
 	};
 
 	const handleModalClose = () => {
+		// closing over a preview is backing out of it
+		if (isSelecting) cancelPreview();
 		// fold the deferred phi drop into the update this close flushes
 		commitScoreNudge();
 		marks.commitNudge();
 		onClose();
 	};
-	useEscapeClose(() => (isSelecting ? reload.cancel() : handleModalClose()));
+	useEscapeClose(() => (isSelecting ? cancelPreview() : handleModalClose()));
 
 	const { isSubmitting, submit: handleAddShow } = useAddWait(addShow);
 
@@ -1149,8 +1225,7 @@ export function ShowDetails({
 	// note follows the entry the card is showing
 	useEffect(() => {
 		setLocalNote(marks.note);
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [partId, marks.franchiseView]);
+	}, [partId, marks.franchiseView, marks.note]);
 
 	if (!show) return null;
 
@@ -1181,7 +1256,7 @@ export function ShowDetails({
 		: isLoading;
 
 	return (
-		<>
+		<CardStack value={stack.layer}>
 			{!handedOff && (
 				<div className="lg:block hidden">
 					<DesktopDetails
@@ -1475,7 +1550,10 @@ export function ShowDetails({
 							findOwnedMovie(dup.title);
 						if (!owned) return false;
 						setPendingWork(null);
-						setSelectedWorkItem({ type: "movie", id: owned.id });
+						openWork(
+							{ type: "movie", id: owned.id },
+							setSelectedWorkItem,
+						);
 						return true;
 					}}
 					onAddMovie={async (m) => {
@@ -1519,7 +1597,10 @@ export function ShowDetails({
 						});
 						if (!owned) return false;
 						setPendingWork(null);
-						setSelectedWorkItem({ type: "manga", id: owned.id });
+						openWork(
+							{ type: "manga", id: owned.id },
+							setSelectedWorkItem,
+						);
 						return true;
 					}}
 					onAddManga={async (m) => {
@@ -1533,6 +1614,6 @@ export function ShowDetails({
 					}}
 				/>
 			)}
-		</>
+		</CardStack>
 	);
 }

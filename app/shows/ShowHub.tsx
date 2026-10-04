@@ -2,7 +2,6 @@
 import { ShowProps } from "@/types/show";
 import { DIFF_COLUMNS_SHOW } from "./utils/showDiffColumns";
 import { useCallback, useMemo, useState } from "react";
-import { Score } from "@/lib/tierConfig";
 import { useMediaData } from "@/hooks/useMediaData";
 import { useCrossList } from "@/hooks/useCrossList";
 import { MANGA_LIST, MOVIE_LIST, SHOW_LIST } from "@/hooks/mediaLists";
@@ -27,7 +26,8 @@ const ScoreBattlerHub = dynamic(
 );
 import { MovieProps } from "@/types/movie";
 import { MangaProps } from "@/types/manga";
-import { isAnimeRow, slotIndexAt, slotName, timelineOf } from "./utils/slotRef";
+import { isAnimeRow } from "./utils/slotRef";
+import type { PartBattle } from "./hooks/usePartMarks";
 import {
 	isBattleReady,
 	PartPatch,
@@ -35,40 +35,21 @@ import {
 } from "./utils/animePartMarks";
 
 export default function ShowHub() {
-	const { items, add, update, updatePart, refresh, remove, isProcessing } =
-		useMediaData<ShowProps>(SHOW_LIST);
+	const {
+		items,
+		add,
+		update,
+		updateSoon,
+		stage,
+		unstage,
+		updatePart,
+		refresh,
+		remove,
+		isProcessing,
+	} = useMediaData<ShowProps>(SHOW_LIST);
 
 	// part of an anime chain, mid-battle
-	const [partBattle, setPartBattle] = useState<{
-		showId: number;
-		anilistId: number;
-		item: ShowProps;
-		score: Score;
-	} | null>(null);
-
-	const handlePartBattle = useCallback(
-		(showId: number, anilistId: number, seed: Score) => {
-			const show = items.find((s) => s.id === showId);
-			if (!show) return;
-			const line = timelineOf(show);
-			const at = slotIndexAt(
-				line.findIndex((slot) => slot.anilistId === anilistId),
-			);
-			if (at === -1) return;
-			const slot = line[at];
-			setPartBattle({
-				showId,
-				anilistId,
-				score: seed,
-				item: {
-					...show,
-					title: slotName(show, slot, at),
-					posterUrl: slot.posterUrl ?? show.posterUrl,
-				},
-			});
-		},
-		[items],
-	);
+	const [partBattle, setPartBattle] = useState<PartBattle | null>(null);
 
 	// IN-CASE NEED MOVIE DATA
 	const movies = useCrossList<MovieProps>(MOVIE_LIST);
@@ -82,7 +63,6 @@ export default function ShowHub() {
 		searchQuery,
 		selectedItem,
 		openItemId,
-		setSelectedItem,
 		titleToUse,
 		setTitleToUse,
 		activeModal,
@@ -96,15 +76,21 @@ export default function ShowHub() {
 		handleSearchQueryChange,
 		handleItemUpdates,
 		handleItemRefresh,
-		tempScore,
+		battle,
 		handleScoreFinal,
+		closeBattle,
+		handleOpponentUpdate,
 		handleItemAdd,
 		handleWorkAdd,
+		flushFor,
 	} = useManageMedia<ShowProps>({
 		onAdd: add,
 		items: items,
 		onRemove: remove,
 		onUpdate: update,
+		onUpdateSoon: updateSoon,
+		onStage: stage,
+		onUnstage: unstage,
 		onRefresh: refresh,
 		isEligibleOpponent: isBattleReady,
 	});
@@ -112,26 +98,15 @@ export default function ShowHub() {
 	// avaliable in the battler
 	const opponentPool = useMemo(() => items.filter(isBattleReady), [items]);
 
-	//
+	// a row edit still queued was made first
 	const handleUpdatePart = useCallback(
-		async (showId: number, anilistId: number, patch: PartPatch) => {
-			setSelectedItem((prev) =>
-				prev && prev.id === showId
-					? withPartPatch(prev, anilistId, patch)
-					: prev,
-			);
-			const saved = await updatePart(showId, anilistId, patch, (item) =>
+		(showId: number, anilistId: number, patch: PartPatch) => {
+			flushFor(showId);
+			return updatePart(showId, anilistId, patch, (item) =>
 				withPartPatch(item, anilistId, patch),
 			);
-			// the server recomputed the rolled-up row score
-			if (saved)
-				setSelectedItem((prev) =>
-					prev && prev.id === showId
-						? { ...prev, parts: saved.parts, score: saved.score }
-						: prev,
-				);
 		},
-		[updatePart, setSelectedItem],
+		[updatePart, flushFor],
 	);
 
 	const [animeOnly, setAnimeOnly] = useState(false);
@@ -230,7 +205,9 @@ export default function ShowHub() {
 							handleItemClicked(owned);
 							return true;
 						}}
-						targetFromAbove={titleToUse ? { title: titleToUse.title } : null}
+						targetFromAbove={
+							titleToUse ? { title: titleToUse.title } : null
+						}
 						existingMovies={movies.items}
 						onMovieUpdate={movies.handleUpdates}
 						onAddMovie={movies.handleAdd}
@@ -250,7 +227,7 @@ export default function ShowHub() {
 						onUpdate={handleItemUpdates}
 						onRefresh={handleItemRefresh}
 						onUpdatePart={handleUpdatePart}
-						onPartBattle={handlePartBattle}
+						onPartBattle={setPartBattle}
 						existingShows={items}
 						onAddWork={handleWorkAdd}
 						//
@@ -265,24 +242,18 @@ export default function ShowHub() {
 			</AnimatePresence>
 			{/* SCORE BATTLER */}
 			<AnimatePresence>
-				{activeModal === "scoreBattlerModal" &&
-					selectedItem &&
-					tempScore && (
-						<ScoreBattlerHub
-							key="battler"
-							mediaType="show"
-							items={opponentPool}
-							initialScore={tempScore}
-							onClose={() => {
-								setActiveModal("detailsModal");
-							}}
-							selectedItem={selectedItem}
-							onScoreFinal={handleScoreFinal}
-							onOpponentUpdate={(id, score) =>
-								handleItemUpdates(id, { score })
-							}
-						/>
-					)}
+				{battle && (
+					<ScoreBattlerHub
+						key={`battler-${battle.item.id}`}
+						mediaType="show"
+						items={opponentPool}
+						initialScore={battle.score}
+						selectedItem={battle.item}
+						onClose={closeBattle}
+						onScoreFinal={handleScoreFinal}
+						onOpponentUpdate={handleOpponentUpdate}
+					/>
+				)}
 			</AnimatePresence>
 			{/* SCORE BATTLER -- anime node */}
 			<AnimatePresence>
@@ -291,22 +262,14 @@ export default function ShowHub() {
 						key="part-battler"
 						mediaType="show"
 						items={opponentPool}
-						initialScore={partBattle.score}
+						initialScore={partBattle.seed}
 						selectedItem={partBattle.item}
 						onClose={() => setPartBattle(null)}
 						onScoreFinal={(score) => {
-							handleUpdatePart(
-								partBattle.showId,
-								partBattle.anilistId,
-								{
-									score,
-								},
-							);
+							partBattle.onFinal(score);
 							setPartBattle(null);
 						}}
-						onOpponentUpdate={(id, score) =>
-							handleItemUpdates(id, { score })
-						}
+						onOpponentUpdate={handleOpponentUpdate}
 					/>
 				)}
 			</AnimatePresence>
@@ -321,9 +284,7 @@ export default function ShowHub() {
 						selectedItem={movies.battle.item}
 						onClose={movies.closeBattle}
 						onScoreFinal={movies.finishBattle}
-						onOpponentUpdate={(id, score) =>
-							movies.update(id, { score }, true)
-						}
+						onOpponentUpdate={movies.handleOpponentUpdate}
 					/>
 				)}
 			</AnimatePresence>
@@ -338,9 +299,7 @@ export default function ShowHub() {
 						selectedItem={manga.battle.item}
 						onClose={manga.closeBattle}
 						onScoreFinal={manga.finishBattle}
-						onOpponentUpdate={(id, score) =>
-							manga.update(id, { score }, true)
-						}
+						onOpponentUpdate={manga.handleOpponentUpdate}
 					/>
 				)}
 			</AnimatePresence>

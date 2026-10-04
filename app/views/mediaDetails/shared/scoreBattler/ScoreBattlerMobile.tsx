@@ -3,12 +3,14 @@ import { BaseMediaProps } from "@/types/media";
 import { actions, coverFor, ScoreBattlerUIProps } from "./shared";
 import { getStatusBg, getStatusWaveColor } from "@/utils/styleUtils";
 import { useScrollLock } from "@/hooks/useScrollLock";
+import { X } from "lucide-react";
 
 export function ScoreBattlerMobile<T extends BaseMediaProps>({
 	selectedItem,
 	itemFacing,
 	// curScore,
 	onPick,
+	onCancel,
 	mediaType,
 }: ScoreBattlerUIProps<T>) {
 	useScrollLock();
@@ -25,6 +27,14 @@ export function ScoreBattlerMobile<T extends BaseMediaProps>({
 						sizeClass="w-full aspect-2/3"
 					/>
 					<div className="absolute bottom-0 left-0 w-full h-20 bg-linear-to-t from-zinc-950 to-transparent pointer-events-none" />
+					<button
+						type="button"
+						onClick={onCancel}
+						title="Stop comparing"
+						className="absolute top-1.5 left-1.5 bg-zinc-800/50 backdrop-blur-2xl p-2 rounded-md active:scale-95 transition-transform duration-150"
+					>
+						<X className="w-5 h-5 text-zinc-300" />
+					</button>
 				</div>
 			</div>
 

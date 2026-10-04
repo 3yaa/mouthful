@@ -24,8 +24,17 @@ const ScoreBattlerHub = dynamic(
 );
 
 export default function GameList() {
-	const { items, add, update, refresh, remove, isProcessing } =
-		useMediaData<GameProps>(GAME_LIST);
+	const {
+		items,
+		add,
+		update,
+		updateSoon,
+		stage,
+		unstage,
+		refresh,
+		remove,
+		isProcessing,
+	} = useMediaData<GameProps>(GAME_LIST);
 
 	const {
 		filteredItems,
@@ -45,14 +54,19 @@ export default function GameList() {
 		handleSearchQueryChange,
 		handleItemUpdates,
 		handleItemRefresh,
-		tempScore,
+		battle,
 		handleScoreFinal,
+		closeBattle,
+		handleOpponentUpdate,
 		handleItemAdd,
 	} = useManageMedia<GameProps>({
 		onAdd: add,
 		items: items,
 		onRemove: remove,
 		onUpdate: update,
+		onUpdateSoon: updateSoon,
+		onStage: stage,
+		onUnstage: unstage,
 		onRefresh: refresh,
 	});
 
@@ -216,24 +230,18 @@ export default function GameList() {
 			</AnimatePresence>
 			{/* SCORE BATTLER */}
 			<AnimatePresence>
-				{activeModal === "scoreBattlerModal" &&
-					selectedItem &&
-					tempScore && (
-						<ScoreBattlerHub
-							key="battler"
-							items={items}
-							initialScore={tempScore}
-							onClose={() => {
-								setActiveModal("detailsModal");
-							}}
-							selectedItem={selectedItem}
-							onScoreFinal={handleScoreFinal}
-							onOpponentUpdate={(id, score) =>
-								handleItemUpdates(id, { score })
-							}
-							mediaType="game"
-						/>
-					)}
+				{battle && (
+					<ScoreBattlerHub
+						key={`battler-${battle.item.id}`}
+						mediaType="game"
+						items={items}
+						initialScore={battle.score}
+						selectedItem={battle.item}
+						onClose={closeBattle}
+						onScoreFinal={handleScoreFinal}
+						onOpponentUpdate={handleOpponentUpdate}
+					/>
+				)}
 			</AnimatePresence>
 		</div>
 	);

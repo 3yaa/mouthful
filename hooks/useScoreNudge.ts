@@ -2,8 +2,9 @@ import { useCallback, useEffect, useRef } from "react";
 import { BaseMediaProps } from "@/types/media";
 import { nudgeMu } from "@/lib/tierConfig";
 import { sharpenConfidence } from "@/lib/glicko";
+import { useCommitOnUnmount } from "./useManageMedia";
 
-// manual +/- 0.1 nudges on an already-scored item -- phi only saves once 
+// manual +/- 0.1 nudges on an already-scored item -- phi only saves once
 export function useScoreNudge<T extends BaseMediaProps>(
 	item: T,
 	onUpdate: (itemId: number, updates?: Partial<T>) => void,
@@ -35,10 +36,21 @@ export function useScoreNudge<T extends BaseMediaProps>(
 		} as Partial<T>);
 	}, [onUpdate]);
 
-	// the modal swaps items in place on sequel/prequel nav -- settle up with the item being left behind
+	// the modal swaps items in place on sequel/prequel nav
 	useEffect(() => {
 		if (pending.current && pending.current.id !== item.id) commit();
 	}, [item.id, commit]);
+
+	// a reset, a battle or the server's rollup moved the score
+	const mu = item.score?.mu;
+	useEffect(() => {
+		const open = pending.current;
+		if (open && open.id === item.id && open.mu !== mu)
+			pending.current = null;
+	}, [item.id, mu]);
+
+	// a card that goes away without its close handler still settles up
+	useCommitOnUnmount(commit);
 
 	return { nudge, commit };
 }

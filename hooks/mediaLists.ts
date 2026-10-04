@@ -24,6 +24,25 @@ export const SHOW_LIST: MediaDataConfig<ShowProps> = {
 		Dropped: 4,
 	},
 	extraFieldsToUpdate: ["curSeasonIndex", "curEpisode", "franchisePoster"],
+	// an anime row's score is its parts' rollup
+	mergeUpdate: (show, updates) =>
+		updates.score === null && show.parts
+			? {
+					...show,
+					...updates,
+					parts: Object.fromEntries(
+						Object.entries(show.parts).map(([id, mark]) => [
+							id,
+							{ ...mark, score: null },
+						]),
+					),
+				}
+			: { ...show, ...updates },
+	//
+	reconcileUpdate: (saved, current, sent) =>
+		"score" in sent
+			? { ...current, score: saved.score, parts: saved.parts }
+			: current,
 };
 
 export const BOOK_LIST: MediaDataConfig<BookProps> = {

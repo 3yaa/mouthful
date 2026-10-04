@@ -29,6 +29,7 @@ import { useAuthFetch } from "@/app/auth/hooks/useAuthFetch";
 import { AnimatePresence } from "framer-motion";
 import { PAGE_COUNT, pageFor } from "@/app/components/ui/MangaBackdrop";
 import dynamic from "next/dynamic";
+import { useCommitOnUnmount } from "@/hooks/useManageMedia";
 // author work
 const AuthorCatalogModal = dynamic(
 	() =>
@@ -415,10 +416,11 @@ export function MangaDetails({
 	};
 
 	const handleSaveNote = () => {
-		if (localNote !== manga.note) {
+		if (localNote !== (manga.note || "")) {
 			onUpdate(manga.id, { note: localNote });
 		}
 	};
+	useCommitOnUnmount(handleSaveNote);
 
 	const handleDelete = () => {
 		onClose();

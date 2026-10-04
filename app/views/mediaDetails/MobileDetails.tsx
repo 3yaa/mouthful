@@ -515,16 +515,20 @@ export function MobileDetails<T extends BaseMediaProps>({
 								} as Control,
 							]
 						: []),
-					...(item.score && !franchiseView
+					...(item.score
 						? [
 								{
 									key: "resetScore",
 									icon: RotateCcw,
 									tone: "blue",
-									label: "Reset score",
+									label: franchiseView
+										? "Reset all scores"
+										: "Reset score",
 									action: "resetScore",
 									confirm: {
-										title: "Reset score?",
+										title: franchiseView
+											? "Reset all scores?"
+											: "Reset score?",
 										confirmLabel: "Reset",
 									},
 								} as Control,

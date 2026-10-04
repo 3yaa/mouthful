@@ -14,6 +14,7 @@ import {
 } from "react";
 import { useScrollVisibility } from "./useScrollVisibility";
 import { useScrollLock } from "./useScrollLock";
+import { hasEscapeLayers } from "./useEscapeClose";
 import { debounce } from "@/utils/debounce";
 import { Score } from "@/lib/tierConfig";
 import { createSession } from "@/lib/battleSession";
@@ -23,13 +24,19 @@ const LIT_HOLD_SLACK_MS = 60;
 
 interface ManageMediaConfig<T extends BaseMediaProps> {
 	items: T[];
-	onAdd: (item: T) => Promise<T>;
+	onAdd: (item: T) => Promise<T | undefined>;
 	onRemove: (itemId: number) => Promise<void>;
 	onUpdate: (
 		itemId: number,
 		updates: Partial<T>,
 		indirectUpdate?: boolean,
+		staged?: number,
 	) => Promise<void>;
+	// an edit to an item no card here owns
+	onUpdateSoon: (itemId: number, updates: Partial<T>) => void;
+	// the card's edits show in the list at once and are sent on flush
+	onStage: (itemId: number, updates: Partial<T>, staged?: number) => number;
+	onUnstage: (staged: number) => void;
 	onRefresh?: (
 		itemId: number,
 		metadata: Partial<T>,
@@ -39,11 +46,23 @@ interface ManageMediaConfig<T extends BaseMediaProps> {
 	isEligibleOpponent?: (item: T) => boolean;
 }
 
+// commit it on the way out
+export function useCommitOnUnmount(commit: () => void) {
+	const latest = useRef(commit);
+	useEffect(() => {
+		latest.current = commit;
+	});
+	useEffect(() => () => latest.current(), []);
+}
+
 export function useManageMedia<T extends BaseMediaProps>({
 	items,
 	onAdd,
 	onRemove,
 	onUpdate,
+	onUpdateSoon,
+	onStage,
+	onUnstage,
 	onRefresh,
 	isEligibleOpponent,
 }: ManageMediaConfig<T>) {
@@ -52,16 +71,29 @@ export function useManageMedia<T extends BaseMediaProps>({
 		null,
 	);
 	const [debouncedQuery, setDebouncedQuery] = useState("");
-	const [selectedItem, setSelectedItem] = useState<T | null>(null);
+	const [selected, setSelected] = useState<T | null>(null);
 	const [searchQuery, setSearchQuery] = useState("");
 	// what an add flow was opened for: a series jump knows the id it wants
 	const [titleToUse, setTitleToUse] = useState<SeriesJumpProps | null>(null);
 	const [activeModal, setActiveModal] = useState<
-		"detailsModal" | "addModal" | "scoreBattlerModal" | null
+		"detailsModal" | "addModal" | null
 	>(null);
-	const [tempScore, setTempScore] = useState<Score | null>(null);
+	// a first score being placed -- over whatever is open, which stays put
+	const [battle, setBattle] = useState<{ item: T; score: Score } | null>(
+		null,
+	);
 	const pendingUpdates = useRef<Partial<T>>({});
 	const pendingFor = useRef<number | null>(null);
+	const stagedOp = useRef<number | null>(null);
+	const selectedItem = useMemo(
+		() =>
+			selected
+				? (items.find((i) => i.id === selected.id) ?? selected)
+				: null,
+		[items, selected],
+	);
+	const selectedId = useRef<number | null>(null);
+	selectedId.current = selectedItem?.id ?? null;
 	// used for mobile only
 	const isMenuButtonsVisible = useScrollVisibility(30);
 
@@ -118,15 +150,38 @@ export function useManageMedia<T extends BaseMediaProps>({
 		debouncedSetQuery(value.toLowerCase().trim());
 	};
 
+	const itemsRef = useRef(items);
+	itemsRef.current = items;
+
 	// push the batch to the db and start a fresh one
 	const flushPending = useCallback(() => {
 		const itemId = pendingFor.current;
-		if (itemId !== null && Object.keys(pendingUpdates.current).length > 0) {
-			onUpdate(itemId, pendingUpdates.current);
-		}
+		const op = stagedOp.current;
+		const updates = pendingUpdates.current;
 		pendingUpdates.current = {};
 		pendingFor.current = null;
-	}, [onUpdate]);
+		stagedOp.current = null;
+		const live = itemsRef.current.some((i) => i.id === itemId);
+		if (itemId !== null && live && Object.keys(updates).length > 0)
+			onUpdate(itemId, updates, undefined, op ?? undefined);
+		else if (op !== null) onUnstage(op);
+	}, [onUpdate, onUnstage]);
+
+	const flushRef = useRef(flushPending);
+	flushRef.current = flushPending;
+
+	// a write that skips the queue
+	const flushFor = useCallback(
+		(itemId: number) => {
+			if (pendingFor.current === itemId) flushPending();
+		},
+		[flushPending],
+	);
+
+	// an edit landing after the card closed or the page left has no later flush
+	const cardOpen = useRef(false);
+	const alive = useRef(true);
+	cardOpen.current = activeModal === "detailsModal";
 
 	// batch an update, flushing first if it belongs to a different item
 	const queueUpdate = useCallback(
@@ -134,55 +189,127 @@ export function useManageMedia<T extends BaseMediaProps>({
 			if (pendingFor.current !== null && pendingFor.current !== itemId) {
 				flushPending();
 			}
+			//
+			if (updates.score && pendingUpdates.current.score === null)
+				flushPending();
 			pendingFor.current = itemId;
 			pendingUpdates.current = { ...pendingUpdates.current, ...updates };
+			stagedOp.current = onStage(
+				itemId,
+				pendingUpdates.current,
+				stagedOp.current ?? undefined,
+			);
+			if (!cardOpen.current || !alive.current)
+				queueMicrotask(() => flushRef.current());
+		},
+		[flushPending, onStage],
+	);
+
+	//
+	const dropQueued = useCallback(
+		(itemId: number, keys: string[]) => {
+			if (pendingFor.current !== itemId) return;
+			for (const key of keys)
+				delete pendingUpdates.current[key as keyof T];
+			if (stagedOp.current === null) return;
+			if (Object.keys(pendingUpdates.current).length)
+				onStage(itemId, pendingUpdates.current, stagedOp.current);
+			else {
+				onUnstage(stagedOp.current);
+				stagedOp.current = null;
+				pendingFor.current = null;
+			}
+		},
+		[onStage, onUnstage],
+	);
+
+	const handleItemClicked = useCallback(
+		(item: T) => {
+			// a series/DLC jump
+			if (pendingFor.current !== null && pendingFor.current !== item.id)
+				flushPending();
+			setActiveModal("detailsModal");
+			setSelected(item);
 		},
 		[flushPending],
 	);
 
-	const handleItemClicked = useCallback((item: T) => {
-		setActiveModal("detailsModal");
-		setSelectedItem(item);
-	}, []);
+	//
+	const writeEdit = useCallback(
+		(itemId: number, updates: Partial<T>) => {
+			if (itemId === selectedId.current || itemId === pendingFor.current)
+				queueUpdate(itemId, updates);
+			else onUpdateSoon(itemId, updates);
+		},
+		[queueUpdate, onUpdateSoon],
+	);
+
+	// a first score is placed against the rest
+	const startBattle = useCallback(
+		(item: T, score: Score, added = false) => {
+			const done =
+				score.mu >= 2000 ||
+				createSession(
+					itemsRef.current
+						.filter(
+							(i) =>
+								i.score !== null &&
+								i.id !== item.id &&
+								(isEligibleOpponent?.(i) ?? true),
+						)
+						.map((i) => ({ id: i.id, score: i.score! })),
+					{ id: item.id, score },
+				).done;
+			// an add already saved its score
+			if (done) {
+				if (!added) writeEdit(item.id, { score } as Partial<T>);
+				return;
+			}
+			setBattle({ item, score });
+		},
+		[isEligibleOpponent, writeEdit],
+	);
 
 	const handleScoreFinal = useCallback(
 		(finalScore: Score) => {
-			if (!selectedItem?.id) return;
-			setSelectedItem({ ...selectedItem, score: finalScore });
-			queueUpdate(selectedItem.id, { score: finalScore } as Partial<T>);
-			setTempScore(null);
-			setActiveModal("detailsModal");
+			if (battle)
+				writeEdit(battle.item.id, { score: finalScore } as Partial<T>);
+			setBattle(null);
 		},
-		[selectedItem, queueUpdate],
+		[battle, writeEdit],
 	);
+	const closeBattle = useCallback(() => setBattle(null), []);
 
-	// a scored add goes through the battler
-	const battleAdded = useCallback((newItem: T, score: Score) => {
-		setActiveModal("scoreBattlerModal");
-		setSelectedItem(newItem);
-		setTempScore(score);
-	}, []);
+	//
+	const handleOpponentUpdate = useCallback(
+		(itemId: number, score: Score) => {
+			// the battle's number is newer than one queued before it
+			dropQueued(itemId, ["score"]);
+			onUpdate(itemId, { score } as Partial<T>, true);
+		},
+		[dropQueued, onUpdate],
+	);
 
 	// the add modal
 	const handleItemAdd = useCallback(
 		async (item: T) => {
 			const newItem = await onAdd(item);
 			if (!newItem) return false;
-			if (newItem.score) battleAdded(newItem, newItem.score);
-			else handleItemClicked(newItem);
+			handleItemClicked(newItem);
+			if (newItem.score) startBattle(newItem, newItem.score, true);
 			return true;
 		},
-		[onAdd, battleAdded, handleItemClicked],
+		[onAdd, startBattle, handleItemClicked],
 	);
 
 	// from inside an open card
 	const handleWorkAdd = useCallback(
 		async (item: T): Promise<T | undefined> => {
 			const newItem = await onAdd(item);
-			if (!newItem?.score) return newItem;
-			battleAdded(newItem, newItem.score);
+			if (newItem?.score) startBattle(newItem, newItem.score, true);
+			return newItem;
 		},
-		[onAdd, battleAdded],
+		[onAdd, startBattle],
 	);
 
 	const handleItemUpdates = useCallback(
@@ -193,75 +320,69 @@ export function useManageMedia<T extends BaseMediaProps>({
 		) => {
 			if (shouldDelete) return await onRemove(itemId);
 			if (!updates) return;
-
-			const isSelectedItem = itemId === selectedItem?.id;
-			// on actor modal open different item
-			const targetItem = isSelectedItem
-				? selectedItem
-				: items.find((i) => i.id === itemId);
-
-			const isNewScore = updates.score && !targetItem?.score;
-
-			if (isNewScore && updates.score && targetItem) {
-				const skipScoreBattle =
-					updates.score.mu >= 2000 ||
-					createSession(
-						items
-							.filter(
-								(i) =>
-									i.score !== null &&
-									i.id !== itemId &&
-									(isEligibleOpponent?.(i) ?? true),
-							)
-							.map((i) => ({ id: i.id, score: i.score! })),
-						{ id: itemId, score: updates.score },
-					).done;
-				//
-				if (skipScoreBattle) {
-					setSelectedItem({ ...targetItem, ...updates });
-					queueUpdate(itemId, updates);
-					return;
-				}
-				setSelectedItem(targetItem);
-				setTempScore(updates.score);
-				setActiveModal("scoreBattlerModal");
+			// a draft committed after its row was deleted
+			const target = itemsRef.current.find((i) => i.id === itemId);
+			if (!target) return;
+			if (updates.score && !target.score) {
+				const { score, ...rest } = updates;
+				if (Object.keys(rest).length)
+					writeEdit(itemId, rest as Partial<T>);
+				startBattle(target, score);
 				return;
 			}
-
-			// for opponent updates
-			if (!isSelectedItem) {
-				const indirectUpdate = true;
-				onUpdate(itemId, updates, indirectUpdate);
-				return;
-			}
-			// normal update
-			setSelectedItem({ ...selectedItem, ...updates });
-			queueUpdate(itemId, updates);
+			writeEdit(itemId, updates);
 		},
-		[
-			onRemove,
-			onUpdate,
-			selectedItem,
-			items,
-			queueUpdate,
-			isEligibleOpponent,
-		],
+		[onRemove, writeEdit, startBattle],
 	);
 
 	const handleItemRefresh = useCallback(
 		async (metadata: Partial<T>, indirect?: boolean) => {
-			if (!selectedItem?.id || !onRefresh) return;
+			const itemId = selectedId.current;
+			if (itemId === null || !onRefresh) return;
 			// drop undefined values
 			const clean = Object.fromEntries(
 				Object.entries(metadata).filter(([, v]) => v !== undefined),
 			) as Partial<T>;
 			if (Object.keys(clean).length === 0) return;
-			// reflect refreshed metadata in the open modal immediately
-			setSelectedItem({ ...selectedItem, ...clean });
-			await onRefresh(selectedItem.id, clean, indirect);
+			// the refresh is newer than anything queued for these fields
+			dropQueued(itemId, Object.keys(clean));
+			// the rest goes first
+			flushFor(itemId);
+			await onRefresh(itemId, clean, indirect);
 		},
-		[selectedItem, onRefresh],
+		[onRefresh, dropQueued, flushFor],
 	);
+
+	// leaving the page sends a card's edits a beat later
+	useEffect(() => {
+		alive.current = true;
+		return () => {
+			alive.current = false;
+			queueMicrotask(() => flushRef.current());
+		};
+	}, []);
+	// a reload, closed tab or backgrounded phone runs no cleanups
+	useEffect(() => {
+		const away = () => {
+			if (document.activeElement instanceof HTMLElement)
+				document.activeElement.blur();
+			flushRef.current();
+		};
+		// switching tabs only sends what's queued
+		const hidden = () => {
+			if (document.visibilityState === "hidden") flushRef.current();
+		};
+		window.addEventListener("pagehide", away);
+		document.addEventListener("visibilitychange", hidden);
+		return () => {
+			window.removeEventListener("pagehide", away);
+			document.removeEventListener("visibilitychange", hidden);
+		};
+	}, []);
+	//
+	useEffect(() => {
+		if (activeModal !== "detailsModal") flushRef.current();
+	}, [activeModal]);
 
 	const handleModalClose = useCallback(() => {
 		// push any pending update to db -- have only one update
@@ -271,7 +392,7 @@ export function useManageMedia<T extends BaseMediaProps>({
 		// wait a frame before clearing state
 		requestAnimationFrame(() => {
 			setTitleToUse(null);
-			setSelectedItem(null);
+			setSelected(null);
 		});
 	}, [flushPending]);
 
@@ -298,9 +419,14 @@ export function useManageMedia<T extends BaseMediaProps>({
 			if (
 				e.key === "Enter" &&
 				!activeModal &&
+				!battle &&
+				// a card opened from elsewhere on the page/focused control, owns the key
+				!hasEscapeLayers() &&
 				!(
-					e.target instanceof HTMLInputElement ||
-					e.target instanceof HTMLTextAreaElement
+					e.target instanceof Element &&
+					e.target.closest(
+						"input, textarea, select, button, a, [contenteditable]",
+					)
 				)
 			) {
 				setActiveModal("addModal");
@@ -309,13 +435,12 @@ export function useManageMedia<T extends BaseMediaProps>({
 		//
 		window.addEventListener("keydown", handleEnter);
 		return () => window.removeEventListener("keydown", handleEnter);
-	}, [activeModal]);
+	}, [activeModal, battle]);
 
 	// keep listing row awake
 	const [openItemId, setOpenItemId] = useState<number | null>(null);
-	const modalOwnsAnItem =
-		activeModal === "detailsModal" || activeModal === "scoreBattlerModal";
-	const litId = modalOwnsAnItem ? (selectedItem?.id ?? null) : null;
+	const litId =
+		activeModal === "detailsModal" ? (selectedItem?.id ?? null) : null;
 	if (litId !== null && litId !== openItemId) setOpenItemId(litId);
 	//
 	useEffect(() => {
@@ -327,13 +452,13 @@ export function useManageMedia<T extends BaseMediaProps>({
 		return () => clearTimeout(done);
 	}, [litId]);
 
-	useScrollLock(!!activeModal);
+	useScrollLock(!!activeModal || !!battle);
 
 	return {
 		// items
 		filteredItems,
 		// states
-		tempScore,
+		battle,
 		sortConfig,
 		titleToUse,
 		activeModal,
@@ -344,12 +469,14 @@ export function useManageMedia<T extends BaseMediaProps>({
 		setTitleToUse,
 		setActiveModal,
 		isFilterPending,
-		setSelectedItem,
 		isMenuButtonsVisible,
 		// handlers
+		flushFor,
 		handleItemAdd,
 		handleWorkAdd,
 		handleScoreFinal,
+		closeBattle,
+		handleOpponentUpdate,
 		handleSortConfig,
 		handleModalClose,
 		handleItemUpdates,

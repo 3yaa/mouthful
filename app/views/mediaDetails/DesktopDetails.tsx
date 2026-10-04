@@ -881,7 +881,7 @@ export function DesktopDetails<T extends BaseMediaProps>({
 										/>
 									)}
 									{/* RESET SCORE */}
-									{item.score && !franchiseView && (
+									{item.score && (
 										<ActionBtn
 											variant="ghost"
 											icon={RotateCcw}
@@ -889,13 +889,19 @@ export function DesktopDetails<T extends BaseMediaProps>({
 											onClick={() =>
 												setPending({
 													action: "resetScore",
-													title: "Reset score?",
+													title: franchiseView
+														? "Reset all scores?"
+														: "Reset score?",
 													confirmLabel: "Reset",
 													tone: "blue",
 													icon: RotateCcw,
 												})
 											}
-											title="Reset score"
+											title={
+												franchiseView
+													? "Reset all scores"
+													: "Reset score"
+											}
 										/>
 									)}
 									{/* DELETE SERIES METADATA */}

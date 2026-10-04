@@ -16,7 +16,8 @@ import { useEscapeClose } from "@/hooks/useEscapeClose";
 import { useGameSearch } from "@/hooks/external/useGameSearch";
 import { PickList, useReloadPreview } from "@/hooks/useReloadPreview";
 import { mapIGDBDataToGame, mapIGDBDlcsDataToGame } from "./utils/gameMapping";
-import { buildCover } from "@/utils/coverColor";
+import { buildCover } from "@/utils/extractCoverPalette";
+import { useCommitOnUnmount } from "@/hooks/useManageMedia";
 
 export type GameAction =
 	| { type: "closeModal" }
@@ -296,10 +297,11 @@ export function GameDetails({
 	};
 
 	const handleSaveNote = () => {
-		if (localNote !== game.note) {
+		if (localNote !== (game.note || "")) {
 			onUpdate(game.id, { note: localNote });
 		}
 	};
+	useCommitOnUnmount(handleSaveNote);
 
 	const handleDelete = () => {
 		onClose();

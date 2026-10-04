@@ -1,6 +1,8 @@
 import imageLoader, { corsMode } from "@/utils/image-loader";
+import { MediaCoverProps } from "@/types/media";
 
 const cache = new Map<string, string[]>();
+const pending = new Map<string, Promise<string[]>>();
 
 export async function extractCoverPalette(
 	url: string | undefined,
@@ -11,13 +13,34 @@ export async function extractCoverPalette(
 	const key = `${url}|${max}`;
 	const cached = cache.get(key);
 	if (cached) return cached;
-	try {
-		const colors = await run(url, max);
-		cache.set(key, colors);
-		return colors;
-	} catch {
-		return [];
-	}
+	const loading = pending.get(key);
+	if (loading) return loading;
+	const read = run(url, max)
+		.then((colors) => {
+			cache.set(key, colors);
+			return colors;
+		})
+		// a failed read isn't kept, so a later one can try again
+		.catch(() => [] as string[])
+		.finally(() => pending.delete(key));
+	pending.set(key, read);
+	return read;
+}
+
+// tmdb and igdb art has no colour attached
+export async function buildCover(
+	url: string | undefined | null,
+): Promise<MediaCoverProps | undefined> {
+	if (!url) return undefined;
+	// the whole palette, so the colour picker opens on a warm cache
+	const [color] = await extractCoverPalette(url);
+	return { url, color: color ?? "" };
+}
+
+// the same cover, when its colour has already been read
+export function cachedCover(url: string): MediaCoverProps | undefined {
+	const palette = cache.get(`${url}|6`);
+	return palette ? { url, color: palette[0] ?? "" } : undefined;
 }
 
 function run(url: string, max: number): Promise<string[]> {

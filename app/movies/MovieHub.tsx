@@ -32,8 +32,17 @@ import { ShowProps } from "@/types/show";
 import { isBattleReady, withPartPatch } from "@/app/shows/utils/animePartMarks";
 
 export default function MoviesHub() {
-	const { items, add, update, refresh, remove, isProcessing } =
-		useMediaData<MovieProps>(MOVIE_LIST);
+	const {
+		items,
+		add,
+		update,
+		updateSoon,
+		stage,
+		unstage,
+		refresh,
+		remove,
+		isProcessing,
+	} = useMediaData<MovieProps>(MOVIE_LIST);
 
 	// IN-CASE NEED SHOW DATA
 	const shows = useCrossList<ShowProps>(SHOW_LIST);
@@ -63,8 +72,10 @@ export default function MoviesHub() {
 		handleSearchQueryChange,
 		handleItemUpdates,
 		handleItemRefresh,
-		tempScore,
+		battle,
 		handleScoreFinal,
+		closeBattle,
+		handleOpponentUpdate,
 		handleItemAdd,
 		handleWorkAdd,
 	} = useManageMedia<MovieProps>({
@@ -72,6 +83,9 @@ export default function MoviesHub() {
 		items: items,
 		onRemove: remove,
 		onUpdate: update,
+		onUpdateSoon: updateSoon,
+		onStage: stage,
+		onUnstage: unstage,
 		onRefresh: refresh,
 	});
 
@@ -287,24 +301,18 @@ export default function MoviesHub() {
 			</AnimatePresence>
 			{/* SCORE BATTLER */}
 			<AnimatePresence>
-				{activeModal === "scoreBattlerModal" &&
-					selectedItem &&
-					tempScore && (
-						<ScoreBattlerHub
-							key="battler"
-							mediaType="movie"
-							items={items}
-							initialScore={tempScore}
-							onClose={() => {
-								setActiveModal("detailsModal");
-							}}
-							selectedItem={selectedItem}
-							onScoreFinal={handleScoreFinal}
-							onOpponentUpdate={(id, score) =>
-								handleItemUpdates(id, { score })
-							}
-						/>
-					)}
+				{battle && (
+					<ScoreBattlerHub
+						key={`battler-${battle.item.id}`}
+						mediaType="movie"
+						items={items}
+						initialScore={battle.score}
+						selectedItem={battle.item}
+						onClose={closeBattle}
+						onScoreFinal={handleScoreFinal}
+						onOpponentUpdate={handleOpponentUpdate}
+					/>
+				)}
 			</AnimatePresence>
 			{/* SCORE BATTLER -- cross media (a show opened from an actor) */}
 			<AnimatePresence>
@@ -317,9 +325,7 @@ export default function MoviesHub() {
 						selectedItem={shows.battle.item}
 						onClose={shows.closeBattle}
 						onScoreFinal={shows.finishBattle}
-						onOpponentUpdate={(id, score) =>
-							shows.update(id, { score }, true)
-						}
+						onOpponentUpdate={shows.handleOpponentUpdate}
 					/>
 				)}
 			</AnimatePresence>

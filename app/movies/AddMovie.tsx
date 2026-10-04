@@ -12,7 +12,7 @@ import { SeriesJumpProps, SeriesTargetProps } from "@/types/media";
 import { mapMetaToMovie } from "@/app/movies/utils/movieMapping";
 import { MovieDetails, type MovieCrossMedia } from "./MovieDetailsHub";
 import { useMovieSearch } from "@/hooks/external/useMovieSearch";
-import { buildCover } from "@/utils/coverColor";
+import { buildCover } from "@/utils/extractCoverPalette";
 import { findOnlyNamed, isRealTmdbId } from "@/utils/mediaMatch";
 import { useEscapeClose } from "@/hooks/useEscapeClose";
 

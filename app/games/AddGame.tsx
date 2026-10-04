@@ -20,7 +20,7 @@ import { GameDetails } from "./GameDetailsHub";
 import { ShowMultGames } from "./components/ShowMultGames";
 //
 import { useGameSearch } from "@/hooks/external/useGameSearch";
-import { buildCover } from "@/utils/coverColor";
+import { buildCover } from "@/utils/extractCoverPalette";
 import { findOnlyNamed } from "@/utils/mediaMatch";
 import { useEscapeClose } from "@/hooks/useEscapeClose";
 

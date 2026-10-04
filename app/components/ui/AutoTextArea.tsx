@@ -22,11 +22,6 @@ export function AutoTextarea({
     const textarea = ref.current;
     if (!textarea) return;
 
-    // Store current state
-    const selectionStart = textarea.selectionStart;
-    const selectionEnd = textarea.selectionEnd;
-    const isActive = document.activeElement === textarea;
-
     // Reset height to auto to get accurate scrollHeight
     textarea.style.height = "auto";
 
@@ -38,16 +33,6 @@ export function AutoTextarea({
     // Apply height change
     textarea.style.height = `${newHeight}px`;
     setIsOverflowing(willOverflow);
-
-    // Only restore selection if textarea was active (user was typing)
-    if (isActive) {
-      // Use setTimeout to let the browser finish layout
-      setTimeout(() => {
-        if (textarea && document.activeElement === textarea) {
-          textarea.setSelectionRange(selectionStart, selectionEnd);
-        }
-      }, 0);
-    }
   }, [maxHeight, minHeight]);
 
   // Adjust height when value changes

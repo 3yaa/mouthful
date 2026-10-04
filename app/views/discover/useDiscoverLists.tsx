@@ -2,10 +2,10 @@
 import { useMemo, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import dynamic from "next/dynamic";
-import { useMediaData } from "@/hooks/useMediaData";
 import { useCrossList } from "@/hooks/useCrossList";
 import { MOVIE_LIST, SHOW_LIST } from "@/hooks/mediaLists";
 import {
+	isBattleReady,
 	withPartPatch,
 	type PartPatch,
 } from "@/app/shows/utils/animePartMarks";
@@ -44,7 +44,12 @@ export function useDiscoverLists() {
 		null,
 	);
 	//
-	const shows = useMediaData<ShowProps>(SHOW_LIST);
+	const shows = useCrossList<ShowProps>(SHOW_LIST);
+	// same pool the shows hub battles against
+	const showPool = useMemo(
+		() => shows.items.filter(isBattleReady),
+		[shows.items],
+	);
 	const movies = useCrossList<MovieProps>(MOVIE_LIST);
 	const openShow =
 		openShowId != null
@@ -117,8 +122,13 @@ export function useDiscoverLists() {
 		else setMovieTarget({ title: card.title, id: card.tmdbId });
 	};
 
-	const onShowUpdate = (id: number, updates?: Partial<ShowProps>) => {
-		if (updates) shows.update(id, updates);
+	const onShowUpdate = (
+		id: number,
+		updates?: Partial<ShowProps>,
+		shouldDelete?: boolean,
+	) => {
+		if (shouldDelete) setOpenShowId(null);
+		shows.handleUpdates(id, updates, shouldDelete);
 	};
 	const onShowUpdatePart = (
 		showId: number,
@@ -138,7 +148,7 @@ export function useDiscoverLists() {
 					onUpdate={onShowUpdate}
 					onUpdatePart={onShowUpdatePart}
 					existingShows={shows.items}
-					onAddWork={shows.add}
+					onAddWork={shows.handleAdd}
 					existingMovies={movies.items}
 					onMovieUpdate={movies.handleUpdates}
 					onAddMovie={movies.handleAdd}
@@ -155,7 +165,7 @@ export function useDiscoverLists() {
 					existingShows={shows.items}
 					onShowUpdate={onShowUpdate}
 					onShowUpdatePart={onShowUpdatePart}
-					onAddShow={shows.add}
+					onAddShow={shows.handleAdd}
 				/>
 			)}
 
@@ -172,12 +182,12 @@ export function useDiscoverLists() {
 						return true;
 					}}
 					existingShows={shows.items}
-					onAddWork={shows.add}
+					onAddWork={shows.handleAdd}
 					existingMovies={movies.items}
 					onMovieUpdate={movies.handleUpdates}
 					onAddMovie={movies.handleAdd}
 					onAddShow={async (s) => {
-						const added = await shows.add(s);
+						const added = await shows.handleAdd(s);
 						if (added) setOpenShowId(added.id);
 					}}
 				/>
@@ -209,7 +219,7 @@ export function useDiscoverLists() {
 					existingShows={shows.items}
 					onShowUpdate={onShowUpdate}
 					onShowUpdatePart={onShowUpdatePart}
-					onAddShow={shows.add}
+					onAddShow={shows.handleAdd}
 					onAddMovie={async (m) => {
 						const added = await movies.handleAdd(m);
 						if (added) setOpenMovieId(added.id);
@@ -217,7 +227,21 @@ export function useDiscoverLists() {
 				/>
 			)}
 
-			{/* SCORE BATTLER */}
+			{/* SCORE BATTLERS */}
+			<AnimatePresence>
+				{shows.battle && (
+					<ScoreBattlerHub
+						key="show-battler"
+						mediaType="show"
+						items={showPool}
+						initialScore={shows.battle.score}
+						selectedItem={shows.battle.item}
+						onClose={shows.closeBattle}
+						onScoreFinal={shows.finishBattle}
+						onOpponentUpdate={shows.handleOpponentUpdate}
+					/>
+				)}
+			</AnimatePresence>
 			<AnimatePresence>
 				{movies.battle && (
 					<ScoreBattlerHub
@@ -228,9 +252,7 @@ export function useDiscoverLists() {
 						selectedItem={movies.battle.item}
 						onClose={movies.closeBattle}
 						onScoreFinal={movies.finishBattle}
-						onOpponentUpdate={(id, score) =>
-							movies.update(id, { score }, true)
-						}
+						onOpponentUpdate={movies.handleOpponentUpdate}
 					/>
 				)}
 			</AnimatePresence>

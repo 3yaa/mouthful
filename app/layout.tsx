@@ -6,6 +6,7 @@ import { NavMenu } from "./components/NavMenu";
 import { RouteGuard } from "@/app/auth/RouteGuard";
 import { NavProvider } from "./components/NavContext";
 import { RouteFlashProvider } from "./components/RouteFlash";
+import { SaveFailedToast } from "./components/ui/SaveFailedToast";
 
 const geist = Geist({ subsets: ["latin"], display: "swap" });
 
@@ -55,6 +56,7 @@ export default function RootLayout({
 						<RouteFlashProvider>
 							<RouteGuard>{children}</RouteGuard>
 							<NavMenu />
+							<SaveFailedToast />
 						</RouteFlashProvider>
 					</NavProvider>
 				</AuthProvider>

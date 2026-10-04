@@ -10,6 +10,7 @@ export function ScoreBattlerDesktop<T extends BaseMediaProps>({
 	itemFacing,
 	mediaType,
 	onPick,
+	onCancel,
 }: ScoreBattlerUIProps<T>) {
 	const coverSelectedItem = coverFor(selectedItem);
 	const coverItemFacing = coverFor(itemFacing);
@@ -22,7 +23,7 @@ export function ScoreBattlerDesktop<T extends BaseMediaProps>({
 
 	return (
 		<ModalBackdrop className="fixed inset-0 bg-linear-to-br from-black/50 via-black/60 to-black/80 backdrop-blur-md flex items-center justify-center z-20">
-			<div className="fixed inset-0" />
+			<div className="fixed inset-0" onClick={onCancel} />
 			{/* BACKGROUND BORDER GRADIENT */}
 			<ModalPanel
 				className="rounded-[1.375rem] p-1.5 py-2 lg:min-w-215 lg:max-w-215"
