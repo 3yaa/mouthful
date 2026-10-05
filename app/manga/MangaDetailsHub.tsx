@@ -433,7 +433,7 @@ export function MangaDetails({
 		commitScoreNudge();
 		onClose();
 	};
-	useEscapeClose(() => {
+	const isTopLayer = useEscapeClose(() => {
 		if (multResultsOpen) setMultResultsOpen(false);
 		else if (isSelecting) reload.cancel();
 		else handleModalClose();
@@ -459,7 +459,12 @@ export function MangaDetails({
 				const activeElement = document.activeElement;
 				const isInTextarea = activeElement?.tagName === "TEXTAREA";
 				const isInInput = activeElement?.tagName === "INPUT";
-				if (!isInTextarea && !isInInput && !isEditingChapter) {
+				if (
+					!isInTextarea &&
+					!isInInput &&
+					!isEditingChapter &&
+					isTopLayer()
+				) {
 					handleAddManga();
 				}
 			}
@@ -467,7 +472,7 @@ export function MangaDetails({
 		//
 		window.addEventListener("keydown", handleLeave);
 		return () => window.removeEventListener("keydown", handleLeave);
-	}, [onClose, handleAddManga, isEditingChapter]);
+	}, [onClose, handleAddManga, isEditingChapter, isTopLayer]);
 
 	if (!manga) return null;
 

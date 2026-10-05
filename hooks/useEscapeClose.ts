@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type RefObject } from "react";
+import { useCallback, useEffect, useRef, type RefObject } from "react";
 
 type EscapeRegistration = {
 	id: symbol;
@@ -42,4 +42,7 @@ export function useEscapeClose(onClose: () => void) {
 			}
 		};
 	}, []);
+
+	// nothing opened over this layer
+	return useCallback(() => registrations.at(-1)?.closeRef === closeRef, []);
 }

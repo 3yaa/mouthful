@@ -479,17 +479,14 @@ export function DesktopDetails<T extends BaseMediaProps>({
 
 	// find creator
 	const creditNames =
-		((mediaType === "movie" || mediaType === "show") && !isPicking) ||
-		mediaType === "manga"
+		mediaType === "movie" || mediaType === "show" || mediaType === "manga"
 			? splitCredits(differentColumns[0].getValue(item))
 			: [];
 	const creditOpens: "director" | "studio" | "creator" | "author" | null =
 		!creditNames.length
 			? null
 			: mediaType === "manga"
-				? isPicking
-					? null
-					: "author"
+				? "author"
 				: mediaType === "movie"
 					? "director"
 					: isAnimeShow
@@ -717,13 +714,6 @@ export function DesktopDetails<T extends BaseMediaProps>({
 										type: "creatorClick",
 										payload: name,
 									})
-								}
-							/>
-						) : creditNames.length > 1 ? (
-							<CreditNames
-								names={creditNames}
-								width={
-									authorUnderPoster ? "max-w-32" : "max-w-72"
 								}
 							/>
 						) : (

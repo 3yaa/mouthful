@@ -368,7 +368,7 @@ export function BookDetails({
 		onClose();
 	};
 	// one layer per press -- the results panel, then the reload preview, then the modal
-	useEscapeClose(() => {
+	const isTopLayer = useEscapeClose(() => {
 		if (multResultsOpen) setMultResultsOpen(false);
 		else if (isSelecting) reload.cancel();
 		else handleModalClose();
@@ -405,7 +405,7 @@ export function BookDetails({
 				const activeElement = document.activeElement;
 				const isInTextarea = activeElement?.tagName === "TEXTAREA";
 				const isInInput = activeElement?.tagName === "INPUT";
-				if (!isInTextarea && !isInInput) {
+				if (!isInTextarea && !isInInput && isTopLayer()) {
 					handleAddBook();
 				}
 			}
@@ -413,7 +413,7 @@ export function BookDetails({
 		//
 		window.addEventListener("keydown", handleLeave);
 		return () => window.removeEventListener("keydown", handleLeave);
-	}, [onClose, handleAddBook]);
+	}, [onClose, handleAddBook, isTopLayer]);
 
 	if (!book) return null;
 

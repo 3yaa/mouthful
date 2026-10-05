@@ -1012,7 +1012,9 @@ export function ShowDetails({
 		marks.commitNudge();
 		onClose();
 	};
-	useEscapeClose(() => (isSelecting ? cancelPreview() : handleModalClose()));
+	const isTopLayer = useEscapeClose(() =>
+		isSelecting ? cancelPreview() : handleModalClose(),
+	);
 
 	const { isSubmitting, submit: handleAddShow } = useAddWait(addShow);
 
@@ -1196,7 +1198,8 @@ export function ShowDetails({
 					!isInTextarea &&
 					!isInInput &&
 					!isInEditingMode &&
-					!isAway
+					!isAway &&
+					isTopLayer()
 				) {
 					handleAddShow();
 				}
@@ -1205,7 +1208,14 @@ export function ShowDetails({
 		//
 		window.addEventListener("keydown", handleLeave);
 		return () => window.removeEventListener("keydown", handleLeave);
-	}, [onClose, editingMode, handleAddShow, selectedWorkItem, pendingWork]);
+	}, [
+		onClose,
+		editingMode,
+		handleAddShow,
+		selectedWorkItem,
+		pendingWork,
+		isTopLayer,
+	]);
 
 	useEffect(() => {
 		setInputValues({

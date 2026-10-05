@@ -295,17 +295,14 @@ export function MobileDetails<T extends BaseMediaProps>({
 	const isAnimeShow = mediaType === "show" && isAnimeRow(show);
 	//
 	const creditNames =
-		((mediaType === "movie" || mediaType === "show") && !isPicking) ||
-		mediaType === "manga"
+		mediaType === "movie" || mediaType === "show" || mediaType === "manga"
 			? splitCredits(differentColumns[0].getValue(item))
 			: [];
 	const creditOpens: "director" | "studio" | "creator" | "author" | null =
 		!creditNames.length
 			? null
 			: mediaType === "manga"
-				? isPicking
-					? null
-					: "author"
+				? "author"
 				: mediaType === "movie"
 					? "director"
 					: isAnimeShow
@@ -1103,15 +1100,6 @@ export function MobileDetails<T extends BaseMediaProps>({
 															type: "creatorClick",
 															payload: name,
 														})
-													}
-												/>
-											) : creditNames.length > 1 ? (
-												<CreditNames
-													names={creditNames}
-													width={
-														isPrint
-															? "max-w-60"
-															: "max-w-32"
 													}
 												/>
 											) : (

@@ -314,7 +314,9 @@ export function GameDetails({
 		commitScoreNudge();
 		onClose();
 	};
-	useEscapeClose(() => (isSelecting ? reload.cancel() : handleModalClose()));
+	const isTopLayer = useEscapeClose(() =>
+		isSelecting ? reload.cancel() : handleModalClose(),
+	);
 
 	const handleNeedYear = () => {
 		const needYear = true;
@@ -357,7 +359,7 @@ export function GameDetails({
 				const activeElement = document.activeElement;
 				const isInTextarea = activeElement?.tagName === "TEXTAREA";
 				const isInInput = activeElement?.tagName === "INPUT";
-				if (!isInTextarea && !isInInput) {
+				if (!isInTextarea && !isInInput && isTopLayer()) {
 					handleAddGame();
 				}
 			}
@@ -365,7 +367,7 @@ export function GameDetails({
 		//
 		window.addEventListener("keydown", handleLeave);
 		return () => window.removeEventListener("keydown", handleLeave);
-	}, [onClose, handleAddGame]);
+	}, [onClose, handleAddGame, isTopLayer]);
 
 	if (!game) return null;
 

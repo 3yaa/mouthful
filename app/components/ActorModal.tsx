@@ -241,13 +241,13 @@ export function ActorItemsModal({
 						<div className="flex items-center flex-wrap gap-2 shrink-0">
 							{(selectedActor || isPersonView) && (
 								<div
-									className={`flex items-center gap-2 transition-opacity duration-200 ${
+									className={`flex items-center gap-2 w-full sm:w-auto transition-opacity duration-200 ${
 										selectedActor
 											? "opacity-100"
 											: "opacity-0 pointer-events-none"
 									}`}
 								>
-									<div className="flex items-center gap-1 p-1 rounded-lg bg-linear-to-br from-zinc-900/80 to-zinc-950 border border-zinc-800/60 shadow-md shadow-black/40">
+									<div className="grow sm:grow-0 flex items-center gap-1 p-1 rounded-lg bg-linear-to-br from-zinc-900/80 to-zinc-950 border border-zinc-800/60 shadow-md shadow-black/40">
 										{(["all", "tv", "movie"] as const).map(
 											(f) => (
 												<button
@@ -255,7 +255,7 @@ export function ActorItemsModal({
 													onClick={() =>
 														setMediaFilter(f)
 													}
-													className={`cursor-pointer px-3 py-1 rounded-md text-[0.6875rem] uppercase tracking-[0.12em] font-semibold transition-all duration-200 ${
+													className={`grow sm:grow-0 cursor-pointer px-1.5 sm:px-3 py-1 rounded-md text-[0.625rem] sm:text-[0.6875rem] uppercase tracking-widest sm:tracking-[0.12em] font-semibold transition-all duration-200 ${
 														mediaFilter === f
 															? "bg-zinc-700/70 text-zinc-100 shadow-sm"
 															: "text-zinc-500 hover:text-zinc-300"
@@ -270,7 +270,7 @@ export function ActorItemsModal({
 											),
 										)}
 									</div>
-									<div className="flex items-center gap-1 p-1 rounded-lg bg-linear-to-br from-zinc-900/80 to-zinc-950 border border-zinc-800/60 shadow-md shadow-black/40">
+									<div className="grow sm:grow-0 flex items-center gap-1 p-1 rounded-lg bg-linear-to-br from-zinc-900/80 to-zinc-950 border border-zinc-800/60 shadow-md shadow-black/40">
 										{(
 											["popularity", "recent"] as const
 										).map((s) => (
@@ -279,7 +279,7 @@ export function ActorItemsModal({
 												onClick={() =>
 													onMovieSortChange(s)
 												}
-												className={`cursor-pointer px-3 py-1 rounded-md text-[0.6875rem] uppercase tracking-[0.12em] font-semibold transition-all duration-200 ${
+												className={`grow sm:grow-0 cursor-pointer px-1.5 sm:px-3 py-1 rounded-md text-[0.625rem] sm:text-[0.6875rem] uppercase tracking-widest sm:tracking-[0.12em] font-semibold transition-all duration-200 ${
 													movieSort === s
 														? "bg-zinc-700/70 text-zinc-100 shadow-sm"
 														: "text-zinc-500 hover:text-zinc-300"

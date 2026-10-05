@@ -232,6 +232,8 @@ export function MovieDetails({
 				posters: { items: posterUrls, index: posterIndex },
 				backdrops: { items: backdropUrls, index: backdropIndex },
 			};
+	// while previewing render new
+	const previewMovie = isSelecting ? { ...movie, ...reload.meta } : movie;
 	// actor related
 	const castPanel = useCastPanel();
 	const closeCast = castPanel.close;
@@ -507,10 +509,11 @@ export function MovieDetails({
 			onUpdate(movie.id, { cover: { ...movie.cover, color } });
 	};
 
+	// a legacy reload -- gives tmdbdID
 	const credits = () =>
 		fetchMovieCredits(
-			movie.tmdbId ?? "-1",
-			movie.imdbId,
+			previewMovie.tmdbId ?? "-1",
+			previewMovie.imdbId,
 			movie.id,
 			authFetch,
 		);
@@ -565,12 +568,11 @@ export function MovieDetails({
 	// switches modal to new movie in series
 	const handleSeriesNav = (seriesDir: "prequel" | "sequel") => {
 		// a preview steps
-		const row = isSelecting ? { ...movie, ...reload.meta } : movie;
 		const from = {
-			id: isRealTmdbId(row.tmdbId) ? row.tmdbId : null,
-			title: row.title,
+			id: isRealTmdbId(previewMovie.tmdbId) ? previewMovie.tmdbId : null,
+			title: previewMovie.title,
 		};
-		const jump = seriesJump(row, from, seriesDir);
+		const jump = seriesJump(previewMovie, from, seriesDir);
 		if (jump) showSequelPrequel?.(jump);
 	};
 
@@ -592,7 +594,9 @@ export function MovieDetails({
 		commitScoreNudge();
 		onClose();
 	};
-	useEscapeClose(() => (isSelecting ? reload.cancel() : handleModalClose()));
+	const isTopLayer = useEscapeClose(() =>
+		isSelecting ? reload.cancel() : handleModalClose(),
+	);
 
 	// AddMovie.tsx -- goes back to search with year field
 	const handleNeedYear = () => {
@@ -619,7 +623,7 @@ export function MovieDetails({
 				const activeElement = document.activeElement;
 				const isInTextarea = activeElement?.tagName === "TEXTAREA";
 				const isInInput = activeElement?.tagName === "INPUT";
-				if (!isInTextarea && !isInInput) {
+				if (!isInTextarea && !isInInput && isTopLayer()) {
 					handleAddMovie();
 				}
 			}
@@ -627,12 +631,9 @@ export function MovieDetails({
 		//
 		window.addEventListener("keydown", handleLeave);
 		return () => window.removeEventListener("keydown", handleLeave);
-	}, [onClose, handleAddMovie]);
+	}, [onClose, handleAddMovie, isTopLayer]);
 
 	if (!movie) return null;
-
-	// while previewing render new
-	const previewMovie = isSelecting ? { ...movie, ...reload.meta } : movie;
 
 	const displayLoading = isRefreshing
 		? {

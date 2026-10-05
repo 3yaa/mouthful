@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import { Portal } from "@/utils/portal";
 import { ModalBackdrop, ModalPanel } from "@/app/components/ui/ModalMotion";
+import { useEscapeClose } from "@/hooks/useEscapeClose";
 
 interface CreditNamesProps {
 	names: string[];
@@ -182,6 +183,7 @@ function CreditPicker({
 	onPick: (name: string) => void;
 	onClose: () => void;
 }) {
+	useEscapeClose(onClose);
 	return (
 		<ModalBackdrop
 			className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-30 p-4"
