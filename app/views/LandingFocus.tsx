@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion, MotionConfig } from "framer-motion";
+import { motion, MotionConfig } from "framer-motion";
 import { type LucideIcon } from "lucide-react";
 import { BaseMediaProps } from "@/types/media";
 import Image from "next/image";
@@ -24,12 +24,6 @@ const UNLIGHT_MS = 160;
 const REVEAL_STEP_MS = 55;
 const REVEAL_WAIT_MS = 1200;
 const EASE = [0.16, 1, 0.3, 1] as const;
-const GLIDE = {
-	type: "spring",
-	stiffness: 320,
-	damping: 32,
-	mass: 0.8,
-} as const;
 const CROSSFADE = { duration: 0.42, ease: EASE } as const;
 
 const STATUS_GROUP: Record<string, string> = {
@@ -82,6 +76,9 @@ export function LandingFocus({
 	onNavigate: (href: string) => void;
 }) {
 	const [active, setActive] = useState<string | null>(null);
+	// the tab under the cursor presses in at once; the panel still waits out the intent
+	const [hovered, setHovered] = useState<string | null>(null);
+	const shown = hovered ?? active;
 	// the poster under the cursor
 	const [lit, setLit] = useState<number | null>(null);
 	const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -233,11 +230,14 @@ export function LandingFocus({
 				{/* LIBARIES */}
 				<nav
 					aria-label="Libraries"
-					onMouseLeave={hold}
+					onMouseLeave={() => {
+						hold();
+						setHovered(null);
+					}}
 					className="relative grid grid-cols-5 rounded-2xl bg-[#0e0e0e] p-1.5 shadow-island"
 				>
 					{cells.map((cell, i) => {
-						const on = active === cell.key;
+						const on = shown === cell.key;
 						const total = totalOf(cell.counts);
 						const body = (
 							<>
@@ -245,28 +245,18 @@ export function LandingFocus({
 									<span
 										aria-hidden
 										className={`absolute inset-y-4 left-0 w-px bg-linear-to-b from-transparent via-zinc-700/70 to-transparent transition-opacity duration-300 ${
-											on || active === cells[i - 1].key
+											on || shown === cells[i - 1].key
 												? "opacity-0"
 												: "opacity-100"
 										}`}
 									/>
 								)}
-								<AnimatePresence>
-									{on && (
-										<motion.span
-											layoutId="landing-tab"
-											aria-hidden
-											className="absolute inset-0 -z-10 rounded-xl bg-[radial-gradient(ellipse_75%_130%_at_50%_0%,rgba(255,255,255,0.1),transparent_72%)]"
-											initial={{ opacity: 0 }}
-											animate={{ opacity: 1 }}
-											exit={{ opacity: 0 }}
-											transition={{
-												layout: GLIDE,
-												opacity: { duration: 0.2 },
-											}}
-										/>
-									)}
-								</AnimatePresence>
+								<span
+									aria-hidden
+									className={`absolute inset-0 -z-10 rounded-xl neu-carved-in transition-opacity duration-150 ease-out ${
+										on ? "opacity-100" : "opacity-0"
+									}`}
+								/>
 								<cell.icon
 									className={`h-4.5 w-4.5 shrink-0 transition-colors duration-200 ${
 										on ? "text-zinc-300" : "text-zinc-600"
@@ -327,7 +317,10 @@ export function LandingFocus({
 								key={cell.key}
 								href={cell.href}
 								onNavigate={() => onNavigate(cell.href)}
-								onMouseEnter={() => aim(cell.key, INTENT_MS)}
+								onMouseEnter={() => {
+									setHovered(cell.key);
+									aim(cell.key, INTENT_MS);
+								}}
 								onFocus={() => aim(cell.key, 0)}
 								className={shape}
 							>
