@@ -1,4 +1,4 @@
-import React, { ReactNode } from "react";
+import React, { CSSProperties, ReactNode } from "react";
 import Image from "next/image";
 import { isResizable } from "@/utils/image-loader";
 import {
@@ -29,13 +29,13 @@ import {
 	MangaProgressBarDesktop,
 	MangaProgressCount,
 } from "@/app/manga/components/mangaProgressListing";
-import { slotPoster } from "@/app/shows/utils/slotRef";
 import { ShowProps } from "@/types/show";
 import { BookProps } from "@/types/book";
 import { MangaProps } from "@/types/manga";
 import { MovieProps } from "@/types/movie";
 import { Leaf } from "lucide-react";
 import { useLogoPrime } from "../mediaDetails/shared/useLogoPrime";
+import { rowCoverSrc, useRowLight } from "./useRowLight";
 
 // for the wave under item
 function seededRand(seed: string | number, salt = 0): number {
@@ -86,11 +86,8 @@ export const DesktopItem = React.memo(function DesktopItem<
 	const isPrint = isPrintMedia(mediaType);
 	const printItem = item as unknown as BookProps | MangaProps;
 	const movieItem = item as unknown as MovieProps;
-	const showItem = item as unknown as ShowProps;
-	// franchise or season poster
-	const coverSrc =
-		item.cover?.url ??
-		(mediaType === "show" ? slotPoster(showItem) : item.posterUrl);
+	const coverSrc = rowCoverSrc(item, mediaType);
+	const light = useRowLight(item, mediaType);
 
 	// fetch logo on hover
 	const prime = useLogoPrime(item.logoUrl);
@@ -99,15 +96,10 @@ export const DesktopItem = React.memo(function DesktopItem<
 	return (
 		<div
 			data-open={isOpen ? "" : undefined}
-			className={`relative group max-w-[99%] mx-auto grid md:grid-cols-[auto_1fr_1.2fr_0.3fr] gap-3 px-1.5 pt-0.5 items-center
-		bg-zinc-900/65 hover:bg-zinc-800/80
-			shadow-sm hover:shadow-lg hover:shadow-black/40
+			style={{ "--cover": light } as CSSProperties}
+			className={`listing-row relative group max-w-[99%] mx-auto grid md:grid-cols-[auto_1fr_1.2fr_0.3fr] gap-3 px-1.5 pt-0.5 items-center
 			border-l-4 ${getStatusBorderColor(item.status)}
-			border-b border-b-zinc-700/20
 			rounded-lg overflow-hidden
-			backdrop-blur-sm
-			transition-[background-color,box-shadow]
-			duration-300 ease-out
 			hover:cursor-pointer
 			${index === 0 ? "" : "my-0.5"}
 		`}

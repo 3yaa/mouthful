@@ -1,7 +1,7 @@
 "use client";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { motion } from "framer-motion";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type { ListSubset } from "@/types/media";
 import { useReportListingBar } from "@/app/components/RouteFlash";
 import { pluralOf } from "@/utils/formattingUtils";
@@ -16,6 +16,7 @@ export function ListingHeader({
 	onSortConfig,
 	badge,
 	subset,
+	tint,
 }: {
 	mediaType: string;
 	count?: number;
@@ -24,6 +25,8 @@ export function ListingHeader({
 	onSortConfig?: (sortKey: string) => void;
 	badge?: ReactNode;
 	subset?: ListSubset;
+	// the cover colour of the row passing under
+	tint?: string;
 }) {
 	// tells the route cover it can come off
 	useReportListingBar();
@@ -43,7 +46,10 @@ export function ListingHeader({
 
 	return (
 		<div className="sticky top-0 z-10 w-full">
-			<div className="relative max-w-full mx-auto flex items-center gap-4 px-4 py-2 bg-zinc-900/75 backdrop-blur-xl border-x border-b border-zinc-800/50 rounded-b-lg select-none">
+			<div
+				style={{ "--cover": tint } as CSSProperties}
+				className="listing-head relative max-w-full mx-auto flex items-center gap-4 px-4 py-2 border-x border-b border-white/5 rounded-b-lg select-none"
+			>
 				{badge}
 				{/* media type + count */}
 				{subset ? (

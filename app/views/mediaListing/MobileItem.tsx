@@ -22,7 +22,6 @@ import { calcCurProgress } from "@/app/shows/utils/progressCalc";
 import {
 	episodeCountOf,
 	slotIndexOf,
-	slotPoster,
 	timelineOf,
 	FIRST_SLOT,
 } from "@/app/shows/utils/slotRef";
@@ -34,6 +33,7 @@ import { MovieProps } from "@/types/movie";
 import { Leaf } from "lucide-react";
 import { getDisplayScore } from "@/lib/tierConfig";
 import { useLogoPrime } from "../mediaDetails/shared/useLogoPrime";
+import { rowCoverSrc } from "./useRowLight";
 
 interface MobileItemProps<T extends BaseMediaProps> {
 	item: T;
@@ -81,10 +81,7 @@ export const MobileItem = React.memo(function MobileItem<
 				})();
 
 	const show = item as unknown as ShowProps;
-	// franchise vs season poster
-	const coverSrc =
-		item.cover?.url ??
-		(mediaType === "show" ? slotPoster(show) : item.posterUrl);
+	const coverSrc = rowCoverSrc(item, mediaType);
 
 	// rating stand in until completed date
 	const externalRating =

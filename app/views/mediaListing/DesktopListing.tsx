@@ -14,6 +14,7 @@ import { useFlash } from "@/app/components/RouteFlash";
 import { LISTING_COLUMN, ListingLoader } from "./ListingSkeleton";
 import { pluralOf, statusLabel } from "@/utils/formattingUtils";
 import { useDesktopView } from "@/hooks/useMediaQuery";
+import { useRowLight } from "./useRowLight";
 
 // default row size before measurement
 const ROW_FALLBACK = 127;
@@ -121,6 +122,32 @@ export function DesktopListing<T extends BaseMediaProps>({
 		[],
 	);
 	onScreen.current = virtualizer.getVirtualItems();
+
+	const [topIndex, setTopIndex] = useState(0);
+	const headerTint = useRowLight(mediaItems[topIndex], mediaType, showing);
+	useEffect(() => {
+		const scroller = parentRef.current;
+		if (!scroller) return;
+		let frame = 0;
+		const read = () => {
+			frame = 0;
+			const header = scroller.querySelector(".listing-head");
+			const edge =
+				scroller.scrollTop +
+				(header?.getBoundingClientRect().height ?? 0);
+			const hit = onScreen.current.find((v) => v.start + v.size > edge);
+			setTopIndex(hit ? hit.index : 0);
+		};
+		const onScroll = () => {
+			if (!frame) frame = requestAnimationFrame(read);
+		};
+		read();
+		scroller.addEventListener("scroll", onScroll, { passive: true });
+		return () => {
+			scroller.removeEventListener("scroll", onScroll);
+			cancelAnimationFrame(frame);
+		};
+	}, [isProcessing, mediaItems.length]);
 
 	//
 	const [hoverOn, setHoverOn] = useState(true);
@@ -393,6 +420,7 @@ export function DesktopListing<T extends BaseMediaProps>({
 					sortConfig={sortConfig}
 					onSortConfig={onSortConfig}
 					subset={subset}
+					tint={isProcessing ? undefined : headerTint}
 					badge={
 						(mediaType === "show" || mediaType === "movie") && (
 							<BadgeLink
