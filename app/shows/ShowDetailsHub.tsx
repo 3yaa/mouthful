@@ -1301,6 +1301,7 @@ export function ShowDetails({
 						editingMode={editingMode}
 						inputValues={inputValues}
 						ratingsDocked={isWideCard && ratingsOpen}
+						chainDocked={isWideCard && chainOpen && hasChain}
 						seriesInfo={seriesInfo}
 						sidePanel={
 							<AnimatePresence>

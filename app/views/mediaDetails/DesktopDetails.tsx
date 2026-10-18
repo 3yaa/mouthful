@@ -109,7 +109,8 @@ import {
 } from "@/app/components/ui/ConfirmButton";
 
 // action button thang
-const ACTION_ROW = "absolute right-3 top-3 flex items-center z-10";
+const ACTION_STRIP =
+	"group/actions pointer-events-none absolute -top-0.5 left-[3%] -right-2 z-10 flex items-center";
 //
 const POSTER_SPEC = { width: 248, sizes: "(min-width: 2200px) 500px, 250px" };
 const BACKDROP_SPEC = { width: 780, sizes: "40vw" };
@@ -158,6 +159,7 @@ interface DesktopDetailsProps<T extends BaseMediaProps> {
 	noteSubject?: string;
 	sidePanel?: ReactNode;
 	ratingsDocked?: boolean;
+	chainDocked?: boolean;
 	franchiseView?: boolean;
 	viewedComplete?: boolean;
 	editingMode?: { season: boolean; episode: boolean };
@@ -181,6 +183,7 @@ export function DesktopDetails<T extends BaseMediaProps>({
 	isInList,
 	isBrowsing,
 	ratingsDocked,
+	chainDocked,
 	seriesInfo,
 	viewedComplete,
 	onAction,
@@ -277,23 +280,31 @@ export function DesktopDetails<T extends BaseMediaProps>({
 	const canCyclePoster = isPicking && posterCount > 1 && franchisePoster;
 
 	const hasOrder = isAnimeShow && timelineOf(showRow).length > 0;
-	const posterOpens = canCyclePoster
-		? null
-		: hasOrder
-			? "openChain"
-			: mediaType === "show" && !isPicking
-				? "openRatings"
-				: null;
-	//
-	const chainBtn =
-		hasOrder && isPicking ? (
+	const posterTarget = hasOrder
+		? "openChain"
+		: mediaType === "show"
+			? "openRatings"
+			: null;
+	const posterOpens = canCyclePoster ? null : posterTarget;
+	const posterStandIn = !canCyclePoster ? null : hasOrder ? (
+		<ActionBtn
+			icon={ListTree}
+			tone="white"
+			on={chainDocked}
+			onClick={() => onAction({ type: "openChain" })}
+			title="Watch order"
+		/>
+	) : mediaType === "show" && !isAnimeShow ? (
+		<span data-ratings-toggle className="contents">
 			<ActionBtn
-				icon={ListTree}
+				icon={BarChart2}
 				tone="white"
-				onClick={() => onAction({ type: "openChain" })}
-				title="Watch order"
+				on={ratingsDocked}
+				onClick={() => onAction({ type: "openRatings" })}
+				title="Episode ratings"
 			/>
-		) : null;
+		</span>
+	) : null;
 	// season title
 	const slotTitle =
 		mediaType === "show" ? (slotOf(showRow)?.title ?? null) : null;
@@ -419,16 +430,16 @@ export function DesktopDetails<T extends BaseMediaProps>({
 	) : null;
 
 	// POSTER SOURCE
-	const posterSourceToggle = (ghost = false) => {
+	const posterSourceToggle = (compact = false) => {
 		if (!hasSlotArt) return null;
 		const icon = franchisePoster ? ImageIcon : Images;
 		const title = franchisePoster
 			? "Showing the show's poster -- use the part's"
 			: "Showing the part's poster -- use the show's";
 		const pick = () => onAction({ type: "togglePosterSource" });
-		return ghost ? (
+		return compact ? (
 			<ActionBtn
-				variant="ghost"
+				variant="compact"
 				icon={icon}
 				tone="blue"
 				onClick={pick}
@@ -443,7 +454,7 @@ export function DesktopDetails<T extends BaseMediaProps>({
 	const franchiseToggle =
 		franchiseView === undefined ? null : (
 			<ActionBtn
-				variant="ghost"
+				variant="compact"
 				icon={franchiseView ? Boxes : Box}
 				tone="purple"
 				onClick={() => onAction({ type: "toggleFranchiseView" })}
@@ -465,6 +476,165 @@ export function DesktopDetails<T extends BaseMediaProps>({
 			<List className="w-5 h-5" />
 		</button>
 	) : null;
+
+	// ADD/RELOAD ACTIONS
+	const pickActions = isSelecting ? (
+		<>
+			{/* TIME */}
+			{timeField}
+			{seriesNav}
+			{/* CYCLE LOGOS | TEXT TITLE */}
+			{logoPicker}
+			{/* COVER COLORS */}
+			{colorPicker}
+			{pagePicker}
+			{/* POSTER SOURCE */}
+			{posterSourceToggle()}
+			{moreResults}
+			{/* CONFIRM REFRESH */}
+			<ActionBtn
+				icon={Check}
+				tone="green"
+				wide
+				onClick={() => onAction({ type: "confirmRefresh" })}
+				title="Apply"
+			/>
+			{/* CANCEL REFRESH */}
+			<ActionBtn
+				icon={X}
+				tone="red"
+				onClick={() => onAction({ type: "cancelRefresh" })}
+				title="Cancel"
+			/>
+		</>
+	) : (
+		<>
+			{/* TIME */}
+			{timeField}
+			{/* CYCLE LOGOS | TEXT TITLE */}
+			{logoPicker}
+			{/* COVER COLORS */}
+			{colorPicker}
+			{pagePicker}
+			{/* POSTER SOURCE */}
+			{posterSourceToggle()}
+			{seriesNav}
+			{/* ADD */}
+			<ActionBtn
+				icon={Plus}
+				tone="green"
+				wide
+				onClick={onAdd}
+				busy={isSubmitting}
+				title={"Add " + mediaType}
+			/>
+			{/* NEED YEAR */}
+			{!isPrint && (
+				<ActionBtn
+					icon={ChevronsUp}
+					tone="white"
+					onClick={() => onAction({ type: "needYearField" })}
+					title="Search with year"
+				/>
+			)}
+			{moreResults}
+			{/* CLOSE */}
+			<ActionBtn
+				icon={X}
+				tone="red"
+				onClick={() => onAction({ type: "closeModal" })}
+				title="Close"
+			/>
+		</>
+	);
+	// VIEWING ACTIONS
+	const viewActions = (
+		<>
+			{/* RELOAD METADATA FROM SOURCE */}
+			{canRefresh && (
+				<ActionBtn
+					variant="compact"
+					icon={RefreshCw}
+					tone="emerald"
+					onClick={() => onAction({ type: "refresh" })}
+					title="Reload cover / series info"
+				/>
+			)}
+			{/* RESET SCORE */}
+			{item.score && (
+				<ActionBtn
+					variant="compact"
+					icon={RotateCcw}
+					tone="blue"
+					onClick={() =>
+						setPending({
+							action: "resetScore",
+							title: franchiseView
+								? "Reset all scores?"
+								: "Reset score?",
+							confirmLabel: "Reset",
+							tone: "blue",
+							icon: RotateCcw,
+						})
+					}
+					title={franchiseView ? "Reset all scores" : "Reset score"}
+				/>
+			)}
+			{/* DELETE SERIES METADATA */}
+			{hasSeries(series) && mediaType !== "game" && (
+				<ActionBtn
+					variant="compact"
+					icon={Unlink}
+					tone="orange"
+					onClick={() =>
+						setPending({
+							action: "clearSeriesMeta",
+							title: "Clear series info?",
+							confirmLabel: "Clear",
+							tone: "orange",
+							icon: Unlink,
+						})
+					}
+					title="Clear series metadata"
+				/>
+			)}
+			{/* DELETE ITEM */}
+			<ActionBtn
+				variant="compact"
+				icon={Trash2}
+				tone="red"
+				onClick={() =>
+					setPending({
+						action: "delete",
+						title: `Delete this ${mediaType}?`,
+						confirmLabel: "Delete",
+						tone: "red",
+						icon: Trash2,
+					})
+				}
+				title={"Delete " + mediaType}
+			/>
+		</>
+	);
+	// WHOSE POSTER | WHOSE SCORE AND NOTE
+	const sideActions =
+		hasSlotArt || franchiseView !== undefined ? (
+			<>
+				{posterSourceToggle(true)}
+				{franchiseToggle}
+			</>
+		) : null;
+	// left and right of the action line
+	const leadActions = isPicking ? posterStandIn : sideActions;
+	const trailActions = isPicking ? pickActions : viewActions;
+	// unseen until the pointer reaches either group, then every button shows
+	const actionGroup = `pointer-events-auto flex items-center transition-opacity duration-150 ${
+		isPicking ? "gap-2" : "gap-1"
+	} ${
+		isSubmitting
+			? ""
+			: "opacity-0 group-hover/actions:opacity-100 group-has-[:focus-visible]/actions:opacity-100 group-has-[[aria-expanded=true]]/actions:opacity-100"
+	}`;
 
 	// cover color
 	const coverSrc = item.cover?.url ?? item.posterUrl;
@@ -609,7 +779,7 @@ export function DesktopDetails<T extends BaseMediaProps>({
 		>
 			{/* LEFT -- AUTHOR */}
 			<span className="flex items-center gap-1.5 min-w-0">
-				{mediaType === "show" && (isAnimeShow || isPicking) && (
+				{isAnimeShow && (
 					<button
 						data-ratings-toggle
 						onClick={() => onAction({ type: "openRatings" })}
@@ -775,165 +945,6 @@ export function DesktopDetails<T extends BaseMediaProps>({
 						<div
 							className={`px-5 py-3.5 border-0 rounded-2xl overflow-hidden`}
 						>
-							{/* ACTION BUTTONS */}
-							{isSelecting ? (
-								<div className={`${ACTION_ROW} gap-2`}>
-									{/* TIME */}
-									{timeField}
-									{/* EPISODE RATINGS */}
-									{chainBtn}
-									{seriesNav}
-									{/* CYCLE LOGOS | TEXT TITLE */}
-									{logoPicker}
-									{/* COVER COLORS */}
-									{colorPicker}
-									{pagePicker}
-									{/* POSTER SOURCE */}
-									{posterSourceToggle()}
-									{moreResults}
-									{/* CONFIRM REFRESH */}
-									<ActionBtn
-										icon={Check}
-										tone="green"
-										wide
-										onClick={() =>
-											onAction({ type: "confirmRefresh" })
-										}
-										title="Apply"
-									/>
-									{/* CANCEL REFRESH */}
-									<ActionBtn
-										icon={X}
-										tone="red"
-										onClick={() =>
-											onAction({ type: "cancelRefresh" })
-										}
-										title="Cancel"
-									/>
-								</div>
-							) : isAdding ? (
-								<div className={`${ACTION_ROW} gap-2`}>
-									{/* TIME */}
-									{timeField}
-									{/* EPISODE RATINGS */}
-									{chainBtn}
-									{/* CYCLE LOGOS | TEXT TITLE */}
-									{logoPicker}
-									{/* COVER COLORS */}
-									{colorPicker}
-									{pagePicker}
-									{/* POSTER SOURCE */}
-									{posterSourceToggle()}
-									{seriesNav}
-									{/* ADD */}
-									<ActionBtn
-										icon={Plus}
-										tone="green"
-										wide
-										onClick={onAdd}
-										busy={isSubmitting}
-										title={"Add " + mediaType}
-									/>
-									{/* NEED YEAR */}
-									{!isPrint && (
-										<ActionBtn
-											icon={ChevronsUp}
-											tone="white"
-											onClick={() =>
-												onAction({
-													type: "needYearField",
-												})
-											}
-											title="Search with year"
-										/>
-									)}
-									{moreResults}
-									{/* CLOSE */}
-									<ActionBtn
-										icon={X}
-										tone="red"
-										onClick={() =>
-											onAction({ type: "closeModal" })
-										}
-										title="Close"
-									/>
-								</div>
-							) : (
-								<div className={`${ACTION_ROW} gap-1`}>
-									{/* RELOAD METADATA FROM SOURCE */}
-									{canRefresh && (
-										<ActionBtn
-											variant="ghost"
-											icon={RefreshCw}
-											tone="emerald"
-											onClick={() =>
-												onAction({ type: "refresh" })
-											}
-											title="Reload cover / series info"
-										/>
-									)}
-									{/* RESET SCORE */}
-									{item.score && (
-										<ActionBtn
-											variant="ghost"
-											icon={RotateCcw}
-											tone="blue"
-											onClick={() =>
-												setPending({
-													action: "resetScore",
-													title: franchiseView
-														? "Reset all scores?"
-														: "Reset score?",
-													confirmLabel: "Reset",
-													tone: "blue",
-													icon: RotateCcw,
-												})
-											}
-											title={
-												franchiseView
-													? "Reset all scores"
-													: "Reset score"
-											}
-										/>
-									)}
-									{/* DELETE SERIES METADATA */}
-									{hasSeries(series) &&
-										mediaType !== "game" && (
-											<ActionBtn
-												variant="ghost"
-												icon={Unlink}
-												tone="orange"
-												onClick={() =>
-													setPending({
-														action: "clearSeriesMeta",
-														title: "Clear series info?",
-														confirmLabel: "Clear",
-														tone: "orange",
-														icon: Unlink,
-													})
-												}
-												title="Clear series metadata"
-											/>
-										)}
-									{/* DELETE ITEM */}
-									<ActionBtn
-										variant="ghost"
-										icon={Trash2}
-										tone="red"
-										onClick={() =>
-											setPending({
-												action: "delete",
-												title: `Delete this ${mediaType}?`,
-												confirmLabel: "Delete",
-												tone: "red",
-												icon: Trash2,
-											})
-										}
-										title={"Delete " + mediaType}
-									/>
-								</div>
-							)}
-
 							<div className="flex gap-6">
 								{/* LEFT SIDE -- PIC */}
 								<div
@@ -1025,15 +1036,19 @@ export function DesktopDetails<T extends BaseMediaProps>({
 
 								{/* RIGHT SIDE -- DETAILS */}
 								<div className="flex flex-col flex-1 min-h-93 min-w-62 relative">
-									{/* WHOSE POSTER | WHOSE SCORE AND NOTE */}
-									{!isPicking &&
-										(hasSlotArt ||
-											franchiseView !== undefined) && (
-											<div className="absolute -top-0.5 left-[3%] z-10 flex items-center gap-1">
-												{posterSourceToggle(true)}
-												{franchiseToggle}
+									{/* ACTION BUTTONS */}
+									<div className={ACTION_STRIP}>
+										{leadActions && (
+											<div className={actionGroup}>
+												{leadActions}
 											</div>
 										)}
+										<div
+											className={`${actionGroup} ml-auto`}
+										>
+											{trailActions}
+										</div>
+									</div>
 									{/* BACKDROP */}
 									{isPrint ? (
 										mediaType === "manga" && activeCover ? (

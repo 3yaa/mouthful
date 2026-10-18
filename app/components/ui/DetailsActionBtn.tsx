@@ -21,7 +21,7 @@ export const glassBtn = ({
 			: `bg-black/35 text-white/60 hover:bg-black/55 ${GLASS_TONE[tone]}`
 	}`;
 
-const GHOST_TONE = {
+const COMPACT_TONE = {
 	emerald: "hover:text-emerald-400",
 	blue: "hover:text-blue-400",
 	orange: "hover:text-orange-400",
@@ -33,15 +33,18 @@ type GlassProps = {
 	variant?: "glass";
 	tone: keyof typeof GLASS_TONE;
 	wide?: boolean;
+	// a toggle whose panel is open
+	on?: boolean;
 };
 
-type GhostProps = {
-	variant: "ghost";
-	tone: keyof typeof GHOST_TONE;
+type CompactProps = {
+	variant: "compact";
+	tone: keyof typeof COMPACT_TONE;
 	wide?: never;
+	on?: never;
 };
 
-type ActionBtnProps = (GlassProps | GhostProps) & {
+type ActionBtnProps = (GlassProps | CompactProps) & {
 	icon: LucideIcon;
 	onClick: () => void;
 	title: string;
@@ -55,17 +58,16 @@ export function ActionBtn({
 	busy = false,
 	...rest
 }: ActionBtnProps) {
-	const ghost = rest.variant === "ghost";
-	const size = ghost ? "w-4 h-4" : "w-5 h-5";
-	const shape = ghost
-		? // unseen until hovered
-			`rounded-full p-1.5 text-transparent transition-[color,background-color,box-shadow] duration-200 hover:bg-black/55 hover:shadow-[0_2px_8px_rgba(0,0,0,0.4)] hover:backdrop-blur-sm ${GHOST_TONE[rest.tone]} ${
+	const compact = rest.variant === "compact";
+	const size = compact ? "w-4 h-4" : "w-5 h-5";
+	const shape = compact
+		? `${GLASS} p-1.5 bg-black/35 text-white/60 hover:bg-black/55 ${COMPACT_TONE[rest.tone]} ${
 				busy ? "cursor-default" : "hover:cursor-pointer"
 			}`
 		: `${rest.wide ? "py-1.5 px-5" : "p-1.5"} ${
 				busy
 					? `${GLASS} cursor-default bg-black/35 text-white/80`
-					: glassBtn({ tone: rest.tone })
+					: glassBtn({ tone: rest.tone, on: rest.on })
 			}`;
 	return (
 		<button

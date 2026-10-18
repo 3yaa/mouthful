@@ -107,6 +107,7 @@ export function CoverColorPicker({
 		<div className="relative" onClick={(e) => e.stopPropagation()}>
 			<button
 				onClick={toggle}
+				aria-expanded={open}
 				onPointerEnter={warm}
 				title="Cover colors"
 				className={
