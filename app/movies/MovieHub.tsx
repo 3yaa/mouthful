@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useMemo, useState } from "react";
 import { MovieProps } from "@/types/movie";
-import { isRealTmdbId, isSameName } from "@/utils/mediaMatch";
+import { isSameName } from "@/utils/mediaMatch";
 import { SeriesJumpProps, SeriesTargetProps } from "@/types/media";
 import { backfillRuns } from "@/utils/seriesRead";
 import { DIFF_COLUMNS_MOVIE } from "@/types/movie";
@@ -72,6 +72,7 @@ export default function MoviesHub() {
 		handleSearchQueryChange,
 		handleItemUpdates,
 		handleItemRefresh,
+		refreshItem,
 		battle,
 		handleScoreFinal,
 		closeBattle,
@@ -93,13 +94,6 @@ export default function MoviesHub() {
 		filteredItems,
 		sortConfig,
 		DIFF_COLUMNS_MOVIE,
-	);
-
-	const handleBackfillTmdbId = useCallback(
-		(movieId: number, tmdbId: string) => {
-			refresh(movieId, { tmdbId } as Partial<MovieProps>, true);
-		},
-		[refresh],
 	);
 
 	const [chainShowTitle, setChainShowTitle] = useState<string | null>(null);
@@ -125,12 +119,8 @@ export default function MoviesHub() {
 
 	const findOwned = useCallback(
 		(target: SeriesTargetProps) =>
-			isRealTmdbId(target.id ?? undefined)
-				? items.find(
-						(movie) =>
-							isRealTmdbId(movie.tmdbId) &&
-							movie.tmdbId === target.id,
-					)
+			target.id
+				? items.find((movie) => movie.tmdbId === target.id)
 				: items.find((movie) => isSameName(movie, target.title)),
 		[items],
 	);
@@ -209,6 +199,8 @@ export default function MoviesHub() {
 						key="add"
 						isOpen={activeModal === "addModal"}
 						onClose={handleModalClose}
+						onMovieRefresh={refreshItem}
+						onShowRefresh={shows.handleRefresh}
 						existingMovies={items}
 						onAddWork={handleWorkAdd}
 						existingShows={shows.items}
@@ -247,9 +239,10 @@ export default function MoviesHub() {
 						key="details"
 						movie={selectedItem}
 						onClose={handleModalClose}
+						onMovieRefresh={refreshItem}
+						onShowRefresh={shows.handleRefresh}
 						onUpdate={handleItemUpdates}
 						onRefresh={handleItemRefresh}
-						onBackfillTmdbId={handleBackfillTmdbId}
 						showSequelPrequel={showSequelPrequel}
 						isInList={isInList}
 						existingMovies={items}
@@ -289,6 +282,9 @@ export default function MoviesHub() {
 						key="chain-show-details"
 						show={chainShow}
 						onClose={() => setChainShowId(null)}
+						onRefresh={(meta) => shows.handleRefresh(chainShow.id, meta)}
+						onShowRefresh={shows.handleRefresh}
+						onMovieRefresh={refreshItem}
 						onUpdate={shows.handleUpdates}
 						onUpdatePart={handleShowPart}
 						existingShows={shows.items}

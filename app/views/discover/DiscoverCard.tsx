@@ -117,6 +117,28 @@ export function DiscoverCard({
 	);
 }
 
+// a card's shape before its page lands
+export function DiscoverCardSkeleton({ index }: { index: number }) {
+	// a diagonal ripple -- column plus row
+	const delay = ((index % 6) + Math.floor(index / 6)) * 0.07;
+	return (
+		<div
+			className="discover-shimmer rounded-lg overflow-hidden bg-zinc-950 border border-zinc-800/50 shadow-md shadow-black/40"
+			style={{ "--shimmer-delay": `${delay}s` } as CSSProperties}
+		>
+			<div className="aspect-2/3 bg-zinc-900/70" />
+			<div className="-mt-px bg-zinc-950 px-2.5 py-2.5 grid grid-cols-[auto_1fr_auto] gap-x-1.5 items-center text-[0.8125rem]">
+				<span className="h-2.5 w-10 rounded-sm bg-zinc-800/70" />
+				<span className="h-2.5 w-8 justify-self-center rounded-sm bg-zinc-800/50" />
+				<span className="flex items-center">
+					<span className="invisible w-0">0</span>
+					<span className="h-2.5 w-7 rounded-sm bg-zinc-800/70" />
+				</span>
+			</div>
+		</div>
+	);
+}
+
 // the long label while the cell holds it, else the short one
 export function FitLabel({ full, short }: { full: string; short: string }) {
 	const cellRef = useRef<HTMLSpanElement>(null);
@@ -152,13 +174,20 @@ export function FitLabel({ full, short }: { full: string; short: string }) {
 
 export function CornerChip({ children }: { children: ReactNode }) {
 	return (
-		<div className="grid h-5 min-w-5 px-1.5 place-items-center rounded-md bg-zinc-900/80 backdrop-blur-sm border border-zinc-700/60 text-[0.625rem] font-bold uppercase tracking-[0.08em] text-zinc-300">
+		<div className="grid h-5 min-w-5 max-w-full grid-cols-[minmax(0,auto)] px-1.5 items-center text-center rounded-md bg-zinc-900/80 backdrop-blur-sm border border-zinc-700/60 text-[0.625rem] font-bold uppercase tracking-[0.08em] text-zinc-300">
 			{children}
 		</div>
 	);
 }
 
-export function ScoreLeaf({ score }: { score: number | null }) {
+// blue = no score yet, red = imdb has no entry to score
+export function ScoreLeaf({
+	score,
+	unlisted = false,
+}: {
+	score: number | null;
+	unlisted?: boolean;
+}) {
 	return score != null ? (
 		<span className="flex items-center gap-1">
 			<Leaf
@@ -171,7 +200,12 @@ export function ScoreLeaf({ score }: { score: number | null }) {
 		</span>
 	) : (
 		<Leaf
-			className="w-3 h-3 text-blue-400/75 fill-blue-400/15"
+			aria-label={unlisted ? "Not on IMDb" : "No rating yet"}
+			className={`w-3 h-3 ${
+				unlisted
+					? "text-red-400/75 fill-red-400/15"
+					: "text-blue-400/75 fill-blue-400/15"
+			}`}
 			strokeWidth={1.75}
 		/>
 	);

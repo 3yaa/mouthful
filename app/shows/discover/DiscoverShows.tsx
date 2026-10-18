@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { Tv } from "lucide-react";
 import {
 	AnimeDiscoverCard,
 	useMinuteClock,
@@ -8,8 +9,13 @@ import {
 	DiscoverFrame,
 	Segmented,
 	SubTabs,
+	type DiscoverSort,
 } from "@/app/views/discover/DiscoverFrame";
 import { useDiscoverLists } from "@/app/views/discover/useDiscoverLists";
+import {
+	tmdbDroppedGroups,
+	type DroppedGroup,
+} from "@/app/views/discover/DroppedList";
 import {
 	DRAMA_PICKS,
 	MonthlyShowCard,
@@ -33,11 +39,41 @@ export function DiscoverShows() {
 	const [isAnime, setIsAnime] = useState(false);
 	const [animeTab, setAnimeTab] = useState<AnimeTabCode>("new");
 	const [dramaPick, setDramaPick] = useState<DramaPick>("all");
-	const monthly = useMonthlyShows(origin, dramaPick, !isAnime);
+	const [sort, setSort] = useState<DiscoverSort>("popular");
+	const monthly = useMonthlyShows(origin, dramaPick, !isAnime, sort);
 	const showsDrama = !isAnime && origin === "drama";
-	const seasonal = useSeasonalAnime(animeTab, isAnime);
+	const seasonal = useSeasonalAnime(animeTab, isAnime, sort);
 	const now = useMinuteClock(isAnime);
 	const lists = useDiscoverLists();
+
+	// anilist has no vote counts -- only whether a work is scored yet
+	const dropped: DroppedGroup[] | undefined =
+		sort !== "rated"
+			? undefined
+			: isAnime
+				? [
+						{
+							label: "No score yet",
+							icon: Tv,
+							rows: seasonal.dropped.map((anime) => ({
+								key: String(anime.anilistId),
+								title: anime.title,
+								posterUrl: anime.posterUrl,
+								score: null,
+								status: lists.ownedOfAnime(anime)?.status,
+								onClick: () => lists.openAnime(anime),
+							})),
+						},
+					]
+				: tmdbDroppedGroups(
+						monthly.dropped,
+						monthly.minVotes,
+						Tv,
+						(show) => ({
+							status: lists.showOfTmdb(show.tmdbId)?.status,
+							onClick: () => lists.openShowCard(show),
+						}),
+					);
 
 	const pickTab = (code: TabCode) => {
 		if (code === "anime") return setIsAnime(true);
@@ -54,7 +90,19 @@ export function DiscoverShows() {
 				to: "movie",
 			}}
 			feed={isAnime ? seasonal : monthly}
-			emptyText={isAnime ? "No anime found." : "No shows found."}
+			sort={{ value: sort, onChange: setSort }}
+			dropped={dropped}
+			emptyText={
+				sort === "rated"
+					? isAnime
+						? "Nothing scored yet."
+						: monthly.minVotes
+							? `Nothing with ${monthly.minVotes}+ votes yet.`
+							: "Nothing rated yet."
+					: isAnime
+						? "No anime found."
+						: "No shows found."
+			}
 			controls={
 				<>
 					<SubTabs

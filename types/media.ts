@@ -84,3 +84,14 @@ export interface BaseMediaProps {
 	// movie/show/game
 	logoUrl?: string | null;
 }
+
+// a title a rated discover page left out -- too few votes, or none
+export interface DroppedTitle {
+	tmdbId: string;
+	// null means imdb has no entry, missing means the lookup failed
+	imdbId?: string | null;
+	title: string;
+	poster_url: string | null;
+	imdbRating: number | null;
+	votes: number | null;
+}

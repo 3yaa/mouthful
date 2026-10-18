@@ -13,8 +13,6 @@ export function useMovieSearch() {
 	const searchForMovie = async (
 		title: string,
 		year?: number | undefined,
-		// legacy no tmdb id  -- skips the duplicate
-		isReload?: boolean,
 		movieOnly?: boolean,
 		// the id a series jump is aiming at
 		knownTmdbId?: string,
@@ -34,7 +32,6 @@ export function useMovieSearch() {
 			// make call
 			const params = new URLSearchParams({ title });
 			if (year) params.set("year", String(year));
-			if (isReload) params.set("reload", "1");
 			if (movieOnly) params.set("movieOnly", "1");
 			if (knownTmdbId) params.set("tmdbId", knownTmdbId);
 			const url = `/api/movies-api/tmdb?${params}`;

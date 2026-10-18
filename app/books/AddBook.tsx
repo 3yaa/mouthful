@@ -28,6 +28,7 @@ import { AnimatePresence } from "framer-motion";
 import { useBookSearch } from "@/hooks/external/useBookSearch";
 import { findOnlyNamed } from "@/utils/mediaMatch";
 import { useEscapeClose } from "@/hooks/useEscapeClose";
+import { useLatch } from "@/hooks/useLatch";
 
 interface AddBookProps {
 	isOpen: boolean;
@@ -262,6 +263,11 @@ export function AddBook({
 	}, [targetFromAbove?.id, targetFromAbove?.title]);
 
 	useEscapeClose(onClose);
+	//
+	const searchShown = useLatch(
+		!!failedReason,
+		`${isOpen}|${targetFromAbove?.id}|${targetFromAbove?.title}`,
+	);
 
 	if (!isOpen) return null;
 
@@ -269,10 +275,11 @@ export function AddBook({
 		<ModalBackdrop className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-30">
 			{/* maybe not allow user to close modal as new book coming? */}
 			<div className="fixed inset-0" onClick={onClose} />
-			{!targetFromAbove || !!failedReason ? (
+			{!targetFromAbove || searchShown ? (
 				<SearchCard icon={Book} label="Search for New Book">
 					<SearchFields
 						titleRef={titleToSearch}
+						defaultTitle={targetFromAbove?.title}
 						placeholder="Search for book..."
 						onKeyDown={handleKeyPress}
 						onInput={eraseErrMsg}

@@ -42,7 +42,6 @@ import {
 	cachedCover,
 	extractCoverPalette,
 } from "@/utils/extractCoverPalette";
-import { isRealTmdbId } from "@/utils/mediaMatch";
 import { seriesJump } from "@/utils/seriesRead";
 import { useCommitOnUnmount } from "@/hooks/useManageMedia";
 import { CardStack, useCardLayer } from "@/hooks/useCardStack";
@@ -51,12 +50,6 @@ const ActorItemsModal = dynamic(
 	() => import("../components/ActorModal").then((m) => m.ActorItemsModal),
 	{ ssr: false },
 );
-
-const normalizeTitle = (title: string) =>
-	title
-		.toLowerCase()
-		.trim()
-		.replace(/^(the|a|an)\s+/, "");
 
 export type MovieAction =
 	| { type: "closeModal" }
@@ -99,8 +92,6 @@ interface MovieDetailsProps {
 	existingMovies: MovieProps[];
 	onAddWork: (movie: MovieProps) => Promise<MovieProps | undefined>;
 	onRefresh?: (metadata: Partial<MovieProps>) => Promise<void>;
-	// legacy
-	onBackfillTmdbId?: (movieId: number, tmdbId: string) => void;
 	logoUrls?: string[];
 	logoIndex?: number;
 	updateLogoIndex?: (newIndex: number) => void;
@@ -124,6 +115,15 @@ interface MovieDetailsProps {
 	) => void;
 	existingShows: ShowProps[];
 	onAddShow: (show: ShowProps) => Promise<ShowProps | undefined>;
+	//
+	onMovieRefresh?: (
+		movieId: number,
+		metadata: Partial<MovieProps>,
+	) => Promise<void>;
+	onShowRefresh?: (
+		showId: number,
+		metadata: Partial<ShowProps>,
+	) => Promise<void>;
 }
 
 export type MovieCrossMedia = Pick<
@@ -134,6 +134,8 @@ export type MovieCrossMedia = Pick<
 	| "onShowUpdate"
 	| "onShowUpdatePart"
 	| "onAddShow"
+	| "onMovieRefresh"
+	| "onShowRefresh"
 >;
 
 // choices a movie reload offers
@@ -158,7 +160,8 @@ export function MovieDetails({
 	onAddWork,
 	onAddShow,
 	onRefresh,
-	onBackfillTmdbId,
+	onMovieRefresh,
+	onShowRefresh,
 	logoUrls,
 	logoIndex,
 	updateLogoIndex,
@@ -170,29 +173,24 @@ export function MovieDetails({
 	updateBackdropIndex,
 }: MovieDetailsProps) {
 	const [localNote, setLocalNote] = useState(movie.note || "");
-	const { reloadMovie, searchForMovie } = useMovieSearch();
+	const { reloadMovie } = useMovieSearch();
 	const reload = useReloadPreview<MovieProps, MovieArt>({
 		onRefresh,
-		// legacy movies that doesn't have tmdbid are looked up by title
-		canLoad: isRealTmdbId(movie.tmdbId) || !!movie.title,
 		load: async () => {
-			const hasTmdbId = isRealTmdbId(movie.tmdbId);
-			// no tmdb id to look up -- resolve one by title first
-			const reloaded = hasTmdbId
-				? await reloadMovie(movie.tmdbId as string)
-				: await searchForMovie(movie.title, movie.dateReleased, true);
-			if (!reloaded || "isDuplicate" in reloaded) return null;
+			const reloaded = await reloadMovie(movie.tmdbId);
+			if (!reloaded) return null;
 			// tmdbId is identity, left untouched
 			const meta: Partial<MovieProps> = {
 				cover: await buildCover(reloaded.poster_url),
 				backdropUrl: reloaded.backdrop_url,
 			};
-			// legacy
-			if (!hasTmdbId) {
-				meta.tmdbId = reloaded.tmdb_id;
-				meta.director = reloaded.director;
-				meta.dateReleased = reloaded.released_date;
-			}
+			// added before imdb listed it
+			if (
+				!movie.imdbId &&
+				reloaded.imdbId &&
+				!existingMovies.some((m) => m.imdbId === reloaded.imdbId)
+			)
+				meta.imdbId = reloaded.imdbId;
 			// reload can clear series
 			meta.series = reloaded.series ?? null;
 			meta.genres = reloaded.genres;
@@ -260,36 +258,10 @@ export function MovieDetails({
 
 	const addedStatusById = useMemo(() => {
 		const map = new Map<string, MediaStatus>();
-		for (const m of existingMovies)
-			if (isRealTmdbId(m.tmdbId)) map.set(`movie:${m.tmdbId}`, m.status);
-		for (const s of existingShows)
-			if (isRealTmdbId(s.tmdbId)) map.set(`tv:${s.tmdbId}`, s.status);
+		for (const m of existingMovies) map.set(`movie:${m.tmdbId}`, m.status);
+		for (const s of existingShows) map.set(`tv:${s.tmdbId}`, s.status);
 		return map;
 	}, [existingMovies, existingShows]);
-
-	// for legacy
-	const backfilled = useRef<Set<number>>(new Set());
-	useEffect(() => {
-		if (!onBackfillTmdbId || castPanel.works.length === 0) return;
-		const legacy = existingMovies.filter(
-			(m) => !isRealTmdbId(m.tmdbId) && !backfilled.current.has(m.id),
-		);
-		if (legacy.length === 0) return;
-		//
-		for (const work of castPanel.works) {
-			if (work.media_type !== "movie") continue;
-			const workYear = parseInt(work.date?.slice(0, 4) ?? "");
-			if (isNaN(workYear)) continue;
-			const match = legacy.find(
-				(m) =>
-					m.dateReleased === workYear &&
-					normalizeTitle(m.title) === normalizeTitle(work.title),
-			);
-			if (!match) continue;
-			backfilled.current.add(match.id);
-			onBackfillTmdbId(match.id, String(work.id));
-		}
-	}, [castPanel.works, existingMovies, onBackfillTmdbId]);
 
 	const crossMedia: MovieCrossMedia = {
 		existingMovies,
@@ -298,6 +270,8 @@ export function MovieDetails({
 		onShowUpdate,
 		onShowUpdatePart,
 		onAddShow,
+		onMovieRefresh,
+		onShowRefresh,
 	};
 	const selectedMovie =
 		selectedWorkItem?.type === "movie"
@@ -509,14 +483,7 @@ export function MovieDetails({
 			onUpdate(movie.id, { cover: { ...movie.cover, color } });
 	};
 
-	// a legacy reload -- gives tmdbdID
-	const credits = () =>
-		fetchMovieCredits(
-			previewMovie.tmdbId ?? "-1",
-			previewMovie.imdbId,
-			movie.id,
-			authFetch,
-		);
+	const credits = () => fetchMovieCredits(previewMovie.tmdbId, authFetch);
 
 	const handleCast = () => {
 		setIsDirectorView(false);
@@ -569,7 +536,7 @@ export function MovieDetails({
 	const handleSeriesNav = (seriesDir: "prequel" | "sequel") => {
 		// a preview steps
 		const from = {
-			id: isRealTmdbId(previewMovie.tmdbId) ? previewMovie.tmdbId : null,
+			id: previewMovie.tmdbId,
 			title: previewMovie.title,
 		};
 		const jump = seriesJump(previewMovie, from, seriesDir);
@@ -729,6 +696,8 @@ export function MovieDetails({
 			</AnimatePresence>
 			{pendingWork?.media_type === "movie" && (
 				<AddMovie
+					onShowRefresh={onShowRefresh}
+					onMovieRefresh={onMovieRefresh}
 					isOpen={true}
 					targetFromAbove={{ title: pendingWork.title }}
 					// anime
@@ -756,6 +725,10 @@ export function MovieDetails({
 					movie={selectedMovie}
 					onClose={() => setSelectedWorkItem(null)}
 					onUpdate={onUpdate}
+					onRefresh={
+						onMovieRefresh &&
+						((meta) => onMovieRefresh(selectedMovie.id, meta))
+					}
 					{...crossMedia}
 				/>
 			)}
@@ -766,6 +739,12 @@ export function MovieDetails({
 					onClose={() => setSelectedWorkItem(null)}
 					onUpdate={onShowUpdate}
 					onUpdatePart={onShowUpdatePart}
+					onRefresh={
+						onShowRefresh &&
+						((meta) => onShowRefresh(selectedShow.id, meta))
+					}
+					onShowRefresh={onShowRefresh}
+					onMovieRefresh={onMovieRefresh}
 					existingShows={existingShows}
 					existingMovies={existingMovies}
 					onMovieUpdate={onUpdate}
@@ -775,6 +754,8 @@ export function MovieDetails({
 			)}
 			{pendingWork?.media_type === "tv" && (
 				<AddShow
+					onShowRefresh={onShowRefresh}
+					onMovieRefresh={onMovieRefresh}
 					isOpen={true}
 					targetFromAbove={{ title: pendingWork.title }}
 					onClose={() => setPendingWork(null)}

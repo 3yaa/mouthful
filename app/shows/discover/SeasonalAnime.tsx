@@ -7,6 +7,7 @@ import {
 	type DiscoverFeed,
 } from "@/app/views/discover/useDiscoverPage";
 import { SEASON_LABEL, SEASONS } from "@/app/views/discover/labels";
+import type { DiscoverSort } from "@/app/views/discover/DiscoverFrame";
 // past a year out anilist barely has a schedule
 const MAX_AHEAD = 3;
 
@@ -23,9 +24,10 @@ const seasonIndexOf = (date: Date) =>
 export function useSeasonalAnime(
 	tab: AnimeTabCode,
 	active: boolean,
-): DiscoverFeed<SeasonalAnimeProps> {
+	sort: DiscoverSort,
+): DiscoverFeed<SeasonalAnimeProps, SeasonalAnimeProps> {
 	const [at, setAt] = useState(() => seasonIndexOf(new Date()));
-	const { page, setPage } = usePaging(`${tab}:${at}`);
+	const { page, setPage } = usePaging(`${tab}:${sort}:${at}`);
 	const year = Math.floor(at / 4);
 	const season = SEASONS[at % 4];
 
@@ -34,8 +36,9 @@ export function useSeasonalAnime(
 		year: String(year),
 		tab,
 		page: String(page),
+		...(sort === "rated" && { sort }),
 	});
-	const found = useDiscoverPage<SeasonalAnimeProps>(
+	const found = useDiscoverPage<SeasonalAnimeProps, SeasonalAnimeProps>(
 		active ? `/api/shows-api/anime-discover?${params}` : null,
 		"anime",
 		tab,

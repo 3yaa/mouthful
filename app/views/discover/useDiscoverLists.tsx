@@ -145,7 +145,10 @@ export function useDiscoverLists() {
 				<ShowDetailsModal
 					show={openShow}
 					onClose={() => setOpenShowId(null)}
+					onShowRefresh={shows.handleRefresh}
+					onMovieRefresh={movies.handleRefresh}
 					onUpdate={onShowUpdate}
+					onRefresh={(meta) => shows.handleRefresh(openShow.id, meta)}
 					onUpdatePart={onShowUpdatePart}
 					existingShows={shows.items}
 					onAddWork={shows.handleAdd}
@@ -159,7 +162,12 @@ export function useDiscoverLists() {
 				<MovieDetails
 					movie={openMovie}
 					onClose={() => setOpenMovieId(null)}
+					onShowRefresh={shows.handleRefresh}
+					onMovieRefresh={movies.handleRefresh}
 					onUpdate={movies.handleUpdates}
+					onRefresh={(meta) =>
+						movies.handleRefresh(openMovie.id, meta)
+					}
 					existingMovies={movies.items}
 					onAddWork={movies.handleAdd}
 					existingShows={shows.items}
@@ -174,6 +182,8 @@ export function useDiscoverLists() {
 					isOpen={true}
 					targetFromAbove={showTarget}
 					onClose={() => setShowTarget(null)}
+					onShowRefresh={shows.handleRefresh}
+					onMovieRefresh={movies.handleRefresh}
 					onDuplicate={(dup) => {
 						const owned = showOfTmdb(dup.tmdbId);
 						if (!owned) return false;
@@ -198,6 +208,8 @@ export function useDiscoverLists() {
 					isOpen={true}
 					targetFromAbove={movieTarget}
 					onClose={() => setMovieTarget(null)}
+					onShowRefresh={shows.handleRefresh}
+					onMovieRefresh={movies.handleRefresh}
 					onDuplicate={(dup) => {
 						const owned = movieOf(dup.tmdbId, dup.imdbId);
 						if (!owned) return false;

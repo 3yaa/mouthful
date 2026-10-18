@@ -8,8 +8,9 @@ import { FIRST_SLOT, slotRefFor } from "./utils/slotRef";
 import { mapNewShow, mapShowMeta } from "@/app/shows/utils/showMapping";
 import { ShowDetails, type ShowDetailsProps } from "./ShowDetailsHub";
 import { useShowSearch } from "@/hooks/external/useShowSearch";
-import { findOnlyNamed, isRealTmdbId } from "@/utils/mediaMatch";
+import { findOnlyNamed } from "@/utils/mediaMatch";
 import { useEscapeClose } from "@/hooks/useEscapeClose";
+import { useLatch } from "@/hooks/useLatch";
 
 type CrossMedia = Pick<
 	ShowDetailsProps,
@@ -20,6 +21,9 @@ type CrossMedia = Pick<
 	| "existingManga"
 	| "onMangaUpdate"
 	| "onAddManga"
+	| "onShowRefresh"
+	| "onMovieRefresh"
+	| "onMangaRefresh"
 >;
 
 interface AddShowProps extends CrossMedia {
@@ -101,9 +105,7 @@ export function AddShow({
 					return {
 						isDuplicate: true,
 						title: owned.title,
-						tmdbId: isRealTmdbId(owned.tmdbId)
-							? owned.tmdbId
-							: undefined,
+						tmdbId: owned.tmdbId,
 					};
 				}
 			}
@@ -259,13 +261,18 @@ export function AddShow({
 	}, [targetFromAbove?.title, targetFromAbove?.tmdbId]);
 
 	useEscapeClose(onClose);
+	//
+	const searchShown = useLatch(
+		needYear,
+		`${isOpen}|${targetFromAbove?.tmdbId}|${targetFromAbove?.title}`,
+	);
 
 	if (!isOpen) return null;
 
 	return (
 		<ModalBackdrop className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-30">
 			<div className="fixed inset-0" onClick={onClose} />
-			{!targetFromAbove || needYear ? (
+			{!targetFromAbove || searchShown ? (
 				<SearchCard
 					icon={Tv}
 					label="Search for New Show"
@@ -275,6 +282,7 @@ export function AddShow({
 				>
 					<SearchFields
 						titleRef={titleToSearch}
+						defaultTitle={targetFromAbove?.title}
 						placeholder="Search for show..."
 						onKeyDown={handleKeyPress}
 						searching={isShowSearching}

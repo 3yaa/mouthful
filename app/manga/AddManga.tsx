@@ -20,6 +20,7 @@ import { AnimatePresence } from "framer-motion";
 import { useMangaSearch } from "@/hooks/external/useMangaSearch";
 import { findOnlyNamed } from "@/utils/mediaMatch";
 import { useEscapeClose } from "@/hooks/useEscapeClose";
+import { useLatch } from "@/hooks/useLatch";
 
 interface AddMangaProps {
 	isOpen: boolean;
@@ -213,16 +214,22 @@ export function AddManga({
 	}, [targetFromAbove?.id, targetFromAbove?.title]);
 
 	useEscapeClose(onClose);
+	//
+	const searchShown = useLatch(
+		!!failedReason,
+		`${isOpen}|${targetFromAbove?.id}|${targetFromAbove?.title}`,
+	);
 
 	if (!isOpen) return null;
 
 	return (
 		<ModalBackdrop className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-30">
 			<div className="fixed inset-0" onClick={onClose} />
-			{!targetFromAbove || !!failedReason ? (
+			{!targetFromAbove || searchShown ? (
 				<SearchCard icon={BookOpen} label="Search for New Manga">
 					<SearchFields
 						titleRef={titleToSearch}
+						defaultTitle={targetFromAbove?.title}
 						placeholder="Search for manga..."
 						onKeyDown={handleKeyPress}
 						onInput={eraseErrMsg}

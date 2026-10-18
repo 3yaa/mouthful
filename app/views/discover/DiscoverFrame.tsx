@@ -1,20 +1,38 @@
 "use client";
-import type { ReactNode } from "react";
-import { Loader2, ChevronLeft, ChevronRight } from "lucide-react";
-import { AnimatePresence, motion } from "framer-motion";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import {
+	ChevronLeft,
+	ChevronRight,
+	Flame,
+	Leaf,
+	type LucideIcon,
+} from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { BadgeLink } from "@/app/views/mediaListing/ShowsBadge";
 import { useFlash } from "@/app/components/RouteFlash";
 import type { ListingKind } from "@/app/views/mediaListing/ListingSkeleton";
 import type { DiscoverFeed } from "./useDiscoverPage";
 import { SwapCharm } from "./SwapCharm";
+import {
+	DroppedList,
+	DroppedListSkeleton,
+	type DroppedGroup,
+} from "./DroppedList";
+import { DiscoverCardSkeleton } from "./DiscoverCard";
 
 const WIDTH = "max-w-368";
+const GRID =
+	"grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-4 gap-y-5";
+
+export type DiscoverSort = "popular" | "rated";
 
 interface DiscoverFrameProps {
 	home: { href: string; title: string; listing: ListingKind };
 	// the other list's discover, hung opposite the way home
 	swap: { href: string; title: string; to: "movie" | "show" };
-	feed: DiscoverFeed<unknown>;
+	feed: DiscoverFeed<unknown, unknown>;
+	sort: { value: DiscoverSort; onChange: (sort: DiscoverSort) => void };
+	dropped?: DroppedGroup[];
 	controls?: ReactNode;
 	emptyText: string;
 	overlays: ReactNode;
@@ -25,35 +43,25 @@ export function DiscoverFrame({
 	home,
 	swap,
 	feed,
+	sort,
+	dropped,
 	controls,
 	emptyText,
 	overlays,
 	children,
 }: DiscoverFrameProps) {
 	const flash = useFlash();
-	const settled = (!feed.loading || feed.refreshing) && !feed.error;
+	// a page on its way empties into placeholders, a cached one shows at once
+	const loading = feed.loading && !feed.error;
+	const shown = !feed.loading && !feed.error;
 	return (
 		<div className="relative min-h-screen bg-zinc-950 text-zinc-200">
-			<BadgeLink
-				href={home.href}
-				title={home.title}
-				className="absolute right-10 top-0 z-30 hidden lg:block"
-				onClick={() => flash(home.listing)}
-				heading="home"
-			/>
-			<SwapCharm
-				to={swap.to}
-				href={swap.href}
-				title={swap.title}
-				className="absolute left-10 top-0 z-30 hidden min-[100rem]:block"
-				onClick={() => flash()}
-			/>
-			{/* ACTION BAR */}
+			{/* ACTION BAR -- below 101rem the margin cannot hold the compass, so the bar makes room */}
 			<div className="sticky top-0 z-20 bg-zinc-950/75 backdrop-blur-3xl select-none">
 				<div
-					className={`${WIDTH} mx-auto px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5`}
+					className={`${WIDTH} mx-auto px-4 sm:px-6 lg:max-[101rem]:pr-24 py-3.5 flex flex-wrap items-center gap-2.5`}
 				>
-					<div className="flex items-center gap-3">
+					<div className="mr-auto flex items-center gap-3">
 						<button
 							onClick={feed.onPrev}
 							className="cursor-pointer text-zinc-600 hover:text-zinc-300 transition-colors duration-200"
@@ -78,19 +86,35 @@ export function DiscoverFrame({
 						</button>
 					</div>
 
+					<SortToggle {...sort} />
 					{controls && (
-						<div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-2.5">
+						<div className="order-last flex w-full flex-col-reverse gap-2 sm:order-0 sm:w-auto sm:flex-row sm:items-center sm:gap-2.5">
 							{controls}
 						</div>
 					)}
 				</div>
 			</div>
-
+			<BadgeLink
+				href={home.href}
+				title={home.title}
+				className="absolute right-10 top-0 z-20 hidden lg:block"
+				onClick={() => flash(home.listing)}
+				heading="home"
+			/>
+			<SwapCharm
+				to={swap.to}
+				href={swap.href}
+				title={swap.title}
+				className="absolute left-10 top-0 z-20 hidden min-[100rem]:block"
+				onClick={() => flash()}
+			/>
 			{/* CONTENT */}
-			<div className={`${WIDTH} mx-auto px-4 sm:px-6 pb-8 pt-2`}>
-				{feed.loading && !feed.refreshing && (
-					<div className="flex justify-center items-center py-40">
-						<Loader2 className="w-6 h-6 text-zinc-500 animate-spin" />
+			<div className={`${WIDTH} relative mx-auto px-4 sm:px-6 pb-8 pt-2`}>
+				{loading && (
+					<div aria-busy aria-label="Loading" className={GRID}>
+						{Array.from({ length: 24 }, (_, i) => (
+							<DiscoverCardSkeleton key={i} index={i} />
+						))}
 					</div>
 				)}
 
@@ -102,27 +126,17 @@ export function DiscoverFrame({
 					</div>
 				)}
 
-				{settled && (
-					<div
-						className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-4 gap-y-5 transition-opacity duration-200 ${
-							feed.refreshing
-								? "pointer-events-none opacity-40"
-								: ""
-						}`}
-					>
-						{children}
-					</div>
-				)}
+				{shown && <div className={GRID}>{children}</div>}
 
-				{settled && !feed.refreshing && feed.items.length === 0 && (
+				{shown && feed.items.length === 0 && (
 					<p className="text-center text-zinc-400 italic text-sm py-40">
 						{emptyText}
 					</p>
 				)}
 
-				{settled && (
+				{(shown || feed.refreshing) && (
 					<div
-						className={`mt-3 flex justify-end items-center gap-2 ${feed.items.length === 0 ? "invisible" : ""}`}
+						className={`mt-3 flex justify-end items-center gap-2 ${shown && feed.items.length === 0 ? "invisible" : ""}`}
 					>
 						<button
 							onClick={() =>
@@ -157,6 +171,30 @@ export function DiscoverFrame({
 						</button>
 					</div>
 				)}
+
+				{dropped && (loading || shown) && (
+					<div className="mt-10 mb-16 min-[120rem]:hidden">
+						{loading ? (
+							<DroppedListSkeleton layout="section" />
+						) : (
+							<DroppedList groups={dropped} layout="section" />
+						)}
+					</div>
+				)}
+				{dropped && (loading || shown) && (
+					<aside
+						aria-label="Left out"
+						className="absolute left-full top-0 hidden h-full w-44 min-[120rem]:block"
+					>
+						<div className="sticky top-30 mt-14 max-h-[calc(100vh-8.5rem)] overflow-y-auto pb-8 mask-[linear-gradient(to_bottom,black_calc(100%-2rem),transparent)]">
+							{loading ? (
+								<DroppedListSkeleton layout="rail" />
+							) : (
+								<DroppedList groups={dropped} layout="rail" />
+							)}
+						</div>
+					</aside>
+				)}
 			</div>
 
 			{overlays}
@@ -189,6 +227,131 @@ export function Segmented<T extends string>({
 				</button>
 			))}
 		</div>
+	);
+}
+
+// short on the pill, said in full to screen readers
+const SORTS: {
+	code: DiscoverSort;
+	label: string;
+	short: string;
+	icon: LucideIcon;
+	tint: string;
+}[] = [
+	{
+		code: "popular",
+		label: "popular",
+		short: "pop",
+		icon: Flame,
+		tint: "text-amber-300/85 fill-amber-300/15",
+	},
+	// the leaf every card scores with
+	{
+		code: "rated",
+		label: "rated",
+		short: "rat",
+		icon: Leaf,
+		tint: "text-emerald-300/85 fill-emerald-300/15",
+	},
+];
+
+const SORT_LABEL =
+	"pl-1.5 text-[0.6875rem] uppercase tracking-[0.12em] font-semibold whitespace-nowrap";
+
+// the picked side shows its word
+function SortToggle({
+	value,
+	onChange,
+}: {
+	value: DiscoverSort;
+	onChange: (sort: DiscoverSort) => void;
+}) {
+	const reduced = useReducedMotion();
+	const sizers = useRef<(HTMLSpanElement | null)[]>([]);
+	const [slot, setSlot] = useState<number | null>(null);
+	useLayoutEffect(() => {
+		const measure = () =>
+			setSlot(
+				Math.max(...sizers.current.map((s) => s?.offsetWidth ?? 0)) ||
+					null,
+			);
+		measure();
+		document.fonts?.ready.then(measure);
+	}, []);
+	return (
+		// glides along as the sub-tabs beside it come and go
+		<motion.div
+			layout="position"
+			transition={
+				reduced ? { duration: 0 } : { duration: 0.2, ease: "easeOut" }
+			}
+			role="group"
+			aria-label="Order"
+			className="relative flex items-center gap-1 p-1 rounded-lg bg-linear-to-br from-zinc-900/80 to-zinc-950/90 border border-zinc-800/60 shadow-md shadow-black/30"
+		>
+			{SORTS.map(({ code, short }, i) => (
+				<span
+					key={code}
+					ref={(el) => {
+						sizers.current[i] = el;
+					}}
+					aria-hidden
+					className={`${SORT_LABEL} invisible absolute`}
+				>
+					{short}
+				</span>
+			))}
+			{SORTS.map(({ code, label, short, icon: Icon, tint }) => {
+				const on = value === code;
+				return (
+					<button
+						key={code}
+						aria-pressed={on}
+						aria-label={label}
+						onClick={() => onChange(code)}
+						className={`flex items-center px-2 py-1 rounded-md text-[0.6875rem] transition-colors duration-200 cursor-pointer ${
+							on
+								? "bg-zinc-700/70 text-zinc-300 shadow-sm"
+								: "text-zinc-500 hover:text-zinc-300"
+						}`}
+					>
+						<span className="flex h-[1.5em] items-center">
+							<Icon
+								className={`w-3.5 h-3.5 shrink-0 transition-colors duration-200 ${on ? tint : ""}`}
+								strokeWidth={1.75}
+							/>
+						</span>
+						<AnimatePresence initial={false}>
+							{on && (
+								<motion.span
+									className="overflow-hidden max-[23.75rem]:hidden"
+									initial={{ width: 0, opacity: 0 }}
+									animate={{
+										width: slot ?? "auto",
+										opacity: 1,
+									}}
+									exit={{ width: 0, opacity: 0 }}
+									transition={
+										reduced
+											? { duration: 0 }
+											: {
+													duration: 0.22,
+													ease: "easeOut",
+												}
+									}
+								>
+									<span
+										className={`${SORT_LABEL} block text-center`}
+									>
+										{short}
+									</span>
+								</motion.span>
+							)}
+						</AnimatePresence>
+					</button>
+				);
+			})}
+		</motion.div>
 	);
 }
 

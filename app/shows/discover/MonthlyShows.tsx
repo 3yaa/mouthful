@@ -1,7 +1,7 @@
 "use client";
-import { useState } from "react";
 import { Tv } from "lucide-react";
 import type { ShowProps, HollowShowProps } from "@/types/show";
+import type { DroppedTitle } from "@/types/media";
 import {
 	CornerChip,
 	DiscoverCard,
@@ -13,12 +13,9 @@ import {
 	useDiscoverPage,
 	type DiscoverFeed,
 } from "@/app/views/discover/useDiscoverPage";
-import {
-	DRAMA_BADGE,
-	MONTHS,
-	SEASON_LABEL,
-	SEASONS,
-} from "@/app/views/discover/labels";
+import { DRAMA_BADGE } from "@/app/views/discover/labels";
+import { periodLabel, usePeriods } from "@/app/views/discover/periods";
+import type { DiscoverSort } from "@/app/views/discover/DiscoverFrame";
 
 // "all" leaves the dramas out -- they have their own tab
 export const ORIGINS = [
@@ -51,51 +48,26 @@ function airDayLabels(airDays: string | null) {
 	};
 }
 
-// a run of months -- one past month, or an upcoming stretch
-type Period = { year: number; month: number; months: number; season?: number };
-
-const monthIndexOf = (date: Date) => date.getFullYear() * 12 + date.getMonth();
-
-const periodAt = (index: number, months = 1, season?: number): Period => ({
-	year: Math.floor(index / 12),
-	month: (index % 12) + 1,
-	months,
-	season,
-});
-
-// the rest of this season, then the next whole one -- tmdb has little dated past that
-function upcomingPeriods(now: number): Period[] {
-	const seasonEnd = now - (now % 3) + 2;
-	const next = seasonEnd + 1;
-	return [
-		...(seasonEnd > now ? [periodAt(now + 1, seasonEnd - now)] : []),
-		periodAt(next, 3, (next % 12) / 3),
-	];
-}
-
-function periodLabel({ month, months, season }: Period) {
-	if (season != null) return SEASON_LABEL[SEASONS[season]];
-	const first = MONTHS[month - 1];
-	return months > 1 ? `${first} – ${MONTHS[month + months - 2]}` : first;
-}
+// tmdb has little dated tv past the next season
+const SEASONS_AHEAD = 1;
 
 // last month first -- past months one at a time, upcoming ones grouped
 export function useMonthlyShows(
 	origin: OriginCode,
 	pick: DramaPick,
 	active: boolean,
-): DiscoverFeed<HollowShowProps> {
-	// 0 is this month, below it the months before, above it the upcoming runs
-	const [at, setAt] = useState(-1);
-	const now = monthIndexOf(new Date());
-	const upcoming = upcomingPeriods(now);
-	const shown = Math.min(at, upcoming.length);
-	const period = shown > 0 ? upcoming[shown - 1] : periodAt(now + shown);
+	sort: DiscoverSort,
+): DiscoverFeed<HollowShowProps, DroppedTitle> {
+	// opens on last month
+	const { period, onPrev, onNext, nextDisabled } = usePeriods(
+		-1,
+		SEASONS_AHEAD,
+	);
 	const { year, month, months } = period;
 
 	const country = origin === "drama" && pick !== "all" ? pick : null;
 	const { page, setPage } = usePaging(
-		`${origin}:${country ?? ""}:${year}-${month}+${months}`,
+		`${origin}:${country ?? ""}:${sort}:${year}-${month}+${months}`,
 	);
 
 	const params = new URLSearchParams({
@@ -105,8 +77,9 @@ export function useMonthlyShows(
 		origin,
 		...(months > 1 && { months: String(months) }),
 		...(country && { country }),
+		...(sort === "rated" && { sort }),
 	});
-	const found = useDiscoverPage<HollowShowProps>(
+	const found = useDiscoverPage<HollowShowProps, DroppedTitle>(
 		active ? `/api/shows-api/tmdb-tv-discover?${params}` : null,
 		"shows",
 		`${origin}:${country ?? ""}`,
@@ -116,9 +89,9 @@ export function useMonthlyShows(
 		...found,
 		page,
 		setPage,
-		onPrev: () => setAt(shown - 1),
-		onNext: () => setAt(Math.min(shown + 1, upcoming.length)),
-		nextDisabled: shown >= upcoming.length,
+		onPrev,
+		onNext,
+		nextDisabled,
 		heading: (
 			<>
 				{periodLabel(period)}

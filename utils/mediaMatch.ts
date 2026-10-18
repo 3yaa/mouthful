@@ -62,5 +62,3 @@ export function findOnlyNamed<T extends NamedRow>(
 	return only;
 }
 
-// legacy
-export const isRealTmdbId = (tmdbId?: string) => !!tmdbId && tmdbId !== "-1";

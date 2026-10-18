@@ -1,7 +1,7 @@
 "use client";
-import { useState } from "react";
 import { Clapperboard } from "lucide-react";
 import type { HollowMovieProps, MovieProps } from "@/types/movie";
+import type { DroppedTitle } from "@/types/media";
 import {
 	CornerChip,
 	DiscoverCard,
@@ -14,45 +14,62 @@ import {
 } from "@/app/views/discover/useDiscoverPage";
 import {
 	DRAMA_BADGE,
-	MONTHS,
 	dateLabel,
 	runtimeLabel,
 } from "@/app/views/discover/labels";
+import { periodLabel, usePeriods } from "@/app/views/discover/periods";
+import type { DiscoverSort } from "@/app/views/discover/DiscoverFrame";
 import { genreLineOf } from "@/utils/formattingUtils";
 
-// release dates are set months out -- worth browsing ahead
-const MAX_AHEAD = 6;
 const OPEN_BACK = 2;
+const SEASONS_AHEAD = 4;
 
-const monthIndexOf = (date: Date) => date.getFullYear() * 12 + date.getMonth();
+// desi is IN | BD | PK on the server, rest is every other country
+export const MOVIE_ORIGINS = [
+	{ label: "all", code: "all" },
+	{ label: "desi", code: "desi" },
+	{ label: "rest", code: "rest" },
+] as const;
+export type MovieOrigin = (typeof MOVIE_ORIGINS)[number]["code"];
 
-export function useMonthlyMovies(): DiscoverFeed<HollowMovieProps> {
-	const [at, setAt] = useState(() => monthIndexOf(new Date()) - OPEN_BACK);
-	const { page, setPage } = usePaging(String(at));
-	const year = Math.floor(at / 12);
-	const month = (at % 12) + 1;
+export function useMonthlyMovies(
+	origin: MovieOrigin,
+	sort: DiscoverSort,
+): DiscoverFeed<HollowMovieProps, DroppedTitle> {
+	const { period, onPrev, onNext, nextDisabled } = usePeriods(
+		-OPEN_BACK,
+		SEASONS_AHEAD,
+	);
+	const { year, month, months } = period;
+	const { page, setPage } = usePaging(
+		`${origin}:${sort}:${year}-${month}+${months}`,
+	);
 
 	const params = new URLSearchParams({
 		year: String(year),
 		month: String(month),
 		page: String(page),
+		...(months > 1 && { months: String(months) }),
+		...(origin !== "all" && { origin }),
+		...(sort === "rated" && { sort }),
 	});
-	const found = useDiscoverPage<HollowMovieProps>(
+	// a new order keeps the old cards up, a new origin is another list
+	const found = useDiscoverPage<HollowMovieProps, DroppedTitle>(
 		`/api/movies-api/tmdb-discover?${params}`,
 		"movies",
-		"movies",
+		`movies:${origin}`,
 	);
 
 	return {
 		...found,
 		page,
 		setPage,
-		onPrev: () => setAt((a) => a - 1),
-		onNext: () => setAt((a) => a + 1),
-		nextDisabled: at >= monthIndexOf(new Date()) + MAX_AHEAD,
+		onPrev,
+		onNext,
+		nextDisabled,
 		heading: (
 			<>
-				{MONTHS[month - 1]}
+				{periodLabel(period)}
 				<span className="text-zinc-500 font-medium mx-2">·</span>
 				<span className="text-zinc-400 font-medium">{year}</span>
 			</>
@@ -94,7 +111,10 @@ export function MovieDiscoverCard({
 				{movie.runtime ? runtimeLabel(movie.runtime) : ""}
 			</div>
 			<div className="flex justify-end">
-				<ScoreLeaf score={movie.imdbRating} />
+				<ScoreLeaf
+					score={movie.imdbRating}
+					unlisted={movie.imdbId === null}
+				/>
 			</div>
 		</DiscoverCard>
 	);

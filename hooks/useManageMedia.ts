@@ -335,10 +335,9 @@ export function useManageMedia<T extends BaseMediaProps>({
 		[onRemove, writeEdit, startBattle],
 	);
 
-	const handleItemRefresh = useCallback(
-		async (metadata: Partial<T>, indirect?: boolean) => {
-			const itemId = selectedId.current;
-			if (itemId === null || !onRefresh) return;
+	const refreshItem = useCallback(
+		async (itemId: number, metadata: Partial<T>, indirect?: boolean) => {
+			if (!onRefresh) return;
 			// drop undefined values
 			const clean = Object.fromEntries(
 				Object.entries(metadata).filter(([, v]) => v !== undefined),
@@ -351,6 +350,14 @@ export function useManageMedia<T extends BaseMediaProps>({
 			await onRefresh(itemId, clean, indirect);
 		},
 		[onRefresh, dropQueued, flushFor],
+	);
+
+	const handleItemRefresh = useCallback(
+		async (metadata: Partial<T>, indirect?: boolean) => {
+			const itemId = selectedId.current;
+			if (itemId !== null) await refreshItem(itemId, metadata, indirect);
+		},
+		[refreshItem],
 	);
 
 	// leaving the page sends a card's edits a beat later
@@ -481,6 +488,7 @@ export function useManageMedia<T extends BaseMediaProps>({
 		handleModalClose,
 		handleItemUpdates,
 		handleItemRefresh,
+		refreshItem,
 		handleItemClicked,
 		handleSearchQueryChange,
 		handleStatusFilterConfig,

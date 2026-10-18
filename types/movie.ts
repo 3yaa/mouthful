@@ -19,8 +19,9 @@ export const DIFF_COLUMNS_MOVIE: [
 
 export interface MovieProps extends BaseMediaProps, SeriesMediaProps {
 	status: "Completed" | "Want to Watch" | "Dropped";
-	imdbId: string;
-	tmdbId?: string;
+	// null when imdb has no entry for it
+	imdbId: string | null;
+	tmdbId: string;
 	normalizedTitle: string;
 	director?: string;
 	dateReleased?: number;
@@ -30,7 +31,7 @@ export interface MovieProps extends BaseMediaProps, SeriesMediaProps {
 }
 
 export interface MovieAPIProps {
-	imdbId: string;
+	imdbId: string | null;
 	tmdb_id?: string;
 	title: string;
 	director?: string;
@@ -67,7 +68,8 @@ export type AnimeMovieResolve =
 // === for the discover movies
 export type HollowMovieProps = {
 	tmdbId: string;
-	imdbId: string | null;
+	// null means imdb has no entry, missing means the lookup failed
+	imdbId?: string | null;
 	title: string;
 	poster_url: string | null;
 	release_date: string | null;

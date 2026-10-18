@@ -126,6 +126,42 @@ input[type="number"] {
 	}
 }
 
+/* discover placeholders while a page loads -- each box carries its own sweep */
+@keyframes discover-shimmer {
+	from {
+		translate: -100% 0;
+	}
+	to {
+		translate: 100% 0;
+	}
+}
+.discover-shimmer {
+	position: relative;
+	overflow: hidden;
+}
+.discover-shimmer::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	translate: -100% 0;
+	background: linear-gradient(
+		90deg,
+		transparent 20%,
+		rgba(255, 255, 255, 0.045) 42%,
+		rgba(255, 255, 255, 0.085) 50%,
+		rgba(255, 255, 255, 0.045) 58%,
+		transparent 80%
+	);
+	animation: discover-shimmer 1.6s ease-in-out var(--shimmer-delay, 0s) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+	.discover-shimmer::after {
+		animation: none;
+		translate: none;
+		background: none;
+	}
+}
+
 @keyframes wave {
 	0%,
 	100% {

@@ -441,6 +441,12 @@ export function useMediaData<
 		[endpoint, optimisticWrite],
 	);
 
+	// a row's gathering edits go now -- a reload that follows lands after them
+	const flushSoon = useCallback(
+		(itemId: number) => sendSoon(`${endpoint}:${itemId}`),
+		[endpoint],
+	);
+
 	// what is held shows at once; the ask behind it only replaces it if it comes back
 	useEffect(() => {
 		const { rows, at } = listState(endpoint);
@@ -455,6 +461,7 @@ export function useMediaData<
 		unstage,
 		updatePart,
 		refresh,
+		flushSoon,
 		remove,
 		isProcessing,
 	};

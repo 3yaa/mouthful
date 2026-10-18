@@ -72,7 +72,7 @@ import { MediaStatus, SeriesJumpProps, SeriesTargetProps } from "@/types/media";
 import { backfillRuns } from "@/utils/seriesRead";
 import { useShowSearch } from "@/hooks/external/useShowSearch";
 import { mapShowMeta } from "./utils/showMapping";
-import { isRealTmdbId, isSameName, normName } from "@/utils/mediaMatch";
+import { isSameName, normName } from "@/utils/mediaMatch";
 import type { StudioWork } from "./utils/studioCatalog";
 import { useCommitOnUnmount } from "@/hooks/useManageMedia";
 import { CardStack, useCardLayer } from "@/hooks/useCardStack";
@@ -193,6 +193,19 @@ export interface ShowDetailsProps {
 	onAddManga?: (manga: MangaProps) => Promise<MangaProps | undefined>;
 	// reload metadata from source (poster/backdrop, seasons, studio)
 	onRefresh?: (metadata: Partial<ShowProps>) => Promise<void>;
+	// reloads for the cards stacked over this one
+	onShowRefresh?: (
+		showId: number,
+		metadata: Partial<ShowProps>,
+	) => Promise<void>;
+	onMovieRefresh?: (
+		movieId: number,
+		metadata: Partial<MovieProps>,
+	) => Promise<void>;
+	onMangaRefresh?: (
+		mangaId: number,
+		metadata: Partial<MangaProps>,
+	) => Promise<void>;
 	// a slot: score | note | skip
 	onUpdatePart?: (
 		showId: number,
@@ -237,6 +250,9 @@ export function ShowDetails({
 	onMangaUpdate,
 	onAddManga,
 	onRefresh,
+	onShowRefresh,
+	onMovieRefresh,
+	onMangaRefresh,
 	onUpdatePart,
 	onPartBattle,
 	logoUrls,
@@ -461,10 +477,8 @@ export function ShowDetails({
 
 	const addedStatusById = useMemo(() => {
 		const map = new Map<string, MediaStatus>();
-		for (const m of existingMovies)
-			if (isRealTmdbId(m.tmdbId)) map.set(`movie:${m.tmdbId}`, m.status);
-		for (const s of existingShows)
-			if (isRealTmdbId(s.tmdbId)) map.set(`tv:${s.tmdbId}`, s.status);
+		for (const m of existingMovies) map.set(`movie:${m.tmdbId}`, m.status);
+		for (const s of existingShows) map.set(`tv:${s.tmdbId}`, s.status);
 		return map;
 	}, [existingMovies, existingShows]);
 
@@ -682,10 +696,8 @@ export function ShowDetails({
 
 	//
 	const resolveMovie = (target: SeriesTargetProps) =>
-		isRealTmdbId(target.id ?? undefined)
-			? existingMovies.find(
-					(m) => isRealTmdbId(m.tmdbId) && m.tmdbId === target.id,
-				)
+		target.id
+			? existingMovies.find((m) => m.tmdbId === target.id)
 			: findOwnedMovie(target.title);
 
 	const handleWorkSeriesNav = (target: SeriesTargetProps) => {
@@ -1467,6 +1479,9 @@ export function ShowDetails({
 			{/* ADD SHOW */}
 			{pendingWork?.media_type === "tv" && (
 				<AddShow
+					onShowRefresh={onShowRefresh}
+					onMovieRefresh={onMovieRefresh}
+					onMangaRefresh={onMangaRefresh}
 					isOpen={true}
 					targetFromAbove={{ title: pendingWork.title }}
 					onClose={() => setPendingWork(null)}
@@ -1493,6 +1508,13 @@ export function ShowDetails({
 					onClose={() => setSelectedWorkItem(null)}
 					onUpdate={onUpdate}
 					onUpdatePart={onUpdatePart}
+					onRefresh={
+						onShowRefresh &&
+						((meta) => onShowRefresh(selectedShow.id, meta))
+					}
+					onShowRefresh={onShowRefresh}
+					onMovieRefresh={onMovieRefresh}
+					onMangaRefresh={onMangaRefresh}
 					existingShows={existingShows}
 					existingMovies={existingMovies}
 					onMovieUpdate={onMovieUpdate}
@@ -1509,6 +1531,12 @@ export function ShowDetails({
 					movie={selectedMovie}
 					onClose={() => setSelectedWorkItem(null)}
 					onUpdate={onMovieUpdate}
+					onRefresh={
+						onMovieRefresh &&
+						((meta) => onMovieRefresh(selectedMovie.id, meta))
+					}
+					onMovieRefresh={onMovieRefresh}
+					onShowRefresh={onShowRefresh}
 					existingMovies={existingMovies}
 					existingShows={existingShows}
 					onShowUpdate={onUpdate}
@@ -1521,6 +1549,8 @@ export function ShowDetails({
 			{/* MOVIE ADD */}
 			{pendingWork?.media_type === "movie" && (
 				<AddMovie
+					onShowRefresh={onShowRefresh}
+					onMovieRefresh={onMovieRefresh}
 					isOpen
 					targetFromAbove={{
 						title: pendingWork.title,
@@ -1585,6 +1615,10 @@ export function ShowDetails({
 					existingManga={existingManga}
 					onClose={() => setSelectedWorkItem(null)}
 					onUpdate={onMangaUpdate}
+					onRefresh={
+						onMangaRefresh &&
+						((meta) => onMangaRefresh(selectedManga.id, meta))
+					}
 					showSequelPrequel={handleMangaNav}
 					isInList={(target) => !!findOwnedManga(target)}
 				/>

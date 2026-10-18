@@ -113,6 +113,7 @@ interface SearchToggle {
 
 interface SearchFieldsProps {
 	titleRef: Ref<HTMLInputElement>;
+	defaultTitle?: string;
 	placeholder: string;
 	onKeyDown: (e: KeyboardEvent) => void;
 	onInput?: () => void;
@@ -127,6 +128,7 @@ interface SearchFieldsProps {
 
 export function SearchFields({
 	titleRef,
+	defaultTitle,
 	placeholder,
 	onKeyDown,
 	onInput,
@@ -155,6 +157,7 @@ export function SearchFields({
 				<input
 					type="text"
 					ref={titleRef}
+					defaultValue={defaultTitle}
 					placeholder={placeholder}
 					onKeyDown={onKeyDown}
 					onInput={onInput}

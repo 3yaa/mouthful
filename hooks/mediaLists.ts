@@ -8,7 +8,7 @@ import type { GameProps } from "@/types/game";
 // one config per list -- every hub that loads another's list must agree with its owner
 export const MOVIE_LIST: MediaDataConfig<MovieProps> = {
 	endpoint: "movies",
-	requiredFieldsToPost: ["title", "status", "imdbId"],
+	requiredFieldsToPost: ["title", "status", "tmdbId"],
 	statusOrder: { "Want to Watch": 0, Completed: 1, Dropped: 2 },
 	extraFieldsToUpdate: ["series"],
 };

@@ -13,8 +13,9 @@ import { mapMetaToMovie } from "@/app/movies/utils/movieMapping";
 import { MovieDetails, type MovieCrossMedia } from "./MovieDetailsHub";
 import { useMovieSearch } from "@/hooks/external/useMovieSearch";
 import { buildCover } from "@/utils/extractCoverPalette";
-import { findOnlyNamed, isRealTmdbId } from "@/utils/mediaMatch";
+import { findOnlyNamed } from "@/utils/mediaMatch";
 import { useEscapeClose } from "@/hooks/useEscapeClose";
+import { useLatch } from "@/hooks/useLatch";
 
 interface AddMovieProps extends MovieCrossMedia {
 	isOpen: boolean;
@@ -128,10 +129,8 @@ export function AddMovie({
 				if (owned) {
 					handleDuplicate({
 						title: owned.title,
-						tmdbId: isRealTmdbId(owned.tmdbId)
-							? owned.tmdbId
-							: undefined,
-						imdbId: owned.imdbId,
+						tmdbId: owned.tmdbId,
+						imdbId: owned.imdbId ?? undefined,
 					});
 					return;
 				}
@@ -140,7 +139,6 @@ export function AddMovie({
 			const movieData = await searchForMovie(
 				titleSearching,
 				yearSearching,
-				undefined,
 				movieOnly,
 				knownTmdbId,
 			);
@@ -150,7 +148,7 @@ export function AddMovie({
 				return;
 			}
 			// empty
-			if (!movieData?.imdbId || !movieData.title) {
+			if (!movieData?.tmdb_id || !movieData.title) {
 				setFailedReason("Could Not Find Movie.");
 				setNeedYear(true);
 				setActiveModal(null);
@@ -241,7 +239,7 @@ export function AddMovie({
 
 	const handleMovieAdd = async () => {
 		// double check not adding duplicate
-		if (newMovie.imdbId && isDupTitle) {
+		if (newMovie.tmdbId && isDupTitle) {
 			return;
 		}
 		let isStatus = newMovie.status;
@@ -322,13 +320,18 @@ export function AddMovie({
 	}, [targetFromAbove?.id, targetFromAbove?.title]);
 
 	useEscapeClose(onClose);
+	//
+	const searchShown = useLatch(
+		needYear || isDupTitle,
+		`${isOpen}|${targetFromAbove?.id}|${targetFromAbove?.title}`,
+	);
 
 	if (!isOpen) return null;
 
 	return (
 		<ModalBackdrop className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-30">
 			<div className="fixed inset-0" onClick={onClose} />
-			{!targetFromAbove || needYear || isDupTitle ? (
+			{!targetFromAbove || searchShown ? (
 				<SearchCard
 					icon={Clapperboard}
 					label="Search for New Movie"
@@ -338,6 +341,7 @@ export function AddMovie({
 				>
 					<SearchFields
 						titleRef={titleToSearch}
+						defaultTitle={targetFromAbove?.title}
 						placeholder="Search for movie..."
 						onKeyDown={handleKeyPress}
 						onInput={eraseErrMsg}

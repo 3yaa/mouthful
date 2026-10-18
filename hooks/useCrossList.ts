@@ -7,8 +7,16 @@ import { MediaDataConfig, useMediaData } from "./useMediaData";
 export function useCrossList<T extends BaseMediaProps>(
 	config: MediaDataConfig<T>,
 ) {
-	const { items, add, update, updateSoon, updatePart, remove } =
-		useMediaData<T>(config);
+	const {
+		items,
+		add,
+		update,
+		updateSoon,
+		updatePart,
+		refresh,
+		flushSoon,
+		remove,
+	} = useMediaData<T>(config);
 	// a first score goes through the ringer
 	const [battle, setBattle] = useState<{ item: T; score: Score } | null>(
 		null,
@@ -46,6 +54,19 @@ export function useCrossList<T extends BaseMediaProps>(
 		[add],
 	);
 
+	// a reload from a card opened here, the same as its own hub's
+	const handleRefresh = useCallback(
+		async (itemId: number, metadata: Partial<T>) => {
+			const clean = Object.fromEntries(
+				Object.entries(metadata).filter(([, v]) => v !== undefined),
+			) as Partial<T>;
+			if (Object.keys(clean).length === 0) return;
+			flushSoon(itemId);
+			await refresh(itemId, clean);
+		},
+		[refresh, flushSoon],
+	);
+
 	const closeBattle = useCallback(() => setBattle(null), []);
 	// the items a battle was decided against no update
 	const handleOpponentUpdate = useCallback(
@@ -72,5 +93,6 @@ export function useCrossList<T extends BaseMediaProps>(
 		handleOpponentUpdate,
 		handleUpdates,
 		handleAdd,
+		handleRefresh,
 	};
 }

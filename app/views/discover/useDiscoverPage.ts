@@ -3,8 +3,10 @@ import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { useAuthFetch } from "@/app/auth/hooks/useAuthFetch";
 
-export interface DiscoverPage<T> {
+export interface DiscoverPage<T, D = never> {
 	items: T[];
+	dropped: D[];
+	minVotes: number | null;
 	totalPages: number;
 	loading: boolean;
 	refreshing: boolean;
@@ -16,23 +18,37 @@ const FRESH_MS = 30 * 60 * 1000;
 const SEEN_MAX = 120;
 const seen = new Map<
 	string,
-	{ items: unknown[]; totalPages: number; at: number }
+	{
+		items: unknown[];
+		dropped: unknown[];
+		minVotes: number | null;
+		totalPages: number;
+		at: number;
+	}
 >();
 
-function remember(url: string, items: unknown[], totalPages: number) {
+function remember(
+	url: string,
+	items: unknown[],
+	dropped: unknown[],
+	minVotes: number | null,
+	totalPages: number,
+) {
 	seen.delete(url);
-	seen.set(url, { items, totalPages, at: Date.now() });
+	seen.set(url, { items, dropped, minVotes, totalPages, at: Date.now() });
 	if (seen.size > SEEN_MAX) seen.delete(seen.keys().next().value!);
 }
 
 // list names what the url pages through -- another page of it keeps the old cards up
-export function useDiscoverPage<T>(
+export function useDiscoverPage<T, D = never>(
 	url: string | null,
 	key: string,
 	list: string,
-): DiscoverPage<T> {
+): DiscoverPage<T, D> {
 	const { authFetch } = useAuthFetch();
 	const [items, setItems] = useState<T[]>([]);
+	const [dropped, setDropped] = useState<D[]>([]);
+	const [minVotes, setMinVotes] = useState<number | null>(null);
 	const [totalPages, setTotalPages] = useState(1);
 	const [loading, setLoading] = useState(false);
 	const [refreshing, setRefreshing] = useState(false);
@@ -45,6 +61,8 @@ export function useDiscoverPage<T>(
 		const hit = seen.get(url);
 		if (hit) {
 			setItems(hit.items as T[]);
+			setDropped(hit.dropped as D[]);
+			setMinVotes(hit.minVotes);
 			setTotalPages(hit.totalPages);
 			setLoading(false);
 			setRefreshing(false);
@@ -64,9 +82,17 @@ export function useDiscoverPage<T>(
 				const res = await authFetch(url, { signal: abort.signal });
 				if (!res.ok) throw new Error(`HTTP ${res.status}`);
 				const data = await res.json();
-				remember(url, data[key] ?? [], data.totalPages ?? 1);
+				remember(
+					url,
+					data[key] ?? [],
+					data.dropped ?? [],
+					data.minVotes ?? null,
+					data.totalPages ?? 1,
+				);
 				if (!alive) return;
 				setItems(data[key] ?? []);
+				setDropped(data.dropped ?? []);
+				setMinVotes(data.minVotes ?? null);
 				setTotalPages(data.totalPages ?? 1);
 				shownList.current = list;
 			} catch (e) {
@@ -86,10 +112,18 @@ export function useDiscoverPage<T>(
 		};
 	}, [url, key, list, authFetch]);
 
-	return { items, totalPages, loading, refreshing, error };
+	return {
+		items,
+		dropped,
+		minVotes,
+		totalPages,
+		loading,
+		refreshing,
+		error,
+	};
 }
 
-export interface DiscoverFeed<T> extends DiscoverPage<T> {
+export interface DiscoverFeed<T, D = never> extends DiscoverPage<T, D> {
 	heading: ReactNode;
 	onPrev: () => void;
 	onNext: () => void;

@@ -76,6 +76,7 @@ export default function ShowHub() {
 		handleSearchQueryChange,
 		handleItemUpdates,
 		handleItemRefresh,
+		refreshItem,
 		battle,
 		handleScoreFinal,
 		closeBattle,
@@ -188,6 +189,9 @@ export default function ShowHub() {
 						key="add"
 						isOpen={activeModal === "addModal"}
 						onClose={handleModalClose}
+						onShowRefresh={refreshItem}
+						onMovieRefresh={movies.handleRefresh}
+						onMangaRefresh={manga.handleRefresh}
 						existingShows={items}
 						onAddShow={handleItemAdd}
 						onAddWork={handleWorkAdd}
@@ -224,6 +228,9 @@ export default function ShowHub() {
 						key="details"
 						show={selectedItem}
 						onClose={handleModalClose}
+						onShowRefresh={refreshItem}
+						onMovieRefresh={movies.handleRefresh}
+						onMangaRefresh={manga.handleRefresh}
 						onUpdate={handleItemUpdates}
 						onRefresh={handleItemRefresh}
 						onUpdatePart={handleUpdatePart}
