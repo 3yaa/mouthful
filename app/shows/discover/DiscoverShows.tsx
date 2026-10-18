@@ -11,9 +11,11 @@ import {
 } from "@/app/views/discover/DiscoverFrame";
 import { useDiscoverLists } from "@/app/views/discover/useDiscoverLists";
 import {
+	DRAMA_PICKS,
 	MonthlyShowCard,
 	ORIGINS,
 	useMonthlyShows,
+	type DramaPick,
 	type OriginCode,
 } from "./MonthlyShows";
 import {
@@ -30,7 +32,9 @@ export function DiscoverShows() {
 	const [origin, setOrigin] = useState<OriginCode>("drama");
 	const [isAnime, setIsAnime] = useState(false);
 	const [animeTab, setAnimeTab] = useState<AnimeTabCode>("new");
-	const monthly = useMonthlyShows(origin, !isAnime);
+	const [dramaPick, setDramaPick] = useState<DramaPick>("all");
+	const monthly = useMonthlyShows(origin, dramaPick, !isAnime);
+	const showsDrama = !isAnime && origin === "drama";
 	const seasonal = useSeasonalAnime(animeTab, isAnime);
 	const now = useMinuteClock(isAnime);
 	const lists = useDiscoverLists();
@@ -44,16 +48,32 @@ export function DiscoverShows() {
 	return (
 		<DiscoverFrame
 			home={{ href: "/shows", title: "My Show List", listing: "show" }}
+			swap={{
+				href: "/movies/discover",
+				title: "Discover movies",
+				to: "movie",
+			}}
 			feed={isAnime ? seasonal : monthly}
 			emptyText={isAnime ? "No anime found." : "No shows found."}
 			controls={
 				<>
-					<SubTabs show={isAnime}>
-						<Segmented
-							options={ANIME_TABS}
-							value={animeTab}
-							onChange={setAnimeTab}
-						/>
+					<SubTabs
+						show={isAnime || showsDrama}
+						id={isAnime ? "anime" : "drama"}
+					>
+						{isAnime ? (
+							<Segmented
+								options={ANIME_TABS}
+								value={animeTab}
+								onChange={setAnimeTab}
+							/>
+						) : (
+							<Segmented
+								options={DRAMA_PICKS}
+								value={dramaPick}
+								onChange={setDramaPick}
+							/>
+						)}
 					</SubTabs>
 					<Segmented
 						options={TABS}
@@ -79,6 +99,7 @@ export function DiscoverShows() {
 							key={show.tmdbId}
 							show={show}
 							owned={lists.showOfTmdb(show.tmdbId)}
+							hideBadge={showsDrama && dramaPick !== "all"}
 							onClick={() => lists.openShowCard(show)}
 						/>
 					))}

@@ -84,6 +84,7 @@ import {
 	SCORE_SUB_BTN,
 } from "@/utils/styleUtils";
 import { MediaTitle, SERIES_TEXT, TITLE_TEXT } from "./shared/MediaTitle";
+import { useTrailer } from "./shared/useTrailer";
 import { PickHalves, PickPosition } from "./shared/PickPosition";
 import { TimeField } from "./shared/TimeField";
 import { ChapterLengthField } from "./shared/ChapterLengthField";
@@ -244,6 +245,7 @@ export function DesktopDetails<T extends BaseMediaProps>({
 
 	// the action waiting on its confirmation
 	const [pending, setPending] = useState<PendingConfirm | null>(null);
+	const trailer = useTrailer(mediaType, item);
 
 	// which half of the artwork was clicked decides the direction
 	const stepFrom = (type: string) => (e: React.MouseEvent<HTMLElement>) => {
@@ -1195,6 +1197,7 @@ export function DesktopDetails<T extends BaseMediaProps>({
 															? undefined
 															: 9.8
 													}
+													trailer={trailer}
 												/>
 												{bookBoard && (
 													<div className="-mt-1 flex justify-center">

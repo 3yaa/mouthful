@@ -12,13 +12,17 @@ import {
 	useDiscoverPage,
 	type DiscoverFeed,
 } from "@/app/views/discover/useDiscoverPage";
-import { MONTHS, dateLabel, runtimeLabel } from "@/app/views/discover/labels";
+import {
+	DRAMA_BADGE,
+	MONTHS,
+	dateLabel,
+	runtimeLabel,
+} from "@/app/views/discover/labels";
 import { genreLineOf } from "@/utils/formattingUtils";
 
 // release dates are set months out -- worth browsing ahead
 const MAX_AHEAD = 6;
 const OPEN_BACK = 2;
-const DRAMA_BADGE: Record<string, string> = { KR: "K", CN: "C" };
 
 const monthIndexOf = (date: Date) => date.getFullYear() * 12 + date.getMonth();
 
@@ -35,6 +39,7 @@ export function useMonthlyMovies(): DiscoverFeed<HollowMovieProps> {
 	});
 	const found = useDiscoverPage<HollowMovieProps>(
 		`/api/movies-api/tmdb-discover?${params}`,
+		"movies",
 		"movies",
 	);
 

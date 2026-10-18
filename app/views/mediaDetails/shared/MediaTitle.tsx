@@ -18,6 +18,7 @@ import {
 	measureLogo,
 	metricFor,
 } from "./logoMetrics";
+import type { TrailerHandle } from "./useTrailer";
 
 // sizing for logo
 const SIZES = {
@@ -167,6 +168,8 @@ interface MediaTitleProps {
 	wordFit?: number;
 	// ems a title may run on one line at full size
 	rowCap?: number;
+	// right click opens
+	trailer?: TrailerHandle;
 }
 
 export function MediaTitle({
@@ -181,6 +184,7 @@ export function MediaTitle({
 	isBook,
 	wordFit,
 	rowCap,
+	trailer,
 }: MediaTitleProps) {
 	const [brokenUrl, setBrokenUrl] = useState<string | null>(null);
 	const [, remeasured] = useReducer((n: number) => n + 1, 0);
@@ -205,6 +209,13 @@ export function MediaTitle({
 			)
 			.catch(() => {});
 	}, [copyTitle, title, subtitle]);
+
+	const openTrailer = trailer
+		? (e: React.MouseEvent) => {
+				e.preventDefault();
+				trailer.open();
+			}
+		: undefined;
 
 	const showsText = !logoUrl || brokenUrl === logoUrl;
 	const textRef = useRef<HTMLDivElement | null>(null);
@@ -278,6 +289,8 @@ export function MediaTitle({
 				<div
 					ref={textRef}
 					onClick={copyName}
+					onContextMenu={openTrailer}
+					onPointerEnter={trailer?.prime}
 					className={`${textClass} cursor-pointer select-none`}
 					style={
 						{
@@ -345,6 +358,8 @@ export function MediaTitle({
 				priority
 				onLoad={(e) => reveal(e.currentTarget)}
 				onClick={copyName}
+				onContextMenu={openTrailer}
+				onPointerEnter={trailer?.prime}
 				onError={handleError}
 				draggable={false}
 				style={{

@@ -1,6 +1,7 @@
 "use client";
 import {
 	useEffect,
+	useLayoutEffect,
 	useRef,
 	useState,
 	type CSSProperties,
@@ -48,7 +49,7 @@ export function DiscoverCard({
 		<button
 			type="button"
 			onClick={onClick}
-			className="group relative w-full text-left cursor-pointer rounded-lg overflow-hidden bg-zinc-950 border border-zinc-800/50 shadow-md shadow-black/40 transition-[translate,box-shadow,border-color] duration-300 ease-out hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/60 hover:border-zinc-700/70 focus-visible:outline-2 focus-visible:outline-zinc-500"
+			className="@container group relative w-full text-left cursor-pointer rounded-lg overflow-hidden bg-zinc-950 border border-zinc-800/50 shadow-md shadow-black/40 transition-[translate,box-shadow,border-color] duration-300 ease-out hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/60 hover:border-zinc-700/70 focus-visible:outline-2 focus-visible:outline-zinc-500"
 		>
 			{/* POSTER */}
 			<div className="relative aspect-2/3 bg-zinc-900 overflow-hidden">
@@ -103,8 +104,7 @@ export function DiscoverCard({
 					</div>
 				)}
 			</div>
-
-			<div className="relative z-10 -mt-px bg-zinc-950 px-2.5 py-2.5 grid grid-cols-[auto_1fr_auto] gap-x-1.5 items-center text-[0.75rem]">
+			<div className="relative z-10 -mt-px bg-zinc-950 px-2.5 py-2.5 grid grid-cols-[auto_1fr_auto] gap-x-1.5 items-center text-[0.75rem] @max-[11rem]:px-2 @max-[11rem]:gap-x-1">
 				{children}
 			</div>
 
@@ -114,6 +114,39 @@ export function DiscoverCard({
 				/>
 			)}
 		</button>
+	);
+}
+
+// the long label while the cell holds it, else the short one
+export function FitLabel({ full, short }: { full: string; short: string }) {
+	const cellRef = useRef<HTMLSpanElement>(null);
+	const probeRef = useRef<HTMLSpanElement>(null);
+	const [fits, setFits] = useState(true);
+
+	useLayoutEffect(() => {
+		const cell = cellRef.current;
+		const probe = probeRef.current;
+		if (!cell || !probe || full === short) return setFits(true);
+		const measure = () =>
+			setFits(probe.getBoundingClientRect().width <= cell.clientWidth);
+		measure();
+		document.fonts?.ready.then(measure).catch(() => {});
+		const observer = new ResizeObserver(measure);
+		observer.observe(cell);
+		return () => observer.disconnect();
+	}, [full, short]);
+
+	return (
+		<span ref={cellRef} className="relative block truncate">
+			<span
+				ref={probeRef}
+				aria-hidden
+				className="invisible absolute left-0 top-0 whitespace-nowrap"
+			>
+				{full}
+			</span>
+			{fits ? full : short}
+		</span>
 	);
 }
 

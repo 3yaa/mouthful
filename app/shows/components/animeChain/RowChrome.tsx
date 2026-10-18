@@ -344,7 +344,7 @@ export const Meta = ({
 				{tag}
 			</span>
 		)}
-		{value && (!pinned || !action) && (
+		{value && !tag && (!pinned || !action) && (
 			<span
 				className={`absolute inset-y-0 right-0.5 flex w-6 items-center justify-center transition-opacity duration-200 ${
 					action ? "group-hover:opacity-0" : ""

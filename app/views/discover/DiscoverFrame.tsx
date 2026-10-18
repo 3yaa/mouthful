@@ -6,11 +6,14 @@ import { BadgeLink } from "@/app/views/mediaListing/ShowsBadge";
 import { useFlash } from "@/app/components/RouteFlash";
 import type { ListingKind } from "@/app/views/mediaListing/ListingSkeleton";
 import type { DiscoverFeed } from "./useDiscoverPage";
+import { SwapCharm } from "./SwapCharm";
 
 const WIDTH = "max-w-368";
 
 interface DiscoverFrameProps {
 	home: { href: string; title: string; listing: ListingKind };
+	// the other list's discover, hung opposite the way home
+	swap: { href: string; title: string; to: "movie" | "show" };
 	feed: DiscoverFeed<unknown>;
 	controls?: ReactNode;
 	emptyText: string;
@@ -20,6 +23,7 @@ interface DiscoverFrameProps {
 
 export function DiscoverFrame({
 	home,
+	swap,
 	feed,
 	controls,
 	emptyText,
@@ -27,7 +31,7 @@ export function DiscoverFrame({
 	children,
 }: DiscoverFrameProps) {
 	const flash = useFlash();
-	const settled = !feed.loading && !feed.error;
+	const settled = (!feed.loading || feed.refreshing) && !feed.error;
 	return (
 		<div className="relative min-h-screen bg-zinc-950 text-zinc-200">
 			<BadgeLink
@@ -36,6 +40,13 @@ export function DiscoverFrame({
 				className="absolute right-10 top-0 z-30 hidden lg:block"
 				onClick={() => flash(home.listing)}
 				heading="home"
+			/>
+			<SwapCharm
+				to={swap.to}
+				href={swap.href}
+				title={swap.title}
+				className="absolute left-10 top-0 z-30 hidden min-[100rem]:block"
+				onClick={() => flash()}
 			/>
 			{/* ACTION BAR */}
 			<div className="sticky top-0 z-20 bg-zinc-950/75 backdrop-blur-3xl select-none">
@@ -77,7 +88,7 @@ export function DiscoverFrame({
 
 			{/* CONTENT */}
 			<div className={`${WIDTH} mx-auto px-4 sm:px-6 pb-8 pt-2`}>
-				{feed.loading && (
+				{feed.loading && !feed.refreshing && (
 					<div className="flex justify-center items-center py-40">
 						<Loader2 className="w-6 h-6 text-zinc-500 animate-spin" />
 					</div>
@@ -92,12 +103,18 @@ export function DiscoverFrame({
 				)}
 
 				{settled && (
-					<div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-4 gap-y-5">
+					<div
+						className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-4 gap-y-5 transition-opacity duration-200 ${
+							feed.refreshing
+								? "pointer-events-none opacity-40"
+								: ""
+						}`}
+					>
 						{children}
 					</div>
 				)}
 
-				{settled && feed.items.length === 0 && (
+				{settled && !feed.refreshing && feed.items.length === 0 && (
 					<p className="text-center text-zinc-400 italic text-sm py-40">
 						{emptyText}
 					</p>
@@ -177,16 +194,18 @@ export function Segmented<T extends string>({
 
 export function SubTabs({
 	show,
+	id = "sub-tabs",
 	children,
 }: {
 	show: boolean;
+	id?: string;
 	children: ReactNode;
 }) {
 	return (
-		<AnimatePresence initial={false}>
+		<AnimatePresence initial={false} mode="popLayout">
 			{show && (
 				<motion.div
-					key="sub-tabs"
+					key={id}
 					initial={{ opacity: 0, x: 8 }}
 					animate={{ opacity: 1, x: 0 }}
 					exit={{ opacity: 0, x: 8 }}

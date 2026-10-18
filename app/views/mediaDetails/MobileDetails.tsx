@@ -73,6 +73,7 @@ import {
 	SLOT_TEXT,
 	TITLE_TEXT,
 } from "./shared/MediaTitle";
+import { useTrailer } from "./shared/useTrailer";
 import {
 	calcCurProgress,
 	franchiseEpisodes,
@@ -237,6 +238,7 @@ export function MobileDetails<T extends BaseMediaProps>({
 	const [showBackdrop, setShowBackdrop] = useState(false);
 	// the control waiting on its confirmation sheet
 	const [pending, setPending] = useState<Control | null>(null);
+	const trailer = useTrailer(mediaType, item);
 	const [isDragging, setIsDragging] = useState(false);
 	const draggingRef = useRef(false);
 	const setDragging = (on: boolean) => {
@@ -980,6 +982,7 @@ export function MobileDetails<T extends BaseMediaProps>({
 										textClass={TITLE_TEXT.sm}
 										isBook={isPrint}
 										underlineColor={underlineColor}
+										trailer={trailer}
 									/>
 									{/* CURRENT ARC */}
 									{slotArc && (

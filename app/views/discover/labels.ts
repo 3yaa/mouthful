@@ -1,3 +1,5 @@
+import type { AnimeSeason } from "@/types/show";
+
 export const MONTHS = [
 	"Jan",
 	"Feb",
@@ -12,6 +14,21 @@ export const MONTHS = [
 	"Nov",
 	"Dec",
 ] as const;
+
+export const SEASONS: AnimeSeason[] = ["WINTER", "SPRING", "SUMMER", "FALL"];
+export const SEASON_LABEL: Record<AnimeSeason, string> = {
+	WINTER: "Winter",
+	SPRING: "Spring",
+	SUMMER: "Summer",
+	FALL: "Fall",
+};
+
+// corner badge for the drama countries
+export const DRAMA_BADGE: Record<string, string> = {
+	KR: "K",
+	CN: "C",
+	JP: "J",
+};
 
 export const MONTH_DAY: Intl.DateTimeFormatOptions = {
 	month: "short",

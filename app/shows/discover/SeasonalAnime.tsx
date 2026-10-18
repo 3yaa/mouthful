@@ -1,19 +1,12 @@
 "use client";
 import { useState } from "react";
-import type { AnimeSeason, SeasonalAnimeProps } from "@/types/show";
+import type { SeasonalAnimeProps } from "@/types/show";
 import {
 	usePaging,
 	useDiscoverPage,
 	type DiscoverFeed,
 } from "@/app/views/discover/useDiscoverPage";
-
-const SEASONS: AnimeSeason[] = ["WINTER", "SPRING", "SUMMER", "FALL"];
-const SEASON_LABEL: Record<AnimeSeason, string> = {
-	WINTER: "Winter",
-	SPRING: "Spring",
-	SUMMER: "Summer",
-	FALL: "Fall",
-};
+import { SEASON_LABEL, SEASONS } from "@/app/views/discover/labels";
 // past a year out anilist barely has a schedule
 const MAX_AHEAD = 3;
 
@@ -45,6 +38,7 @@ export function useSeasonalAnime(
 	const found = useDiscoverPage<SeasonalAnimeProps>(
 		active ? `/api/shows-api/anime-discover?${params}` : null,
 		"anime",
+		tab,
 	);
 
 	return {

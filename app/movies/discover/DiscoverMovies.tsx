@@ -10,6 +10,7 @@ export function DiscoverMovies() {
 	return (
 		<DiscoverFrame
 			home={{ href: "/movies", title: "My Movie List", listing: "movie" }}
+			swap={{ href: "/shows/discover", title: "Discover shows", to: "show" }}
 			feed={feed}
 			emptyText="No movies found."
 			overlays={lists.modals}
