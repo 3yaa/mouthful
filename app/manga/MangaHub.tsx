@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useMemo } from "react";
+import { useMemo } from "react";
 import { MangaProps } from "@/types/manga";
 import { DIFF_COLUMNS_MANGA } from "@/types/manga";
 import { useMediaData } from "@/hooks/useMediaData";
@@ -13,8 +13,7 @@ import { DesktopListing } from "@/app/views/mediaListing/DesktopListing";
 import { MobileListing } from "@/app/views/mediaListing/MobileListing";
 import { AddButton } from "../components/ui/AddButton";
 import { isSameName } from "@/utils/mediaMatch";
-import { SeriesJumpProps, SeriesTargetProps } from "@/types/media";
-import { backfillRuns } from "@/utils/seriesRead";
+import { useSeriesJump } from "@/hooks/useSeriesJump";
 import { AnimatePresence } from "framer-motion";
 import { withPages } from "../components/ui/MangaBackdrop";
 import dynamic from "next/dynamic";
@@ -86,35 +85,17 @@ export default function MangaHub() {
 	);
 	const pagedManga = useMemo(() => withPages(sortedManga), [sortedManga]);
 
-	// item a series jump points at
-	const findOwned = useCallback(
-		(target: SeriesTargetProps) =>
-			target.id
-				? items.find((manga) => String(manga.anilistId) === target.id)
-				: items.find((manga) => isSameName(manga, target.title)),
-		[items],
-	);
-
-	const isInList = useCallback(
-		(target: SeriesTargetProps) => !!findOwned(target),
-		[findOwned],
-	);
-
 	// sequel/prequel navigation
-	const showSequelPrequel = useCallback(
-		(jump: SeriesJumpProps) => {
-			const owned = findOwned(jump);
-			if (!owned) {
-				setTitleToUse(jump);
-				setActiveModal("addModal");
-				return;
-			}
-			const filled = jump.hop && backfillRuns(owned.series, jump.hop)[0];
-			if (filled) update(owned.id, { series: filled }, true);
-			handleItemClicked(filled ? { ...owned, series: filled } : owned);
+	const { isInList, jump: showSequelPrequel } = useSeriesJump({
+		items,
+		idOf: (manga) => (manga.anilistId ? String(manga.anilistId) : null),
+		saveSeries: (id, series) => update(id, { series }, true),
+		openOwned: handleItemClicked,
+		openAdd: (jump) => {
+			setTitleToUse(jump);
+			setActiveModal("addModal");
 		},
-		[findOwned, handleItemClicked, setTitleToUse, setActiveModal, update],
-	);
+	});
 
 	return (
 		<div className="min-h-screen">

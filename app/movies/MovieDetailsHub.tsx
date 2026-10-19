@@ -45,6 +45,7 @@ import {
 import { seriesJump } from "@/utils/seriesRead";
 import { useCommitOnUnmount } from "@/hooks/useManageMedia";
 import { CardStack, useCardLayer } from "@/hooks/useCardStack";
+import { useSeriesJump } from "@/hooks/useSeriesJump";
 // load actor modal dynamically
 const ActorItemsModal = dynamic(
 	() => import("../components/ActorModal").then((m) => m.ActorItemsModal),
@@ -119,6 +120,7 @@ interface MovieDetailsProps {
 	onMovieRefresh?: (
 		movieId: number,
 		metadata: Partial<MovieProps>,
+		indirect?: boolean,
 	) => Promise<void>;
 	onShowRefresh?: (
 		showId: number,
@@ -240,10 +242,10 @@ export function MovieDetails({
 	const [clickedDirector, setClickedDirector] = useState<string | null>(null);
 	//
 	// TITLE AND WHICH LIST
-	const [pendingWork, setPendingWork] = useState<Pick<
-		ActorWork,
-		"title" | "media_type"
-	> | null>(null);
+	const [pendingWork, setPendingWork] = useState<
+		| (Pick<ActorWork, "title" | "media_type"> & { tmdbId?: string | null })
+		| null
+	>(null);
 	const [selectedWorkItem, setSelectedWorkItem] = useState<
 		{ type: "movie"; id: number } | { type: "tv"; id: number } | null
 	>(null);
@@ -304,10 +306,29 @@ export function MovieDetails({
 						setSelectedWorkItem,
 					);
 			}
-			setPendingWork(work);
+			setPendingWork({ ...work, tmdbId: String(work.id) });
 		},
 		[existingMovies, existingShows, openWork],
 	);
+
+	// a prequel/sequel off a stacked movie card stays in this stack
+	const workSeries = useSeriesJump({
+		items: existingMovies,
+		idOf: (m) => m.tmdbId,
+		saveSeries: (id, series) => onMovieRefresh?.(id, { series }, true),
+		openOwned: (m) => {
+			setPendingWork(null);
+			openWork({ type: "movie", id: m.id }, setSelectedWorkItem);
+		},
+		openAdd: (jump) => {
+			setSelectedWorkItem(null);
+			setPendingWork({
+				title: jump.title,
+				media_type: "movie",
+				tmdbId: jump.id,
+			});
+		},
+	});
 
 	// manual +/- 0.1 score tweaks -- phi tightens once, on close
 	const { nudge: nudgeScore, commit: commitScoreNudge } = useScoreNudge(
@@ -699,7 +720,10 @@ export function MovieDetails({
 					onShowRefresh={onShowRefresh}
 					onMovieRefresh={onMovieRefresh}
 					isOpen={true}
-					targetFromAbove={{ title: pendingWork.title }}
+					targetFromAbove={{
+						title: pendingWork.title,
+						id: pendingWork.tmdbId,
+					}}
 					// anime
 					onAnimeChain={(found) =>
 						setPendingWork({
@@ -709,6 +733,8 @@ export function MovieDetails({
 					}
 					onClose={() => setPendingWork(null)}
 					{...crossMedia}
+					onSeriesNav={workSeries.jump}
+					isInList={workSeries.isInList}
 					onAddMovie={async (m) => {
 						const added = await onAddWork(m);
 						if (added)
@@ -730,6 +756,8 @@ export function MovieDetails({
 						((meta) => onMovieRefresh(selectedMovie.id, meta))
 					}
 					{...crossMedia}
+					showSequelPrequel={workSeries.jump}
+					isInList={workSeries.isInList}
 				/>
 			)}
 			{/* SHOW STUFF */}

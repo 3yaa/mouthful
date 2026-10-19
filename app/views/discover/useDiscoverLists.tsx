@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import dynamic from "next/dynamic";
 import { useCrossList } from "@/hooks/useCrossList";
+import { useSeriesJump } from "@/hooks/useSeriesJump";
 import { MOVIE_LIST, SHOW_LIST } from "@/hooks/mediaLists";
 import {
 	isBattleReady,
@@ -122,6 +123,21 @@ export function useDiscoverLists() {
 		else setMovieTarget({ title: card.title, id: card.tmdbId });
 	};
 
+	// a prequel/sequel off either movie card swaps it for the other
+	const movieSeries = useSeriesJump({
+		items: movies.items,
+		idOf: (movie) => movie.tmdbId,
+		saveSeries: (id, series) => movies.update(id, { series }, true),
+		openOwned: (movie) => {
+			setMovieTarget(null);
+			setOpenMovieId(movie.id);
+		},
+		openAdd: (jump) => {
+			setOpenMovieId(null);
+			setMovieTarget(jump);
+		},
+	});
+
 	const onShowUpdate = (
 		id: number,
 		updates?: Partial<ShowProps>,
@@ -174,6 +190,8 @@ export function useDiscoverLists() {
 					onShowUpdate={onShowUpdate}
 					onShowUpdatePart={onShowUpdatePart}
 					onAddShow={shows.handleAdd}
+					showSequelPrequel={movieSeries.jump}
+					isInList={movieSeries.isInList}
 				/>
 			)}
 
@@ -232,6 +250,8 @@ export function useDiscoverLists() {
 					onShowUpdate={onShowUpdate}
 					onShowUpdatePart={onShowUpdatePart}
 					onAddShow={shows.handleAdd}
+					onSeriesNav={movieSeries.jump}
+					isInList={movieSeries.isInList}
 					onAddMovie={async (m) => {
 						const added = await movies.handleAdd(m);
 						if (added) setOpenMovieId(added.id);

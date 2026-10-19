@@ -92,7 +92,7 @@ export function MovieDiscoverCard({
 		<DiscoverCard
 			title={movie.title}
 			posterUrl={movie.poster_url}
-			corner={
+			footChip={
 				genre && (
 					<CornerChip>
 						<span className="block truncate">{genre}</span>

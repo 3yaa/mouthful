@@ -68,14 +68,14 @@ import { MovieDetails } from "@/app/movies/MovieDetailsHub";
 import { AddManga } from "@/app/manga/AddManga";
 import { MangaProps } from "@/types/manga";
 import { MangaDetails } from "@/app/manga/MangaDetailsHub";
-import { MediaStatus, SeriesJumpProps, SeriesTargetProps } from "@/types/media";
-import { backfillRuns } from "@/utils/seriesRead";
+import { MediaStatus, SeriesJumpProps } from "@/types/media";
 import { useShowSearch } from "@/hooks/external/useShowSearch";
 import { mapShowMeta } from "./utils/showMapping";
 import { isSameName, normName } from "@/utils/mediaMatch";
 import type { StudioWork } from "./utils/studioCatalog";
 import { useCommitOnUnmount } from "@/hooks/useManageMedia";
 import { CardStack, useCardLayer } from "@/hooks/useCardStack";
+import { useSeriesJump } from "@/hooks/useSeriesJump";
 // load actor modal dynamically
 const ActorItemsModal = dynamic(
 	() => import("../components/ActorModal").then((m) => m.ActorItemsModal),
@@ -201,10 +201,12 @@ export interface ShowDetailsProps {
 	onMovieRefresh?: (
 		movieId: number,
 		metadata: Partial<MovieProps>,
+		indirect?: boolean,
 	) => Promise<void>;
 	onMangaRefresh?: (
 		mangaId: number,
 		metadata: Partial<MangaProps>,
+		indirect?: boolean,
 	) => Promise<void>;
 	// a slot: score | note | skip
 	onUpdatePart?: (
@@ -694,13 +696,28 @@ export function ShowDetails({
 		findOwnedMovie,
 	});
 
-	//
-	const resolveMovie = (target: SeriesTargetProps) =>
-		target.id
-			? existingMovies.find((m) => m.tmdbId === target.id)
-			: findOwnedMovie(target.title);
+	const movieSeries = useSeriesJump({
+		items: existingMovies,
+		idOf: (m) => m.tmdbId,
+		saveSeries: (id, series) => onMovieRefresh?.(id, { series }, true),
+		openOwned: (m) => {
+			setPendingWork(null);
+			openWork({ type: "movie", id: m.id }, setSelectedWorkItem);
+		},
+		openAdd: (jump) => {
+			setSelectedWorkItem(null);
+			setPendingWork({
+				title: jump.title,
+				media_type: "movie",
+				id: jump.id,
+				handsOff: true,
+			});
+		},
+	});
+	const resolveMovie = movieSeries.findOwned;
 
-	const handleWorkSeriesNav = (target: SeriesTargetProps) => {
+	// a jump off a stacked movie card
+	const handleWorkSeriesNav = (target: SeriesJumpProps) => {
 		const wanted = normName(target.title);
 		const at = slotIndexAt(
 			slotLine.findIndex(
@@ -708,24 +725,10 @@ export function ShowDetails({
 					normName(slotName(show, slot, slotIndexAt(i))) === wanted,
 			),
 		);
-		if (at !== -1) {
-			setSelectedWorkItem(null);
-			cursor.browse(at);
-			return;
-		}
-		const owned = resolveMovie(target);
-		if (owned)
-			return openWork(
-				{ type: "movie", id: owned.id },
-				setSelectedWorkItem,
-			);
+		if (at === -1) return movieSeries.jump(target);
 		setSelectedWorkItem(null);
-		setPendingWork({
-			title: target.title,
-			media_type: "movie",
-			id: target.id,
-			handsOff: true,
-		});
+		setPendingWork(null);
+		cursor.browse(at);
 	};
 
 	// for anime only
@@ -931,16 +934,16 @@ export function ShowDetails({
 		});
 	};
 
-	// owned manga open in place, the rest start the add flow by anilist id
-	const findOwnedManga = (target: SeriesTargetProps) =>
-		target.id
-			? existingManga.find((m) => String(m.anilistId) === target.id)
-			: existingManga.find((m) => isSameName(m, target.title));
-
 	// a jump off the manga card, or the source itself
-	const handleMangaNav = (jump: SeriesJumpProps) => {
-		const owned = findOwnedManga(jump);
-		if (!owned) {
+	const mangaSeries = useSeriesJump({
+		items: existingManga,
+		idOf: (m) => (m.anilistId ? String(m.anilistId) : null),
+		saveSeries: (id, series) => onMangaRefresh?.(id, { series }, true),
+		openOwned: (m) => {
+			setPendingWork(null);
+			openWork({ type: "manga", id: m.id }, setSelectedWorkItem);
+		},
+		openAdd: (jump) => {
 			setSelectedWorkItem(null);
 			setPendingWork({
 				title: jump.title,
@@ -948,13 +951,10 @@ export function ShowDetails({
 				id: jump.id,
 				handsOff: true,
 			});
-			return;
-		}
-		const filled = jump.hop && backfillRuns(owned.series, jump.hop)[0];
-		if (filled) onMangaUpdate?.(owned.id, { series: filled });
-		setPendingWork(null);
-		openWork({ type: "manga", id: owned.id }, setSelectedWorkItem);
-	};
+		},
+	});
+	const findOwnedManga = mangaSeries.findOwned;
+	const handleMangaNav = mangaSeries.jump;
 
 	// light novels live in books, so only a manga source opens
 	const mangaSource = onMangaUpdate && onAddManga ? mangaSourceOf(row) : null;
@@ -1542,6 +1542,7 @@ export function ShowDetails({
 					onShowUpdate={onUpdate}
 					onShowUpdatePart={onUpdatePart}
 					showSequelPrequel={handleWorkSeriesNav}
+					isInList={movieSeries.isInList}
 					onAddWork={onAddMovie}
 					onAddShow={onAddWork}
 				/>
@@ -1568,10 +1569,8 @@ export function ShowDetails({
 					onShowUpdate={onUpdate}
 					onShowUpdatePart={onUpdatePart}
 					onAddShow={onAddWork}
-					onSeriesNav={(target) => {
-						setPendingWork(null);
-						handleWorkSeriesNav(target);
-					}}
+					onSeriesNav={handleWorkSeriesNav}
+					isInList={movieSeries.isInList}
 					onClose={() => {
 						setPendingWork(null);
 					}}

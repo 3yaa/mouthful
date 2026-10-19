@@ -56,13 +56,13 @@ export function useCrossList<T extends BaseMediaProps>(
 
 	// a reload from a card opened here, the same as its own hub's
 	const handleRefresh = useCallback(
-		async (itemId: number, metadata: Partial<T>) => {
+		async (itemId: number, metadata: Partial<T>, indirect = false) => {
 			const clean = Object.fromEntries(
 				Object.entries(metadata).filter(([, v]) => v !== undefined),
 			) as Partial<T>;
 			if (Object.keys(clean).length === 0) return;
 			flushSoon(itemId);
-			await refresh(itemId, clean);
+			await refresh(itemId, clean, indirect);
 		},
 		[refresh, flushSoon],
 	);

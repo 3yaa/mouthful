@@ -253,7 +253,7 @@ export function LandingFocus({
 								)}
 								<span
 									aria-hidden
-									className={`absolute inset-0 -z-10 rounded-xl neu-carved-in transition-opacity duration-150 ease-out ${
+									className={`absolute inset-0 -z-10 rounded-xl bg-black/60 blur-[9px] transition-opacity duration-150 ease-out ${
 										on ? "opacity-100" : "opacity-0"
 									}`}
 								/>
@@ -270,23 +270,6 @@ export function LandingFocus({
 								>
 									{cell.name}
 								</span>
-								{total != null ? (
-									<motion.span
-										initial={{ opacity: 0 }}
-										animate={{ opacity: 1 }}
-										transition={{
-											duration: 0.6,
-											ease: EASE,
-										}}
-										className={`ml-auto text-[0.9375rem] font-medium tabular-nums transition-colors duration-200 ${
-											on
-												? "text-zinc-300"
-												: "text-zinc-600"
-										}`}
-									>
-										{total}
-									</motion.span>
-								) : null}
 								{cell.counts && total ? (
 									<motion.span
 										aria-hidden
@@ -311,7 +294,7 @@ export function LandingFocus({
 							</>
 						);
 						const shape =
-							"relative isolate flex h-15 min-w-0 items-center gap-3 rounded-xl px-4 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-400 xl:h-16 xl:px-6";
+							"relative isolate flex h-15 min-w-0 items-center justify-center gap-3 rounded-xl px-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-400 xl:h-16 xl:px-6";
 						return (
 							<Link
 								key={cell.key}

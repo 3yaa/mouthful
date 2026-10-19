@@ -203,7 +203,7 @@ export function GameDetails({
 				break;
 			// =========other actions=============
 			case "dlcNav": // switches modal to DLC
-				hanldeDlcOpen(action.payload);
+				handleDlcOpen(action.payload);
 				break;
 			case "refresh":
 				reload.refresh();
@@ -288,12 +288,14 @@ export function GameDetails({
 		onUpdate(game.id, statusLoad);
 	};
 
-	const hanldeDlcOpen = (dir: string) => {
-		if (!showDlc || !game.dlcs) return;
-		const dlcIndex = dir === "next" ? game.dlcIndex + 1 : game.dlcIndex - 1;
-		const targetIgdbId = game.dlcs[dlcIndex]?.id;
+	const handleDlcOpen = (dir: string) => {
+		// a preview steps along the list it shows
+		const row = isSelecting ? { ...game, ...reload.meta } : game;
+		if (!showDlc || !row.dlcs) return;
+		const dlcIndex = dir === "next" ? row.dlcIndex + 1 : row.dlcIndex - 1;
+		const targetIgdbId = row.dlcs[dlcIndex]?.id;
 		if (!targetIgdbId) return;
-		showDlc(targetIgdbId, dlcIndex, game);
+		showDlc(targetIgdbId, dlcIndex, row);
 	};
 
 	const handleSaveNote = () => {

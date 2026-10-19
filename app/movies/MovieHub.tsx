@@ -2,11 +2,10 @@
 import { useCallback, useMemo, useState } from "react";
 import { MovieProps } from "@/types/movie";
 import { isSameName } from "@/utils/mediaMatch";
-import { SeriesJumpProps, SeriesTargetProps } from "@/types/media";
-import { backfillRuns } from "@/utils/seriesRead";
 import { DIFF_COLUMNS_MOVIE } from "@/types/movie";
 import { useMediaData } from "@/hooks/useMediaData";
 import { useCrossList } from "@/hooks/useCrossList";
+import { useSeriesJump } from "@/hooks/useSeriesJump";
 import { MOVIE_LIST, SHOW_LIST } from "@/hooks/mediaLists";
 import { useManageMedia } from "@/hooks/useManageMedia";
 import { useSortMedia } from "@/hooks/useSortMedia";
@@ -117,34 +116,17 @@ export default function MoviesHub() {
 			? shows.items.find((s) => s.id === chainShowId)
 			: undefined;
 
-	const findOwned = useCallback(
-		(target: SeriesTargetProps) =>
-			target.id
-				? items.find((movie) => movie.tmdbId === target.id)
-				: items.find((movie) => isSameName(movie, target.title)),
-		[items],
-	);
-
-	const isInList = useCallback(
-		(target: SeriesTargetProps) => !!findOwned(target),
-		[findOwned],
-	);
-
 	// sequel/prequel navigation
-	const showSequelPrequel = useCallback(
-		(jump: SeriesJumpProps) => {
-			const owned = findOwned(jump);
-			if (!owned) {
-				setTitleToUse(jump);
-				setActiveModal("addModal");
-				return;
-			}
-			const filled = jump.hop && backfillRuns(owned.series, jump.hop)[0];
-			if (filled) update(owned.id, { series: filled }, true);
-			handleItemClicked(filled ? { ...owned, series: filled } : owned);
+	const { isInList, jump: showSequelPrequel } = useSeriesJump({
+		items,
+		idOf: (movie) => movie.tmdbId,
+		saveSeries: (id, series) => update(id, { series }, true),
+		openOwned: handleItemClicked,
+		openAdd: (jump) => {
+			setTitleToUse(jump);
+			setActiveModal("addModal");
 		},
-		[findOwned, handleItemClicked, setTitleToUse, setActiveModal, update],
-	);
+	});
 
 	return (
 		<div className="min-h-screen">
@@ -282,7 +264,9 @@ export default function MoviesHub() {
 						key="chain-show-details"
 						show={chainShow}
 						onClose={() => setChainShowId(null)}
-						onRefresh={(meta) => shows.handleRefresh(chainShow.id, meta)}
+						onRefresh={(meta) =>
+							shows.handleRefresh(chainShow.id, meta)
+						}
 						onShowRefresh={shows.handleRefresh}
 						onMovieRefresh={refreshItem}
 						onUpdate={shows.handleUpdates}

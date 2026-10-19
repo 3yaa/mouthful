@@ -21,8 +21,8 @@ interface DiscoverCardProps {
 	title: string;
 	posterUrl: string | null;
 	posterColor?: string | null;
-	// for badge
-	corner?: ReactNode;
+	// bottom right of the art -- loses to title hover
+	footChip?: ReactNode;
 	caption?: { tag?: ReactNode };
 	badge?: ReactNode;
 	status?: MediaStatus | null;
@@ -35,7 +35,7 @@ export function DiscoverCard({
 	title,
 	posterUrl,
 	posterColor,
-	corner,
+	footChip,
 	caption,
 	badge,
 	status,
@@ -74,10 +74,14 @@ export function DiscoverCard({
 						{badge}
 					</div>
 				)}
-				{(corner || status) && (
-					<div className="absolute top-1.5 right-1.5 z-10 flex max-w-[70%] flex-col items-end gap-1">
-						{corner}
-						{status && <CornerChip>In List</CornerChip>}
+				{status && (
+					<div className="absolute top-1.5 right-1.5 z-10 flex max-w-[70%] justify-end">
+						<CornerChip>In List</CornerChip>
+					</div>
+				)}
+				{footChip && (
+					<div className="absolute bottom-1.5 inset-x-1.5 z-10 flex justify-end transition-opacity duration-300 group-hover:opacity-0 group-focus-visible:opacity-0">
+						{footChip}
 					</div>
 				)}
 				{caption && (
