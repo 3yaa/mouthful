@@ -21,3 +21,23 @@ export function pickBookSeries(
 ): SeriesProps | null {
 	return series?.[seriesI ?? 0] ?? null;
 }
+
+// keep the one a jump came along, else the saved one, else the featured one
+export function runIndexOf(
+	series: BookAPIProps["series"],
+	along: { fromId?: string | null; title?: string | null },
+): number {
+	if (!series?.length) return 0;
+	const linked = along.fromId
+		? series.findIndex(
+				(run) =>
+					run.prequel?.id === along.fromId ||
+					run.sequel?.id === along.fromId,
+			)
+		: -1;
+	if (linked !== -1) return linked;
+	const named = along.title
+		? series.findIndex((run) => run.title === along.title)
+		: -1;
+	return named !== -1 ? named : 0;
+}

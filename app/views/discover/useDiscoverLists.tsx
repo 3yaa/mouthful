@@ -4,6 +4,7 @@ import { AnimatePresence } from "framer-motion";
 import dynamic from "next/dynamic";
 import { useCrossList } from "@/hooks/useCrossList";
 import { useSeriesJump } from "@/hooks/useSeriesJump";
+import { ownedMovieOf } from "@/utils/mediaMatch";
 import { MOVIE_LIST, SHOW_LIST } from "@/hooks/mediaLists";
 import {
 	isBattleReady,
@@ -229,7 +230,7 @@ export function useDiscoverLists() {
 					onShowRefresh={shows.handleRefresh}
 					onMovieRefresh={movies.handleRefresh}
 					onDuplicate={(dup) => {
-						const owned = movieOf(dup.tmdbId, dup.imdbId);
+						const owned = ownedMovieOf(movies.items, dup);
 						if (!owned) return false;
 						setMovieTarget(null);
 						setOpenMovieId(owned.id);

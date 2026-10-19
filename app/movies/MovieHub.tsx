@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useMemo, useState } from "react";
 import { MovieProps } from "@/types/movie";
-import { isSameName } from "@/utils/mediaMatch";
+import { ownedMovieOf } from "@/utils/mediaMatch";
 import { DIFF_COLUMNS_MOVIE } from "@/types/movie";
 import { useMediaData } from "@/hooks/useMediaData";
 import { useCrossList } from "@/hooks/useCrossList";
@@ -27,7 +27,7 @@ const ScoreBattlerHub = dynamic(
 		),
 	{ ssr: false },
 );
-import { ShowProps } from "@/types/show";
+import { ShowProps, ShowTargetProps } from "@/types/show";
 import { isBattleReady, withPartPatch } from "@/app/shows/utils/animePartMarks";
 
 export default function MoviesHub() {
@@ -95,7 +95,9 @@ export default function MoviesHub() {
 		DIFF_COLUMNS_MOVIE,
 	);
 
-	const [chainShowTitle, setChainShowTitle] = useState<string | null>(null);
+	const [chainTarget, setChainTarget] = useState<ShowTargetProps | null>(
+		null,
+	);
 	// an anime part's mark, from any show card opened here
 	const { updatePart: updateShowPart } = shows;
 	const handleShowPart = useCallback(
@@ -195,17 +197,14 @@ export default function MoviesHub() {
 						isInList={isInList}
 						onAnimeChain={(found) => {
 							handleModalClose();
-							setChainShowTitle(found.showTitle);
+							setChainTarget({
+								title: found.showTitle ?? "",
+								tmdbId: found.tmdbId,
+								anime: true,
+							});
 						}}
 						onDuplicate={(dup) => {
-							const owned =
-								(dup.tmdbId
-									? items.find((m) => m.tmdbId === dup.tmdbId)
-									: undefined) ??
-								(dup.imdbId
-									? items.find((m) => m.imdbId === dup.imdbId)
-									: undefined) ??
-								items.find((m) => isSameName(m, dup.title));
+							const owned = ownedMovieOf(items, dup);
 							if (!owned) return false;
 							setTitleToUse(null);
 							handleItemClicked(owned);
@@ -239,11 +238,13 @@ export default function MoviesHub() {
 			</AnimatePresence>
 			{/* THE SHOW A MOVIE TURNED OUT TO BELONG TO */}
 			<AnimatePresence>
-				{chainShowTitle && (
+				{chainTarget && (
 					<AddShow
 						key="chain-show"
 						isOpen
-						targetFromAbove={{ title: chainShowTitle }}
+						targetFromAbove={chainTarget}
+						onShowRefresh={shows.handleRefresh}
+						onMovieRefresh={refreshItem}
 						existingShows={shows.items}
 						onAddWork={shows.handleAdd}
 						existingMovies={items}
@@ -253,7 +254,7 @@ export default function MoviesHub() {
 							const added = await shows.handleAdd(s);
 							if (added) setChainShowId(added.id);
 						}}
-						onClose={() => setChainShowTitle(null)}
+						onClose={() => setChainTarget(null)}
 					/>
 				)}
 			</AnimatePresence>

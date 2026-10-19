@@ -135,11 +135,12 @@ export function AddMovie({
 					return;
 				}
 			}
-			//
+			// a jump's target is known -- the toggle belongs to typed searches
+			const onlyMovie = knownTmdbId ? false : movieOnly;
 			const movieData = await searchForMovie(
 				titleSearching,
 				yearSearching,
-				movieOnly,
+				onlyMovie,
 				knownTmdbId,
 			);
 			// dup logic --- NEEDS TO BE ABOVE EMPTY LOGIC CAUSE REPSONSE IS EMPTY
@@ -158,7 +159,7 @@ export function AddMovie({
 				return;
 			}
 			//
-			const placed = movieOnly ? undefined : movieData.animeMovie;
+			const placed = onlyMovie ? undefined : movieData.animeMovie;
 			if (placed?.kind === "show" && onAnimeChain) {
 				//
 				const owned = existingShows.some(
@@ -176,7 +177,11 @@ export function AddMovie({
 					}, 0);
 					return;
 				}
-				onAnimeChain(placed);
+				// the show search needs a title even when anilist gave none
+				onAnimeChain({
+					...placed,
+					showTitle: placed.showTitle ?? movieData.title,
+				});
 				return;
 			}
 			//format movie
@@ -310,10 +315,13 @@ export function AddMovie({
 			if (titleToSearch.current) {
 				titleToSearch.current.value = targetFromAbove.title;
 			}
-			// reset for jump
+			// reset for jump -- the last one's failure doesn't carry over
 			if (yearToSearch.current) {
 				yearToSearch.current.value = "";
 			}
+			setNeedYear(false);
+			setIsDupTitle(false);
+			setFailedReason("");
 			handleMovieSearch(targetFromAbove.id ?? undefined);
 		}
 		// eslint-disable-next-line react-hooks/exhaustive-deps

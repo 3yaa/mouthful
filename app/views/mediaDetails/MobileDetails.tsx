@@ -6,6 +6,7 @@ import {
 	BaseMediaProps,
 	ColumnConfig,
 	MediaCoverProps,
+	NOTE_MAX,
 	SeriesMediaProps,
 	SeriesTargetProps,
 	isPrintMedia,
@@ -1453,6 +1454,7 @@ export function MobileDetails<T extends BaseMediaProps>({
 							</label>
 							<div className="bg-zinc-800/40 rounded-lg pl-3 pr-1 pt-3 pb-2 focus-within:ring-1 focus-within:ring-zinc-700 transition-all duration-200 max-h-22 overflow-auto shadow-lg shadow-black/50">
 								<MobileAutoTextarea
+									maxLength={NOTE_MAX}
 									value={localNote}
 									onChange={(e) =>
 										onAction({

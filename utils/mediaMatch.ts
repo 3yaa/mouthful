@@ -62,3 +62,16 @@ export function findOnlyNamed<T extends NamedRow>(
 	return only;
 }
 
+// the owned movie a duplicate (409) points at -- tmdb id, then imdb id, then the name
+export function ownedMovieOf<
+	T extends NamedRow & { tmdbId: string; imdbId: string | null },
+>(
+	movies: T[],
+	dup: { title: string; tmdbId?: string; imdbId?: string },
+): T | undefined {
+	return (
+		(dup.tmdbId ? movies.find((m) => m.tmdbId === dup.tmdbId) : undefined) ??
+		(dup.imdbId ? movies.find((m) => m.imdbId === dup.imdbId) : undefined) ??
+		movies.find((m) => isSameName(m, dup.title))
+	);
+}

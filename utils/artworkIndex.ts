@@ -29,3 +29,21 @@ export const stepLogoIndex = (
 			? total - 1
 			: from - 1;
 };
+
+// -- reload previews start on the saved art
+
+const fileOf = (url: string) => url.split(/[?#]/)[0].split("/").pop() || url;
+
+// by file name -- the size segment of the url can differ between saves
+export const savedArtIndex = (items: string[], saved?: string | null) => {
+	if (!saved) return -1;
+	const file = fileOf(saved);
+	return items.findIndex((url) => fileOf(url) === file);
+};
+
+// a saved row without a logo kept the text title
+export const savedLogoIndex = (items: string[], saved?: string | null) => {
+	if (!items.length) return 0;
+	if (!saved) return clearedFrom(0);
+	return Math.max(savedArtIndex(items, saved), 0);
+};

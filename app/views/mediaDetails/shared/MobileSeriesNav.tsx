@@ -5,7 +5,12 @@ import {
 	SeriesTargetProps,
 } from "@/types/media";
 import { GameProps } from "@/types/game";
-import { dlcPlace, seriesNeighbours, seriesPlace } from "@/utils/seriesRead";
+import {
+	dlcNeighbours,
+	dlcPlace,
+	seriesNeighbours,
+	seriesPlace,
+} from "@/utils/seriesRead";
 import { NotInListBadge } from "./SeriesNav";
 
 interface MobileSeriesNavProps {
@@ -25,28 +30,27 @@ export function MobileSeriesNav({
 		mediaType === "game"
 			? (() => {
 					const g = item as unknown as GameProps;
+					const dlc = dlcNeighbours(g);
 					return {
-						prev:
-							g.dlcs && g.dlcIndex - 1 >= 0
-								? {
-										name: g.dlcs[g.dlcIndex - 1].name,
-										action: {
-											type: "dlcNav",
-											payload: "prev",
-										},
-									}
-								: null,
+						prev: dlc.prev
+							? {
+									name: dlc.prev.name,
+									action: {
+										type: "dlcNav",
+										payload: "prev",
+									},
+								}
+							: null,
 						center: dlcPlace(g),
-						next:
-							g.dlcs && g.dlcIndex + 1 < g.dlcs.length
-								? {
-										name: g.dlcs[g.dlcIndex + 1].name,
-										action: {
-											type: "dlcNav",
-											payload: "next",
-										},
-									}
-								: null,
+						next: dlc.next
+							? {
+									name: dlc.next.name,
+									action: {
+										type: "dlcNav",
+										payload: "next",
+									},
+								}
+							: null,
 					};
 				})()
 			: (() => {

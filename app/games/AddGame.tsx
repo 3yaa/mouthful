@@ -22,6 +22,7 @@ import { ShowMultGames } from "./components/ShowMultGames";
 import { useGameSearch } from "@/hooks/external/useGameSearch";
 import { buildCover } from "@/utils/extractCoverPalette";
 import { findOnlyNamed } from "@/utils/mediaMatch";
+import { useLatch } from "@/hooks/useLatch";
 import { useEscapeClose } from "@/hooks/useEscapeClose";
 
 interface AddGameProps {
@@ -98,7 +99,11 @@ export function AddGame({
 	// igdb gives no cover colour
 	const applyCoverColor = useCallback(async (url?: string) => {
 		const cover = await buildCover(url);
-		if (cover) setNewGame((prev) => ({ ...prev, cover }));
+		// a slow read must not paint the colour onto the next dlc
+		if (cover)
+			setNewGame((prev) =>
+				prev.cover?.url === url ? { ...prev, cover } : prev,
+			);
 	}, []);
 
 	const handleTitleSearch = useCallback(async () => {
@@ -187,13 +192,10 @@ export function AddGame({
 			setBackdropIndex(0);
 			setLogoUrls([]);
 			setLogoIndex(0);
-			setNewGame((prev) => ({
-				...prev,
-				...mappedData,
-				logoUrl: undefined,
-				status: "Playing",
-			}));
+			// a fresh preview -- edits made on the last dlc stay with it
+			setNewGame({ ...mappedData, status: "Playing" });
 			applyCoverColor(mainDlc.cover_url);
+			return true;
 		},
 		[searchForGameDlc, titleFromAbove, applyCoverColor],
 	);
@@ -214,12 +216,18 @@ export function AddGame({
 		//
 		const response = await handleDlcTitleSearch(igdbId);
 		//check for duplicate
-		if (response && "isDuplicate" in response) {
+		if (response && typeof response === "object") {
 			setActiveModal(null);
 			// go to it
 			if (onDuplicate?.(response)) return;
 			setFailedReason(`Already Have Game: ${response.title}`);
 			setIsDupTitle(true);
+			return;
+		}
+		if (!response) {
+			setNewGame({});
+			setFailedReason("Could Not Find DLC.");
+			setActiveModal(null);
 			return;
 		}
 		setNewGame((prev) => ({
@@ -335,13 +343,19 @@ export function AddGame({
 
 	useEscapeClose(onClose);
 
+	// a dlc jump that failed or hit a dup shows its reason with the search
+	const searchShown = useLatch(
+		!!failedReason || isDupTitle,
+		`${isOpen}|${titleFromAbove?.dlcs[titleFromAbove.dlcIndex]?.id}`,
+	);
+
 	if (!isOpen) return null;
 
 	return (
 		<ModalBackdrop className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-30">
 			{/* maybe not allow user to close modal as new game coming? */}
 			<div className="fixed inset-0" onClick={onClose} />
-			{!titleFromAbove ? (
+			{!titleFromAbove || searchShown ? (
 				<SearchCard icon={Gamepad2} label="Search for New Game">
 					<SearchFields
 						titleRef={titleToSearch}

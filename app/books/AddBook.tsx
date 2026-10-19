@@ -19,6 +19,7 @@ import {
 import {
 	mapBookAPIDatatoBook,
 	pickBookSeries,
+	runIndexOf,
 } from "@/app/books/utils/bookMapping";
 //
 import { BookDetails } from "./BookDetailsHub";
@@ -135,13 +136,17 @@ export function AddBook({
 			}
 			//save books
 			setCovers(response.covers || []);
+			const run = runIndexOf(response.series, {
+				fromId: targetFromAbove?.hop?.from.id,
+				title: targetFromAbove?.hop?.run.title,
+			});
 			setNewBook({
 				...mapBookAPIDatatoBook(response),
 				status: "Want to Read",
-				series: pickBookSeries(response.series),
+				series: pickBookSeries(response.series, run),
 			}); //main
 			setSeries(response.series);
-			setSeriesIndex(0);
+			setSeriesIndex(run);
 			setCovers(response.covers);
 			// reset for series jump
 			setCoverIndex(0);
@@ -168,17 +173,21 @@ export function AddBook({
 				setActiveModal(null);
 				return;
 			}
+			const run = runIndexOf(full.series, {
+				fromId: targetFromAbove?.hop?.from.id,
+				title: targetFromAbove?.hop?.run.title,
+			});
 			setSeries(full.series || []);
-			setSeriesIndex(0);
+			setSeriesIndex(run);
 			setCovers(full.covers || []);
 			setCoverIndex(0);
 			setNewBook({
 				...mapBookAPIDatatoBook(full),
 				status: "Want to Read",
-				series: pickBookSeries(full.series),
+				series: pickBookSeries(full.series, run),
 			});
 		},
-		[loadBookByKey],
+		[loadBookByKey, targetFromAbove],
 	);
 
 	const handleBookDetailsUpdates = useCallback(

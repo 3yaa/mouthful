@@ -352,12 +352,13 @@ export function useManageMedia<T extends BaseMediaProps>({
 		[onRefresh, dropQueued, flushFor],
 	);
 
+	// bound to the card's item, so an Apply that lands after the card closes still saves
+	const openId = selectedItem?.id ?? null;
 	const handleItemRefresh = useCallback(
 		async (metadata: Partial<T>, indirect?: boolean) => {
-			const itemId = selectedId.current;
-			if (itemId !== null) await refreshItem(itemId, metadata, indirect);
+			if (openId !== null) await refreshItem(openId, metadata, indirect);
 		},
-		[refreshItem],
+		[openId, refreshItem],
 	);
 
 	// leaving the page sends a card's edits a beat later

@@ -17,7 +17,11 @@ import { useAddWait } from "@/hooks/useAddWait";
 import { useEscapeClose } from "@/hooks/useEscapeClose";
 import { PickList, useReloadPreview } from "@/hooks/useReloadPreview";
 import { useBookSearch } from "@/hooks/external/useBookSearch";
-import { mapBookAPIDatatoBook, pickBookSeries } from "./utils/bookMapping";
+import {
+	mapBookAPIDatatoBook,
+	pickBookSeries,
+	runIndexOf,
+} from "./utils/bookMapping";
 import { ShowMultBooks } from "./components/ShowMultBooks";
 import { AnimatePresence } from "framer-motion";
 import { useCommitOnUnmount } from "@/hooks/useManageMedia";
@@ -114,10 +118,13 @@ export function BookDetails({
 			const response = await loadBookByKey(book.key);
 			if (!response) return null;
 			const mapped = mapBookAPIDatatoBook(response);
+			const run = runIndexOf(response.series, {
+				title: book.series?.title,
+			});
 			const meta: Partial<BookProps> = {
 				timeSpent: mapped.timeSpent,
 				rating: mapped.rating,
-				series: pickBookSeries(response.series),
+				series: pickBookSeries(response.series, run),
 			};
 			const covers = response.covers ?? [];
 			// start on the cover closest to the one already saved
@@ -129,7 +136,7 @@ export function BookDetails({
 						items: covers,
 						index: startIdx >= 0 ? startIdx : 0,
 					},
-					series: { items: response.series ?? [], index: 0 },
+					series: { items: response.series ?? [], index: run },
 				},
 				extra: [],
 			};
@@ -244,6 +251,7 @@ export function BookDetails({
 			const full = await loadBookByKey(candidate.key);
 			if (!full) return;
 			const mapped = mapBookAPIDatatoBook(full);
+			const run = runIndexOf(full.series, { title: book.series?.title });
 			reload.patch((p) => ({
 				...p,
 				meta: {
@@ -253,11 +261,11 @@ export function BookDetails({
 					datePublished: mapped.datePublished,
 					timeSpent: mapped.timeSpent,
 					rating: mapped.rating,
-					series: pickBookSeries(full.series),
+					series: pickBookSeries(full.series, run),
 				},
 				lists: {
 					covers: { items: full.covers ?? [], index: 0 },
-					series: { items: full.series ?? [], index: 0 },
+					series: { items: full.series ?? [], index: run },
 				},
 			}));
 		});
@@ -316,6 +324,8 @@ export function BookDetails({
 
 	const handleStatusChange = (value: string) => {
 		const newStatus = value as BookProps["status"];
+		// the current status again would restamp its finished date
+		if (newStatus === book.status) return;
 		const statusLoad: Partial<BookProps> = {
 			status: newStatus,
 		};
@@ -376,12 +386,12 @@ export function BookDetails({
 
 	const { isSubmitting, submit: handleAddBook } = useAddWait(addBook);
 
-	// need to reset local note
+	// a new item resets the note -- an add preview has no id, so its source id counts
 	useEffect(() => {
 		setLocalNote(book.note || "");
 		reload.cancel();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [book.id]);
+	}, [book.id, book.key]);
 
 	// landed from a jump -- preview the backfill
 	useEffect(() => {

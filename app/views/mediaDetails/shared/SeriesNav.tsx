@@ -9,6 +9,7 @@ import {
 import { GameProps } from "@/types/game";
 import {
 	dlcCount,
+	dlcNeighbours,
 	dlcPlace,
 	seriesNeighbours,
 	seriesPlace,
@@ -237,31 +238,30 @@ export function SeriesNav({
 		mediaType === "game"
 			? (() => {
 					const g = item as unknown as GameProps;
+					const dlc = dlcNeighbours(g);
 					return {
-						prev:
-							g.dlcs && g.dlcIndex - 1 >= 0
-								? {
-										label: "Previous",
-										name: g.dlcs[g.dlcIndex - 1].name,
-										action: {
-											type: "dlcNav",
-											payload: "prev",
-										},
-									}
-								: null,
+						prev: dlc.prev
+							? {
+									label: "Previous",
+									name: dlc.prev.name,
+									action: {
+										type: "dlcNav",
+										payload: "prev",
+									},
+								}
+							: null,
 						center: dlcPlace(g),
 						centerLabel: g.dlcIndex !== 0 ? "DLC" : dlcCount(g),
-						next:
-							g.dlcs && g.dlcIndex + 1 < g.dlcs.length
-								? {
-										label: "Next",
-										name: g.dlcs[g.dlcIndex + 1].name,
-										action: {
-											type: "dlcNav",
-											payload: "next",
-										},
-									}
-								: null,
+						next: dlc.next
+							? {
+									label: "Next",
+									name: dlc.next.name,
+									action: {
+										type: "dlcNav",
+										payload: "next",
+									},
+								}
+							: null,
 					};
 				})()
 			: (() => {

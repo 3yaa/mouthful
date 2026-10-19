@@ -14,6 +14,8 @@ import { TIER_PHI_THRESHOLD, getSeedMu, Tier } from "@/lib/tierConfig";
 import {
 	activeLogoIndex,
 	clearedFrom,
+	savedArtIndex,
+	savedLogoIndex,
 	stepLogoIndex,
 	stepArtworkIndex,
 } from "@/utils/artworkIndex";
@@ -46,6 +48,7 @@ import { seriesJump } from "@/utils/seriesRead";
 import { useCommitOnUnmount } from "@/hooks/useManageMedia";
 import { CardStack, useCardLayer } from "@/hooks/useCardStack";
 import { useSeriesJump } from "@/hooks/useSeriesJump";
+import { ownedMovieOf } from "@/utils/mediaMatch";
 // load actor modal dynamically
 const ActorItemsModal = dynamic(
 	() => import("../components/ActorModal").then((m) => m.ActorItemsModal),
@@ -182,9 +185,21 @@ export function MovieDetails({
 			const reloaded = await reloadMovie(movie.tmdbId);
 			if (!reloaded) return null;
 			// tmdbId is identity, left untouched
+			const posters = reloaded.posters ?? [];
+			const backdrops = reloaded.backdrops ?? [];
+			const logos = reloaded.logos ?? [];
+			const posterAt = savedArtIndex(posters, movie.cover?.url);
+			const backdropAt = savedArtIndex(backdrops, movie.backdropUrl);
 			const meta: Partial<MovieProps> = {
-				cover: await buildCover(reloaded.poster_url),
-				backdropUrl: reloaded.backdrop_url,
+				// the saved colour stays with the saved poster
+				cover:
+					posterAt !== -1 && movie.cover
+						? { ...movie.cover, url: posters[posterAt] }
+						: await buildCover(reloaded.poster_url),
+				backdropUrl:
+					backdropAt !== -1
+						? backdrops[backdropAt]
+						: reloaded.backdrop_url,
 			};
 			// added before imdb listed it
 			if (
@@ -201,9 +216,15 @@ export function MovieDetails({
 			return {
 				meta,
 				lists: {
-					logos: { items: reloaded.logos ?? [], index: 0 },
-					posters: { items: reloaded.posters ?? [], index: 0 },
-					backdrops: { items: reloaded.backdrops ?? [], index: 0 },
+					logos: {
+						items: logos,
+						index: savedLogoIndex(logos, movie.logoUrl),
+					},
+					posters: { items: posters, index: Math.max(posterAt, 0) },
+					backdrops: {
+						items: backdrops,
+						index: Math.max(backdropAt, 0),
+					},
 				},
 			};
 		},
@@ -243,7 +264,10 @@ export function MovieDetails({
 	//
 	// TITLE AND WHICH LIST
 	const [pendingWork, setPendingWork] = useState<
-		| (Pick<ActorWork, "title" | "media_type"> & { tmdbId?: string | null })
+		| (Pick<ActorWork, "title" | "media_type"> & {
+				tmdbId?: string | null;
+				anime?: boolean;
+		  })
 		| null
 	>(null);
 	const [selectedWorkItem, setSelectedWorkItem] = useState<
@@ -465,6 +489,15 @@ export function MovieDetails({
 	useEffect(() => {
 		if (!stagedPoster) return;
 		pickedColor.current = false;
+		// on the saved poster the saved colour stands -- it may have been picked by hand
+		const saved = movie.cover;
+		if (saved && savedArtIndex([stagedPoster], saved.url) === 0) {
+			patchMeta((prev) => ({
+				...prev,
+				cover: { ...saved, url: stagedPoster },
+			}));
+			return;
+		}
 		// the picker reads the poster on screen, not the one being left
 		const known = cachedCover(stagedPoster);
 		patchMeta((prev) =>
@@ -487,7 +520,7 @@ export function MovieDetails({
 		return () => {
 			alive = false;
 		};
-	}, [stagedPoster, patchMeta, track]);
+	}, [stagedPoster, movie.cover, patchMeta, track]);
 
 	// the picker only shows while adding or previewing a reload
 	const handlePickCoverColor = (color: string) => {
@@ -542,6 +575,8 @@ export function MovieDetails({
 
 	const handleStatusChange = (value: string) => {
 		const newStatus = value as "Completed" | "Want to Watch";
+		// the current status again would restamp its finished date
+		if (newStatus === movie.status) return;
 		const statusLoad: Partial<MovieProps> = {
 			status: newStatus,
 		};
@@ -729,12 +764,24 @@ export function MovieDetails({
 						setPendingWork({
 							title: found.showTitle ?? "",
 							media_type: "tv",
+							tmdbId: found.tmdbId,
+							anime: true,
 						})
 					}
 					onClose={() => setPendingWork(null)}
 					{...crossMedia}
 					onSeriesNav={workSeries.jump}
 					isInList={workSeries.isInList}
+					onDuplicate={(dup) => {
+						const owned = ownedMovieOf(existingMovies, dup);
+						if (!owned) return false;
+						setPendingWork(null);
+						openWork(
+							{ type: "movie", id: owned.id },
+							setSelectedWorkItem,
+						);
+						return true;
+					}}
 					onAddMovie={async (m) => {
 						const added = await onAddWork(m);
 						if (added)
@@ -785,7 +832,11 @@ export function MovieDetails({
 					onShowRefresh={onShowRefresh}
 					onMovieRefresh={onMovieRefresh}
 					isOpen={true}
-					targetFromAbove={{ title: pendingWork.title }}
+					targetFromAbove={{
+						title: pendingWork.title,
+						tmdbId: pendingWork.tmdbId,
+						anime: pendingWork.anime,
+					}}
 					onClose={() => setPendingWork(null)}
 					existingShows={existingShows}
 					onAddWork={onAddShow}

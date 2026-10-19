@@ -336,6 +336,8 @@ export function MangaDetails({
 
 	const handleStatusChange = (value: string) => {
 		const newStatus = value as MangaProps["status"];
+		// the current status again would restamp its finished date
+		if (newStatus === manga.status) return;
 		const statusLoad: Partial<MangaProps> = {
 			status: newStatus,
 		};
@@ -441,13 +443,13 @@ export function MangaDetails({
 
 	const { isSubmitting, submit: handleAddManga } = useAddWait(addManga);
 
-	// need to reset local note
+	// a new item resets the note -- an add preview has no id, so its source id counts
 	useEffect(() => {
 		setLocalNote(manga.note || "");
 		setIsEditingChapter(false);
 		reload.cancel();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [manga.id]);
+	}, [manga.id, manga.anilistId]);
 
 	useEffect(() => {
 		setChapterInput(manga.curChapter ?? 0);

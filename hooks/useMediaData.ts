@@ -13,7 +13,7 @@ import {
 	settleOp,
 	subscribeList,
 } from "./mediaStore";
-import { reportFailure } from "./saveFailures";
+import { reportFailure, supersedeFailures } from "./saveFailures";
 
 const STALE_AFTER = 120_000;
 const NO_ROWS: never[] = [];
@@ -27,6 +27,11 @@ type Soon = {
 	send: (updates: Record<string, unknown>, staged: number) => void;
 };
 const soon = new Map<string, Soon>();
+const pickFields = <U extends object>(from: U, fields: string[]) =>
+	Object.fromEntries(
+		Object.entries(from).filter(([field]) => fields.includes(field)),
+	) as Partial<U>;
+
 const sendSoon = (key: string) => {
 	const batch = soon.get(key);
 	if (!batch) return;
@@ -45,7 +50,12 @@ const watchSoon = () => {
 	if (watchingSoon || typeof window === "undefined") return;
 	watchingSoon = true;
 	const all = () => [...soon.keys()].forEach(sendSoon);
-	window.addEventListener("pagehide", all);
+	// a field still being typed in commits first, so it leaves with the rest
+	window.addEventListener("pagehide", () => {
+		if (document.activeElement instanceof HTMLElement)
+			document.activeElement.blur();
+		all();
+	});
 	document.addEventListener("visibilitychange", () => {
 		if (document.visibilityState === "hidden") all();
 	});
@@ -176,6 +186,7 @@ export function useMediaData<
 			whileDoing,
 			keepalive = false,
 			staged,
+			retryAs,
 		}: {
 			itemId: number;
 			// the row as it looks now
@@ -191,6 +202,11 @@ export function useMediaData<
 			// small bodies only (64KB cap)
 			keepalive?: boolean;
 			staged?: number;
+			// a row save -- Retry resends only the fields nothing newer has saved
+			retryAs?: {
+				fields: string[];
+				resend: (fields: string[]) => void;
+			};
 		}): Promise<T | undefined> {
 			const ordered = (rows: T[]) =>
 				resort
@@ -239,6 +255,7 @@ export function useMediaData<
 						? onRow((item) => reconcile(saved, item))
 						: undefined,
 				);
+				if (retryAs) supersedeFailures(key, retryAs.fields);
 				return saved;
 			} catch (e) {
 				console.error(`${whileDoing} ${endpoint}`, e);
@@ -246,6 +263,15 @@ export function useMediaData<
 				dropOp(endpoint, op);
 				// nothing to offer
 				if (generation !== listsGeneration()) return;
+				if (retryAs) {
+					reportFailure(
+						labelOf(itemId),
+						() => retryAs.resend(retryAs.fields),
+						"save",
+						{ key, ...retryAs },
+					);
+					return;
+				}
 				reportFailure(labelOf(itemId), () => {
 					write({
 						itemId,
@@ -306,6 +332,15 @@ export function useMediaData<
 				// a card's edits are often sent as the page goes away
 				keepalive: true,
 				staged,
+				retryAs: {
+					fields: Object.keys(updates),
+					resend: (fields) =>
+						update(
+							itemId,
+							pickFields(updates, fields),
+							indirectUpdate,
+						),
+				},
 			});
 		},
 		// eslint-disable-next-line react-hooks/exhaustive-deps
@@ -344,6 +379,9 @@ export function useMediaData<
 		(staged: number) => dropOp(endpoint, staged),
 		[endpoint],
 	);
+
+	// registering on the first edit could land inside the pagehide itself
+	useEffect(() => watchSoon(), []);
 
 	// an edit from a card no hub queues for -- shown now, sent once the presses stop
 	const updateSoon = useCallback(
@@ -437,6 +475,11 @@ export function useMediaData<
 					: metadata,
 				reconcile: (saved) => saved,
 				whileDoing: "Error refreshing",
+				retryAs: {
+					fields: Object.keys(metadata),
+					resend: (fields) =>
+						refresh(itemId, pickFields(metadata, fields), indirect),
+				},
 			}),
 		[endpoint, optimisticWrite],
 	);

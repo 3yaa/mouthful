@@ -7,6 +7,7 @@ import {
 	BaseMediaProps,
 	ColumnConfig,
 	MediaCoverProps,
+	NOTE_MAX,
 	SeriesMediaProps,
 	SeriesTargetProps,
 	isPrintMedia,
@@ -1431,6 +1432,7 @@ export function DesktopDetails<T extends BaseMediaProps>({
 												className={`${FIELD_PLATE} focus-within:neu-pressed px-3 pt-2.75 pb-0.75  max-h-15 overflow-auto transition-all duration-200`}
 											>
 												<AutoTextarea
+													maxLength={NOTE_MAX}
 													value={localNote}
 													onChange={(e) => {
 														onAction({

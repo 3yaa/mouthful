@@ -1,5 +1,6 @@
 import { Score } from "@/lib/tierConfig";
 
+export const NOTE_MAX = 1000;
 export type MediaStatus =
 	| "Completed"
 	| "Want to Read"

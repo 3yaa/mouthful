@@ -5,7 +5,8 @@ import {
 	SeriesProps,
 	SeriesTargetProps,
 } from "@/types/media";
-import { GameProps } from "@/types/game";
+import { GameProps, IGDBInitProps } from "@/types/game";
+import { normName } from "@/utils/mediaMatch";
 
 export const seriesTitleOf = (row: SeriesMediaProps): string | null =>
 	row.series?.title ?? null;
@@ -35,6 +36,21 @@ export function dlcPlace(
 	if (game.dlcIndex !== 0) return String(game.dlcIndex);
 	// dlcs lists the base game first
 	return (game.dlcs?.length ?? 0) > 1 ? "Base Game" : null;
+}
+
+// a reload can reorder or drop entries, leaving dlcIndex stale
+export function dlcNeighbours(game: Pick<GameProps, "igdbId" | "dlcs">): {
+	at: number;
+	prev: IGDBInitProps | null;
+	next: IGDBInitProps | null;
+} {
+	const dlcs = game.dlcs ?? [];
+	const at = dlcs.findIndex((dlc) => dlc.id === game.igdbId);
+	return {
+		at,
+		prev: at > 0 ? dlcs[at - 1] : null,
+		next: at !== -1 && at + 1 < dlcs.length ? dlcs[at + 1] : null,
+	};
 }
 
 export function dlcCount(game: Pick<GameProps, "dlcs">): string {
@@ -80,6 +96,13 @@ export function backfillRuns(
 ): SeriesProps[] {
 	const facing = hop.dir === "prequel" ? own?.sequel : own?.prequel;
 	if (!hop.from.id || facing) return [];
+	// a link from this one would cross the two
+	if (
+		own?.title &&
+		hop.run.title &&
+		normName(own.title) !== normName(hop.run.title)
+	)
+		return [];
 	const run: SeriesProps = {
 		title: own?.title ?? hop.run.title,
 		position: own?.position ?? null,

@@ -1,6 +1,7 @@
 "use client";
 import { DIFF_COLUMNS_GAME, GameProps } from "@/types/game";
 import { useEffect, useState } from "react";
+import { dlcNeighbours } from "@/utils/seriesRead";
 import { gameStatusOptions } from "@/utils/dropDownDetails";
 import { DesktopDetails } from "@/app/views/mediaDetails/DesktopDetails";
 import { MobileDetails } from "@/app/views/mediaDetails/MobileDetails";
@@ -8,6 +9,8 @@ import { TIER_PHI_THRESHOLD, getSeedMu, Tier } from "@/lib/tierConfig";
 import {
 	activeLogoIndex,
 	clearedFrom,
+	savedArtIndex,
+	savedLogoIndex,
 	stepLogoIndex,
 } from "@/utils/artworkIndex";
 import { useScoreNudge } from "@/hooks/useScoreNudge";
@@ -84,6 +87,11 @@ export function GameDetails({
 }: GameDetailsProps) {
 	const [localNote, setLocalNote] = useState(game.note || "");
 	const { reloadGame } = useGameSearch();
+	// the same cover keeps its saved colour -- it may have been picked by hand
+	const coverOf = async (url?: string) =>
+		url && game.cover && savedArtIndex([url], game.cover.url) === 0
+			? { ...game.cover, url }
+			: buildCover(url);
 	const reload = useReloadPreview<GameProps, GameArt>({
 		onRefresh,
 		canLoad: !!game.igdbId,
@@ -95,7 +103,7 @@ export function GameDetails({
 			const meta: Partial<GameProps> = {};
 			if (game.dlcIndex === 0) {
 				const mapped = mapIGDBDataToGame(data);
-				meta.cover = await buildCover(mapped.cover?.url);
+				meta.cover = await coverOf(mapped.cover?.url);
 				meta.dlcs = mapped.dlcs;
 				meta.timeToBeat = mapped.timeToBeat;
 			} else {
@@ -103,7 +111,7 @@ export function GameDetails({
 					data,
 					game.mainTitle || "",
 				);
-				meta.cover = await buildCover(mapped.cover?.url);
+				meta.cover = await coverOf(mapped.cover?.url);
 				meta.timeToBeat = mapped.timeToBeat;
 				// reorder dlc based on reload
 				const mainIgdbId = game.dlcs?.[0]?.id;
@@ -122,11 +130,21 @@ export function GameDetails({
 			const backdrops =
 				data.screenshot_urls?.map((ss) => ss.ss_url).filter(Boolean) ??
 				[];
+			const logos = data.logos ?? [];
 			return {
 				meta,
 				lists: {
-					logos: { items: data.logos ?? [], index: 0 },
-					backdrops: { items: backdrops, index: 0 },
+					logos: {
+						items: logos,
+						index: savedLogoIndex(logos, game.logoUrl),
+					},
+					backdrops: {
+						items: backdrops,
+						index: Math.max(
+							savedArtIndex(backdrops, game.backdropUrl),
+							0,
+						),
+					},
 				},
 			};
 		},
@@ -277,6 +295,8 @@ export function GameDetails({
 
 	const handleStatusChange = (value: string) => {
 		const newStatus = value as "Playing" | "Completed";
+		// the current status again would restamp its finished date
+		if (newStatus === game.status) return;
 		const statusLoad: Partial<GameProps> = {
 			status: newStatus,
 		};
@@ -291,11 +311,10 @@ export function GameDetails({
 	const handleDlcOpen = (dir: string) => {
 		// a preview steps along the list it shows
 		const row = isSelecting ? { ...game, ...reload.meta } : game;
-		if (!showDlc || !row.dlcs) return;
-		const dlcIndex = dir === "next" ? row.dlcIndex + 1 : row.dlcIndex - 1;
-		const targetIgdbId = row.dlcs[dlcIndex]?.id;
-		if (!targetIgdbId) return;
-		showDlc(targetIgdbId, dlcIndex, row);
+		const { at, prev, next } = dlcNeighbours(row);
+		const target = dir === "next" ? next : prev;
+		if (!showDlc || !target?.id) return;
+		showDlc(target.id, dir === "next" ? at + 1 : at - 1, row);
 	};
 
 	const handleSaveNote = () => {
@@ -348,12 +367,12 @@ export function GameDetails({
 		updateBackdropIndex(newCoverIndex);
 	};
 
-	// need to reset local note
+	// a new item resets the note -- an add preview has no id, so its source id counts
 	useEffect(() => {
 		setLocalNote(game.note || "");
 		reload.cancel();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [game.id]);
+	}, [game.id, game.igdbId]);
 
 	useEffect(() => {
 		const handleLeave = (e: KeyboardEvent) => {

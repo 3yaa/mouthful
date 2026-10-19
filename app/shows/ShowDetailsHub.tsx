@@ -16,6 +16,8 @@ import { TIER_PHI_THRESHOLD, getSeedMu, Score, Tier } from "@/lib/tierConfig";
 import {
 	activeLogoIndex,
 	clearedFrom,
+	savedArtIndex,
+	savedLogoIndex,
 	stepLogoIndex,
 	stepArtworkIndex,
 } from "@/utils/artworkIndex";
@@ -71,7 +73,7 @@ import { MangaDetails } from "@/app/manga/MangaDetailsHub";
 import { MediaStatus, SeriesJumpProps } from "@/types/media";
 import { useShowSearch } from "@/hooks/external/useShowSearch";
 import { mapShowMeta } from "./utils/showMapping";
-import { isSameName, normName } from "@/utils/mediaMatch";
+import { isSameName, normName, ownedMovieOf } from "@/utils/mediaMatch";
 import type { StudioWork } from "./utils/studioCatalog";
 import { useCommitOnUnmount } from "@/hooks/useManageMedia";
 import { CardStack, useCardLayer } from "@/hooks/useCardStack";
@@ -291,12 +293,25 @@ export function ShowDetails({
 				};
 				Object.assign(meta, cursorOnRebuilt(show, nextShow));
 			}
+			const posters = tv.posters ?? [];
+			const backdrops = tv.backdrops ?? [];
+			const logos = tv.logos ?? [];
+			const posterAt = savedArtIndex(posters, show.posterUrl);
+			const backdropAt = savedArtIndex(backdrops, show.backdropUrl);
+			if (posterAt !== -1) meta.posterUrl = posters[posterAt];
+			if (backdropAt !== -1) meta.backdropUrl = backdrops[backdropAt];
 			return {
 				meta,
 				lists: {
-					logos: { items: tv.logos ?? [], index: 0 },
-					posters: { items: tv.posters ?? [], index: 0 },
-					backdrops: { items: tv.backdrops ?? [], index: 0 },
+					logos: {
+						items: logos,
+						index: savedLogoIndex(logos, show.logoUrl),
+					},
+					posters: { items: posters, index: Math.max(posterAt, 0) },
+					backdrops: {
+						items: backdrops,
+						index: Math.max(backdropAt, 0),
+					},
 				},
 				extra: new Map(),
 			};
@@ -459,6 +474,7 @@ export function ShowDetails({
 		media_type: ActorWork["media_type"] | "manga";
 		id?: string | null;
 		handsOff?: boolean;
+		anime?: boolean;
 	} | null>(null);
 	const [selectedWorkItem, setSelectedWorkItem] = useState<{
 		type: "movie" | "tv" | "manga";
@@ -617,7 +633,8 @@ export function ShowDetails({
 				break;
 			case "changeSeasonNum":
 				marks.exitFranchise();
-				cursor.moveTo(action.payload);
+				// the phone picker lands a new season on its first episode
+				cursor.moveTo(action.payload, 1);
 				break;
 			case "cast":
 				handleCast();
@@ -971,6 +988,8 @@ export function ShowDetails({
 
 	const handleStatusChange = (value: string) => {
 		const newStatus = value as ShowProps["status"];
+		// the current status again would restamp its finished date
+		if (newStatus === row.status) return;
 		const updatesViaStatus: Partial<ShowProps> = {
 			status: newStatus,
 		};
@@ -1483,7 +1502,11 @@ export function ShowDetails({
 					onMovieRefresh={onMovieRefresh}
 					onMangaRefresh={onMangaRefresh}
 					isOpen={true}
-					targetFromAbove={{ title: pendingWork.title }}
+					targetFromAbove={{
+						title: pendingWork.title,
+						tmdbId: pendingWork.id,
+						anime: pendingWork.anime,
+					}}
 					onClose={() => setPendingWork(null)}
 					existingShows={existingShows}
 					onAddWork={onAddWork}
@@ -1562,6 +1585,8 @@ export function ShowDetails({
 						setPendingWork({
 							title: found.showTitle ?? "",
 							media_type: "tv",
+							id: found.tmdbId,
+							anime: true,
 						})
 					}
 					existingShows={existingShows}
@@ -1576,18 +1601,7 @@ export function ShowDetails({
 					}}
 					existingMovies={existingMovies}
 					onDuplicate={(dup) => {
-						const owned =
-							(dup.tmdbId
-								? existingMovies.find(
-										(m) => m.tmdbId === dup.tmdbId,
-									)
-								: undefined) ??
-							(dup.imdbId
-								? existingMovies.find(
-										(m) => m.imdbId === dup.imdbId,
-									)
-								: undefined) ??
-							findOwnedMovie(dup.title);
+						const owned = ownedMovieOf(existingMovies, dup);
 						if (!owned) return false;
 						setPendingWork(null);
 						openWork(
