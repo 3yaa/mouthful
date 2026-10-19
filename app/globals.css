@@ -126,7 +126,36 @@ input[type="number"] {
 	}
 }
 
-/* discover placeholders while a page loads -- each box carries its own sweep */
+@property --fade-top {
+	syntax: "<length>";
+	inherits: false;
+	initial-value: 0px;
+}
+@property --fade-bottom {
+	syntax: "<length>";
+	inherits: false;
+	initial-value: 0px;
+}
+.fade-scroll {
+	mask-image: linear-gradient(
+		to bottom,
+		transparent 0,
+		black var(--fade-top),
+		black calc(100% - var(--fade-bottom)),
+		transparent 100%
+	);
+	transition:
+		--fade-top 0.25s ease-out,
+		--fade-bottom 0.25s ease-out;
+}
+.fade-scroll[data-above] {
+	--fade-top: 3rem;
+}
+.fade-scroll[data-below] {
+	--fade-bottom: 3rem;
+}
+
+/* discover placeholders */
 @keyframes discover-shimmer {
 	from {
 		translate: -100% 0;

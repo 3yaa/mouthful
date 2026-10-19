@@ -1,5 +1,5 @@
 "use client";
-import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
 	ChevronLeft,
 	ChevronRight,
@@ -186,18 +186,62 @@ export function DiscoverFrame({
 						aria-label="Left out"
 						className="absolute left-full top-0 hidden h-full w-44 min-[120rem]:block"
 					>
-						<div className="sticky top-30 mt-14 max-h-[calc(100vh-8.5rem)] overflow-y-auto pb-8 mask-[linear-gradient(to_bottom,black_calc(100%-2rem),transparent)]">
+						<FadeScroll className="sticky top-30 mt-14 max-h-[calc(100vh-15rem)]">
 							{loading ? (
 								<DroppedListSkeleton layout="rail" />
 							) : (
 								<DroppedList groups={dropped} layout="rail" />
 							)}
-						</div>
+						</FadeScroll>
 					</aside>
 				)}
 			</div>
 
 			{overlays}
+		</div>
+	);
+}
+
+function FadeScroll({
+	className,
+	children,
+}: {
+	className: string;
+	children: ReactNode;
+}) {
+	const scroller = useRef<HTMLDivElement>(null);
+	const content = useRef<HTMLDivElement>(null);
+	const [edges, setEdges] = useState({ above: false, below: false });
+	useEffect(() => {
+		const el = scroller.current;
+		if (!el) return;
+		const update = () => {
+			const above = el.scrollTop > 1;
+			const below = el.scrollTop + el.clientHeight < el.scrollHeight - 1;
+			setEdges((was) =>
+				was.above === above && was.below === below
+					? was
+					: { above, below },
+			);
+		};
+		update();
+		el.addEventListener("scroll", update, { passive: true });
+		const observer = new ResizeObserver(update);
+		observer.observe(el);
+		if (content.current) observer.observe(content.current);
+		return () => {
+			el.removeEventListener("scroll", update);
+			observer.disconnect();
+		};
+	}, []);
+	return (
+		<div
+			ref={scroller}
+			data-above={edges.above || undefined}
+			data-below={edges.below || undefined}
+			className={`fade-scroll overflow-y-auto ${className}`}
+		>
+			<div ref={content}>{children}</div>
 		</div>
 	);
 }
@@ -258,7 +302,6 @@ const SORTS: {
 const SORT_LABEL =
 	"pl-1.5 text-[0.6875rem] uppercase tracking-[0.12em] font-semibold whitespace-nowrap";
 
-// the picked side shows its word
 function SortToggle({
 	value,
 	onChange,
@@ -267,17 +310,6 @@ function SortToggle({
 	onChange: (sort: DiscoverSort) => void;
 }) {
 	const reduced = useReducedMotion();
-	const sizers = useRef<(HTMLSpanElement | null)[]>([]);
-	const [slot, setSlot] = useState<number | null>(null);
-	useLayoutEffect(() => {
-		const measure = () =>
-			setSlot(
-				Math.max(...sizers.current.map((s) => s?.offsetWidth ?? 0)) ||
-					null,
-			);
-		measure();
-		document.fonts?.ready.then(measure);
-	}, []);
 	return (
 		// glides along as the sub-tabs beside it come and go
 		<motion.div
@@ -287,21 +319,9 @@ function SortToggle({
 			}
 			role="group"
 			aria-label="Order"
-			className="relative flex items-center gap-1 p-1 rounded-lg bg-linear-to-br from-zinc-900/80 to-zinc-950/90 border border-zinc-800/60 shadow-md shadow-black/30"
+			className="flex items-center gap-1 p-1 rounded-lg bg-linear-to-br from-zinc-900/80 to-zinc-950/90 border border-zinc-800/60 shadow-md shadow-black/30"
 		>
-			{SORTS.map(({ code, short }, i) => (
-				<span
-					key={code}
-					ref={(el) => {
-						sizers.current[i] = el;
-					}}
-					aria-hidden
-					className={`${SORT_LABEL} invisible absolute`}
-				>
-					{short}
-				</span>
-			))}
-			{SORTS.map(({ code, label, short, icon: Icon, tint }) => {
+			{SORTS.map(({ code, label, icon: Icon, tint }) => {
 				const on = value === code;
 				return (
 					<button
@@ -321,33 +341,31 @@ function SortToggle({
 								strokeWidth={1.75}
 							/>
 						</span>
-						<AnimatePresence initial={false}>
-							{on && (
-								<motion.span
-									className="overflow-hidden max-[23.75rem]:hidden"
-									initial={{ width: 0, opacity: 0 }}
-									animate={{
-										width: slot ?? "auto",
-										opacity: 1,
-									}}
-									exit={{ width: 0, opacity: 0 }}
-									transition={
-										reduced
-											? { duration: 0 }
-											: {
-													duration: 0.22,
-													ease: "easeOut",
-												}
-									}
-								>
-									<span
-										className={`${SORT_LABEL} block text-center`}
-									>
-										{short}
-									</span>
-								</motion.span>
-							)}
-						</AnimatePresence>
+						<span
+							aria-hidden
+							className={`grid transition-[grid-template-columns,opacity] duration-200 ease-out motion-reduce:transition-none max-[23.75rem]:hidden ${
+								on
+									? "grid-cols-[1fr] opacity-100"
+									: "grid-cols-[0fr] opacity-0"
+							}`}
+						>
+							<span className="min-w-0 overflow-hidden">
+								<span className="grid">
+									{SORTS.map((word) => (
+										<span
+											key={word.code}
+											className={`${SORT_LABEL} col-start-1 row-start-1 text-center ${
+												word.code === code
+													? ""
+													: "invisible"
+											}`}
+										>
+											{word.short}
+										</span>
+									))}
+								</span>
+							</span>
+						</span>
 					</button>
 				);
 			})}
