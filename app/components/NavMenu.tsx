@@ -177,6 +177,7 @@ export function NavMenu() {
 			<div
 				ref={menuRef}
 				className={`flex fixed bottom-2 left-2 lg:bottom-8 lg:left-8 z-40 flex-col items-start
+        max-lg:[body:has([data-mobile-details])_&]:hidden
         lg:translate-y-0 transition-transform duration-300 ease-in-out
         ${isButtonsVisible ? "translate-y-0" : "translate-y-24"}`}
 				onClick={() => setIsNavOpen(!isNavOpen)}

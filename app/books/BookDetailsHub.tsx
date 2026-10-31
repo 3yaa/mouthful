@@ -9,7 +9,10 @@ import {
 import { seriesJump } from "@/utils/seriesRead";
 import { useEffect, useState } from "react";
 import { DesktopDetails } from "@/app/views/mediaDetails/DesktopDetails";
-import { bookStatusOptions } from "@/utils/dropDownDetails";
+import {
+	bookStatusOptions,
+	bookMobileStatusOptions,
+} from "@/utils/dropDownDetails";
 import { MobileDetails } from "@/app/views/mediaDetails/MobileDetails";
 import { TIER_PHI_THRESHOLD, getSeedMu, Tier } from "@/lib/tierConfig";
 import { useScoreNudge } from "@/hooks/useScoreNudge";
@@ -481,7 +484,7 @@ export function BookDetails({
 				<MobileDetails
 					item={previewBook}
 					localNote={localNote}
-					statusOptions={bookStatusOptions}
+					statusOptions={bookMobileStatusOptions}
 					mediaType="book"
 					isLoading={displayLoading}
 					isAdding={!!addBook}

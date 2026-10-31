@@ -13,7 +13,10 @@ import {
 import { seriesJump } from "@/utils/seriesRead";
 import { useEffect, useState } from "react";
 import { DesktopDetails } from "@/app/views/mediaDetails/DesktopDetails";
-import { mangaStatusOptions } from "@/utils/dropDownDetails";
+import {
+	mangaStatusOptions,
+	mangaMobileStatusOptions,
+} from "@/utils/dropDownDetails";
 import { MobileDetails } from "@/app/views/mediaDetails/MobileDetails";
 import { TIER_PHI_THRESHOLD, getSeedMu, Tier } from "@/lib/tierConfig";
 import { useScoreNudge } from "@/hooks/useScoreNudge";
@@ -525,7 +528,7 @@ export function MangaDetails({
 				<MobileDetails
 					item={previewManga}
 					localNote={localNote}
-					statusOptions={mangaStatusOptions}
+					statusOptions={mangaMobileStatusOptions}
 					mediaType="manga"
 					isLoading={displayLoading}
 					isAdding={!!addManga}

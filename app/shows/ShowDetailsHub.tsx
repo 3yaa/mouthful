@@ -10,7 +10,10 @@ import React, {
 	useState,
 } from "react";
 import { DesktopDetails } from "@/app/views/mediaDetails/DesktopDetails";
-import { showStatusOptions } from "@/utils/dropDownDetails";
+import {
+	showStatusOptions,
+	showMobileStatusOptions,
+} from "@/utils/dropDownDetails";
 import { MobileDetails } from "@/app/views/mediaDetails/MobileDetails";
 import { TIER_PHI_THRESHOLD, getSeedMu, Score, Tier } from "@/lib/tierConfig";
 import {
@@ -1385,7 +1388,7 @@ export function ShowDetails({
 						localNote={localNote}
 						noteSubject={marks.noteSubject}
 						franchiseView={marks.franchiseView}
-						statusOptions={showStatusOptions}
+						statusOptions={showMobileStatusOptions}
 						isInList={(target) => !!resolveMovie(target)}
 						isBrowsing={isBrowsing}
 						mediaType="show"

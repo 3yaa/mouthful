@@ -725,6 +725,7 @@ export function MobileDetails<T extends BaseMediaProps>({
 		<>
 			<div
 				ref={modalRef}
+				data-mobile-details
 				className={`fixed inset-0 z-20 bg-zinc-950 flex flex-col transition-opacity duration-300 ease-out will-change-transform ${
 					isScorePickerOpen || isProgressPickerOpen
 						? "overflow-hidden"

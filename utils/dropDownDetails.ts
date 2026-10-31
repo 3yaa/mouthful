@@ -80,6 +80,28 @@ export const gameStatusOptions = createStatusOptions([
 	"Dropped",
 ]);
 
+export const showMobileStatusOptions = createStatusOptions([
+	"Watching",
+	"Want to Watch",
+	"Dropped",
+	"Completed",
+	"On Hold",
+]);
+
+export const bookMobileStatusOptions = createStatusOptions([
+	"Reading",
+	"Want to Read",
+	"Dropped",
+	"Completed",
+]);
+
+export const mangaMobileStatusOptions = createStatusOptions([
+	"Reading",
+	"Want to Read",
+	"Dropped",
+	"Completed",
+]);
+
 // TIERS
 export const tierOptions = [
 	{ label: "Select Tier", value: "-" },
