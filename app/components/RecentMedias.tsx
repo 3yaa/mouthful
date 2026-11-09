@@ -243,7 +243,7 @@ export function RecentItems({
 							<Poster item={item} />
 							{/* title | score */}
 							<div className="flex min-w-0 flex-1 flex-col justify-center">
-								<div className="flex items-center justify-between">
+								<div className="flex items-center justify-between gap-2">
 									<p
 										className="min-w-0 truncate text-sm leading-snug font-semibold text-zinc-300 transition-colors duration-200 ease-out group-hover/card:text-zinc-100 sm:text-base"
 										title={item.title}

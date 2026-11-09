@@ -71,6 +71,7 @@ export const mangaStatusOptions = createStatusOptions([
 	"Reading",
 	"Want to Read",
 	"Completed",
+	"On Hold",
 	"Dropped",
 ]);
 
@@ -100,6 +101,7 @@ export const mangaMobileStatusOptions = createStatusOptions([
 	"Want to Read",
 	"Dropped",
 	"Completed",
+	"On Hold",
 ]);
 
 // TIERS

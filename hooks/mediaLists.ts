@@ -64,7 +64,8 @@ export const MANGA_LIST: MediaDataConfig<MangaProps> = {
 		Reading: 0,
 		"Want to Read": 1,
 		Completed: 2,
-		Dropped: 3,
+		"On Hold": 3,
+		Dropped: 4,
 	},
 	extraFieldsToUpdate: ["series", "curChapter"],
 };

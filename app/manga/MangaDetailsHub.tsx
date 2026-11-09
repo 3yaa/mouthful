@@ -47,7 +47,7 @@ export type MangaAction =
 	| { type: "delete" }
 	| {
 			type: "changeStatus";
-			payload: "Reading" | "Want to Read" | "Completed" | "Dropped";
+			payload: MangaProps["status"];
 	  }
 	| { type: "resetScore" }
 	| { type: "nudgeScore"; payload: "up" | "down" }

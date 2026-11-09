@@ -29,6 +29,8 @@ import { GameProps } from "@/types/game";
 import { BookProps } from "@/types/book";
 import { MangaProps } from "@/types/manga";
 import { chapterProgress } from "@/app/manga/utils/chapterProgress";
+import { ShowProgressCount } from "@/app/shows/components/showProgressListing";
+import { MangaProgressCount } from "@/app/manga/components/mangaProgressListing";
 import { MovieProps } from "@/types/movie";
 import { Leaf } from "lucide-react";
 import { getDisplayScore } from "@/lib/tierConfig";
@@ -128,6 +130,24 @@ export const MobileItem = React.memo(function MobileItem<
 			</span>
 		) : null;
 
+	// WHERE YOU ARE
+	const progressCount =
+		mediaType === "show" ? (
+			<ShowProgressCount show={show} />
+		) : mediaType === "manga" && item.status !== "Want to Read" ? (
+			<MangaProgressCount manga={item as unknown as MangaProps} />
+		) : null;
+
+	const scoreBadge = (
+		<span
+			className={`absolute right-0 bottom-full px-2.5 py-1 rounded-lg neu-carved text-zinc-300/85 text-sm font-semibold tracking-wide tabular-nums ${
+				progressCount ? "" : "mb-1"
+			}`}
+		>
+			{item.score?.mu ? getDisplayScore(item.score.mu) : "-"}
+		</span>
+	);
+
 	return (
 		<div
 			className={`relative mx-auto flex bg-zinc-950 backdrop-blur-2xl shadow-sm rounded-md border-b border-b-zinc-700/20 ${
@@ -185,8 +205,12 @@ export const MobileItem = React.memo(function MobileItem<
 					<span className="block pr-14 text-zinc-200 font-semibold text-base leading-tight truncate">
 						{item.title || "-"}
 					</span>
-					{/* AUTHOR · RELEASED · COMPLETED/RATING */}
-					<div className="flex items-center gap-x-1.5 pr-14 text-[0.7rem] text-zinc-500 font-semibold min-w-0">
+					{/* AUTHOR · RELEASED · COMPLETED/RATING | PROGRESS */}
+					<div
+						className={`relative flex items-center gap-x-1.5 text-[0.7rem] text-zinc-500 font-semibold min-w-0 ${
+							progressCount ? "" : "pr-14"
+						}`}
+					>
 						{credits.length > 0 && (
 							<>
 								<CreditNames
@@ -207,15 +231,16 @@ export const MobileItem = React.memo(function MobileItem<
 							{differentColumns[1].getValue(item) || "-"}
 						</span>
 						{trailingMeta}
+						{progressCount && (
+							<span className="ml-auto flex shrink-0 pl-1.5">
+								{progressCount}
+							</span>
+						)}
+						{progressCount && scoreBadge}
 					</div>
-					{/* STATUS BAR -- the score sits on its right end */}
+					{/* STATUS BAR */}
 					<div className="relative mt-2">
-						{/* SCORE */}
-						<span className="absolute right-0 bottom-full mb-1 px-2.5 py-1 rounded-lg neu-carved text-zinc-300/85 text-sm font-semibold tracking-wide tabular-nums">
-							{item.score?.mu
-								? getDisplayScore(item.score.mu)
-								: "-"}
-						</span>
+						{!progressCount && scoreBadge}
 						{mediaType === "show" || mediaType === "manga" ? (
 							// shows and manga fill to their progress
 							<div className="w-full bg-zinc-800/80 h-1 rounded-md overflow-hidden">

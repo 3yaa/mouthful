@@ -32,6 +32,15 @@ const COLUMNS = [["movies"], ["shows"], ["books"], ["games", "manga"]].map(
 		keys.map((key) => sections.find((section) => section.key === key)!),
 );
 
+// one column on a phone, stacked in its own order
+const PHONE_ORDER: Record<string, string> = {
+	shows: "max-sm:order-1",
+	manga: "max-sm:order-2",
+	books: "max-sm:order-3",
+	games: "max-sm:order-4",
+	movies: "max-sm:order-5",
+};
+
 // a phone opens one library's recent
 const PHONE_ROWS = 3;
 const FOLD_MS = 300;
@@ -126,7 +135,7 @@ function Fold({
 			style={{ transitionDuration: `${duration}ms` }}
 		>
 			<div
-				className={`min-h-0 ${open && settled ? "" : "overflow-hidden"}`}
+				className={`min-h-0 min-w-0 ${open && settled ? "" : "overflow-hidden"}`}
 			>
 				{children}
 			</div>
@@ -245,7 +254,7 @@ export default function LandingPage() {
 			<section
 				key={section.name}
 				aria-label={section.name}
-				className="flex flex-col gap-4 rounded-2xl bg-[#121212] p-4 shadow-island sm:p-5"
+				className={`flex flex-col gap-4 rounded-2xl bg-[#121212] p-4 shadow-island sm:p-5 ${PHONE_ORDER[section.key]}`}
 			>
 				{/* ── button ── */}
 				{libraryButton(section)}
@@ -351,7 +360,7 @@ export default function LandingPage() {
 								key={column
 									.map((section) => section.key)
 									.join("+")}
-								className="flex flex-col gap-5 sm:gap-6"
+								className="flex flex-col gap-5 max-sm:contents sm:gap-6"
 							>
 								{renderLibrary(column[0], 3)}
 								{renderLibrary(column[1], 2)}

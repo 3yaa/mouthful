@@ -21,7 +21,7 @@ export const DIFF_COLUMNS_MANGA: [
 export type ChapterLength = "short" | "medium" | "long";
 
 export interface MangaProps extends BaseMediaProps, SeriesMediaProps {
-	status: "Reading" | "Want to Read" | "Completed" | "Dropped";
+	status: "Reading" | "Want to Read" | "Completed" | "On Hold" | "Dropped";
 	anilistId: number;
 	author: string;
 	datePublished: number;
