@@ -1429,9 +1429,10 @@ export function DesktopDetails<T extends BaseMediaProps>({
 												Notes
 											</label>
 											<div
-												className={`${FIELD_PLATE} focus-within:neu-pressed px-3 pt-2.75 pb-0.75  max-h-15 overflow-auto transition-all duration-200`}
+												className={`${FIELD_PLATE} focus-within:neu-pressed px-3 pt-2.75 pb-0.75 transition-all duration-200`}
 											>
 												<AutoTextarea
+													maxLines={2}
 													maxLength={NOTE_MAX}
 													value={localNote}
 													onChange={(e) => {

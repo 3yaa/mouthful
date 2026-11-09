@@ -1453,8 +1453,9 @@ export function MobileDetails<T extends BaseMediaProps>({
 							<label className="text-zinc-400 text-xs font-medium">
 								Notes
 							</label>
-							<div className="bg-zinc-800/40 rounded-lg pl-3 pr-1 pt-3 pb-2 focus-within:ring-1 focus-within:ring-zinc-700 transition-all duration-200 max-h-22 overflow-auto shadow-lg shadow-black/50">
+							<div className="bg-zinc-800/40 rounded-lg pl-3 pr-1 pt-3 pb-2 focus-within:ring-1 focus-within:ring-zinc-700 transition-all duration-200 shadow-lg shadow-black/50">
 								<MobileAutoTextarea
+									maxLines={3}
 									maxLength={NOTE_MAX}
 									value={localNote}
 									onChange={(e) =>
